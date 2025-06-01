@@ -1,0 +1,18 @@
+[package]
+name = "patisson-binance-sdk"
+version = "0.1.0"
+edition = "2024"
+authors = ["Yurii Musolov <yurii.musolov@gmail.com>"]
+description = "Unofficial Rust SDK for the Binance exchange API"
+keywords = ["binance", "sdk", "crypto", "trading", "cryptocurrency"]
+categories = ["api-bindings", "cryptography::cryptocurrencies"]
+documentation = "https://docs.rs/crate/patisson-binance-sdk"
+repository = "https://github.com/yurii-musolov/patisson-binance-sdk"
+license = "MIT"
+readme = "README.md"
+
+[lib]
+name = "binance"
+path = "src/lib.rs"
+
+[dependencies]
