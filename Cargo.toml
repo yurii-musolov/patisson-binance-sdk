@@ -9,6 +9,7 @@ categories = ["api-bindings", "cryptography::cryptocurrencies"]
 documentation = "https://docs.rs/crate/patisson-binance-sdk"
 repository = "https://github.com/yurii-musolov/patisson-binance-sdk"
 license = "MIT"
+license-file = "LICENSE"
 readme = "README.md"
 
 [lib]
@@ -16,3 +17,6 @@ name = "binance"
 path = "src/lib.rs"
 
 [dependencies]
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+serde_repr = "0.1.20"
