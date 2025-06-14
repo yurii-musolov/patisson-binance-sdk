@@ -2,6 +2,7 @@
 //!
 //! This will apply for both REST API and WebSocket API.
 
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 /// Symbol status.
@@ -12,65 +13,6 @@ pub enum SymbolStatus {
     EndOfDay,
     Halt,
     Break,
-}
-
-/// Account and Symbol Permissions.
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
-pub enum AccountAndSymbolPermissions {
-    #[serde(rename = "SPOT")]
-    Spot,
-    #[serde(rename = "MARGIN")]
-    Margin,
-    #[serde(rename = "LEVERAGED")]
-    Leveraged,
-    #[serde(rename = "TRD_GRP_002")]
-    TrdGrp002,
-    #[serde(rename = "TRD_GRP_003")]
-    TrdGrp003,
-    #[serde(rename = "TRD_GRP_004")]
-    TrdGrp004,
-    #[serde(rename = "TRD_GRP_005")]
-    TrdGrp005,
-    #[serde(rename = "TRD_GRP_006")]
-    TrdGrp006,
-    #[serde(rename = "TRD_GRP_007")]
-    TrdGrp007,
-    #[serde(rename = "TRD_GRP_008")]
-    TrdGrp008,
-    #[serde(rename = "TRD_GRP_009")]
-    TrdGrp009,
-    #[serde(rename = "TRD_GRP_010")]
-    TrdGrp010,
-    #[serde(rename = "TRD_GRP_011")]
-    TrdGrp011,
-    #[serde(rename = "TRD_GRP_012")]
-    TrdGrp012,
-    #[serde(rename = "TRD_GRP_013")]
-    TrdGrp013,
-    #[serde(rename = "TRD_GRP_014")]
-    TrdGrp014,
-    #[serde(rename = "TRD_GRP_015")]
-    TrdGrp015,
-    #[serde(rename = "TRD_GRP_016")]
-    TrdGrp016,
-    #[serde(rename = "TRD_GRP_017")]
-    TrdGrp017,
-    #[serde(rename = "TRD_GRP_018")]
-    TrdGrp018,
-    #[serde(rename = "TRD_GRP_019")]
-    TrdGrp019,
-    #[serde(rename = "TRD_GRP_020")]
-    TrdGrp020,
-    #[serde(rename = "TRD_GRP_021")]
-    TrdGrp021,
-    #[serde(rename = "TRD_GRP_022")]
-    TrdGrp022,
-    #[serde(rename = "TRD_GRP_023")]
-    TrdGrp023,
-    #[serde(rename = "TRD_GRP_024")]
-    TrdGrp024,
-    #[serde(rename = "TRD_GRP_025")]
-    TrdGrp025,
 }
 
 /// Order status.
@@ -140,7 +82,7 @@ pub enum AllocationType {
 /// Order types.
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum OrderTypes {
+pub enum OrderType {
     Limit,
     Market,
     StopLoss,
@@ -205,7 +147,67 @@ pub enum RateLimitInterval {
     Day,
 }
 
-/// STP Mode.
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub enum KlineInterval {
+    #[serde(rename = "1s")]
+    Second1,
+    #[serde(rename = "1m")]
+    Minute1,
+    #[serde(rename = "3m")]
+    Minute3,
+    #[serde(rename = "5m")]
+    Minute5,
+    #[serde(rename = "15m")]
+    Minute15,
+    #[serde(rename = "30m")]
+    Minute30,
+    #[serde(rename = "1h")]
+    Hour1,
+    #[serde(rename = "2h")]
+    Hour2,
+    #[serde(rename = "4h")]
+    Hour4,
+    #[serde(rename = "6h")]
+    Hour6,
+    #[serde(rename = "8h")]
+    Hour8,
+    #[serde(rename = "12h")]
+    Hour12,
+    #[serde(rename = "1d")]
+    Day1,
+    #[serde(rename = "3d")]
+    Day3,
+    #[serde(rename = "1w")]
+    Week1,
+    #[serde(rename = "1M")]
+    Month1,
+}
+
+impl std::fmt::Display for KlineInterval {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let value = match self {
+            Self::Second1 => "1s",
+            Self::Minute1 => "1m",
+            Self::Minute3 => "3m",
+            Self::Minute5 => "5m",
+            Self::Minute15 => "15m",
+            Self::Minute30 => "30m",
+            Self::Hour1 => "1h",
+            Self::Hour2 => "2h",
+            Self::Hour4 => "4h",
+            Self::Hour6 => "6h",
+            Self::Hour8 => "8h",
+            Self::Hour12 => "12h",
+            Self::Day1 => "1d",
+            Self::Day3 => "3d",
+            Self::Week1 => "1w",
+            Self::Month1 => "1M",
+        };
+        write!(f, "{value}")
+    }
+}
+
+/// Self trade prevention (STP) Mode.
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum STPMode {
@@ -216,12 +218,23 @@ pub enum STPMode {
     Decrement,
 }
 
-/// Rate Limit
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct RateLimit {
-    rate_limit_type: RateLimiter,
-    interval: RateLimitInterval,
-    interval_num: u32,
-    limit: u32,
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum SecurityType {
+    /// Endpoint can be accessed freely.
+    None,
+    /// Endpoint requires sending a valid API-Key and signature.
+    Trade,
+    /// Endpoint requires sending a valid API-Key and signature.
+    UserData,
+    /// Endpoint requires sending a valid API-Key.
+    UserStream,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(tag = "filterType", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ExchangeFilter {
+    PriceFilter { tick_size: Decimal },
+    LotSize { step_size: Decimal },
+    // TODO:
 }
