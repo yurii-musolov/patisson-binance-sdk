@@ -222,9 +222,9 @@ pub struct AggregateTrade {
 pub struct GetKlineListParams {
     pub symbol: String,
     pub interval: KlineInterval,
-    pub start_time: Timestamp,
-    pub end_time: Timestamp,
-    pub time_zone: String,
+    pub start_time: Option<Timestamp>,
+    pub end_time: Option<Timestamp>,
+    pub time_zone: Option<String>,
     /// Default: 500; Maximum: 1000.
     pub limit: Option<u64>,
 }

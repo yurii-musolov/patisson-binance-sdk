@@ -6,5 +6,9 @@ authors.workspace = true
 publish = false
 
 [[example]]
+name = "kline"
+path = "kline.rs"
+
+[[example]]
 name = "server-time"
 path = "server-time.rs"
