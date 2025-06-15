@@ -6,6 +6,10 @@ authors.workspace = true
 publish = false
 
 [[example]]
+name = "exchange-info"
+path = "exchange-info.rs"
+
+[[example]]
 name = "kline"
 path = "kline.rs"
 

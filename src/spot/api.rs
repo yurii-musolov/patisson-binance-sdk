@@ -31,24 +31,24 @@ pub struct ServerTime {
 #[serde(rename_all = "camelCase")]
 pub struct GetExchangeInfoParams {
     /// Example: curl -X GET "https://api.binance.com/api/v3/exchangeInfo?symbol=BNBBTC"
-    symbol: Option<String>,
+    pub symbol: Option<String>,
     /// Examples: curl -X GET "https://api.binance.com/api/v3/exchangeInfo?symbols=%5B%22BNBBTC%22,%22BTCUSDT%22%5D"
     /// or
     /// curl -g -X GET 'https://api.binance.com/api/v3/exchangeInfo?symbols=["BTCUSDT","BNBBTC"]'
     /// TODO: Check serialization.
-    symbols: Option<Vec<String>>,
+    pub symbols: Option<Vec<String>>,
     /// Examples: curl -X GET "https://api.binance.com/api/v3/exchangeInfo?permissions=SPOT"
     /// or
     /// curl -X GET "https://api.binance.com/api/v3/exchangeInfo?permissions=%5B%22MARGIN%22%2C%22LEVERAGED%22%5D"
     /// or
     /// curl -g -X GET 'https://api.binance.com/api/v3/exchangeInfo?permissions=["MARGIN","LEVERAGED"]'
     /// TODO: Check serialization.
-    permissions: Option<Vec<String>>,
+    pub permissions: Option<Vec<String>>,
     /// Controls whether the content of the permissionSets field is populated or not. Defaults to true
-    show_permission_sets: Option<bool>,
+    pub show_permission_sets: Option<bool>,
     /// Filters symbols that have this tradingStatus. Valid values: TRADING, HALT, BREAK
     /// Cannot be used in combination with symbols or symbol.
-    symbol_status: Option<SymbolStatus>,
+    pub symbol_status: Option<SymbolStatus>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -61,7 +61,7 @@ pub struct ExchangeInfo {
     symbols: Vec<SymbolInfo>,
     /// Optional field. Present only when SOR is available.
     /// LINK: https://github.com/binance/binance-spot-api-docs/blob/master/faqs/sor_faq.md
-    sors: Vec<SOR>,
+    sors: Option<Vec<SOR>>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -415,10 +415,10 @@ mod tests {
                 default_self_trade_prevention_mode: STPMode::None,
                 allowed_self_trade_prevention_modes: vec![STPMode::None],
             }],
-            sors: vec![SOR {
+            sors: Some(vec![SOR {
                 base_asset: String::from("BTC"),
                 symbols: vec![String::from("BTCUSDT"), String::from("BTCUSDC")],
-            }],
+            }]),
         };
 
         let current = deserialize_str(json).unwrap();
