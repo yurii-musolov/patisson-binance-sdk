@@ -16,6 +16,7 @@ async fn main() -> anyhow::Result<()> {
         api_secret: None,
     };
     let client = Client::new(cfg);
+
     let params = GetKlineListParams {
         symbol: String::from("BTCUSDT"),
         interval: binance::spot::KlineInterval::Minute1,

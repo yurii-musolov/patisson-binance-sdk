@@ -16,3 +16,7 @@ path = "kline.rs"
 [[example]]
 name = "server-time"
 path = "server-time.rs"
+
+[[example]]
+name = "ticker-statistics"
+path = "ticker-statistics.rs"
