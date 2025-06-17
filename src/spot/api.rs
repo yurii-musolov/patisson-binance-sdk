@@ -24,7 +24,7 @@ pub struct TestConnectivity {}
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerTime {
-    server_time: Timestamp,
+    pub server_time: Timestamp,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -54,52 +54,52 @@ pub struct GetExchangeInfoParams {
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExchangeInfo {
-    timezone: String,
-    server_time: Timestamp,
-    rate_limits: Vec<RateLimit>,
-    exchange_filters: Vec<ExchangeFilter>,
-    symbols: Vec<SymbolInfo>,
+    pub timezone: String,
+    pub server_time: Timestamp,
+    pub rate_limits: Vec<RateLimit>,
+    pub exchange_filters: Vec<ExchangeFilter>,
+    pub symbols: Vec<SymbolInfo>,
     /// Optional field. Present only when SOR is available.
     /// LINK: https://github.com/binance/binance-spot-api-docs/blob/master/faqs/sor_faq.md
-    sors: Option<Vec<SOR>>,
+    pub sors: Option<Vec<SOR>>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct RateLimit {
-    rate_limit_type: RateLimiter,
-    interval: RateLimitInterval,
-    interval_num: u64,
-    limit: u64,
+    pub rate_limit_type: RateLimiter,
+    pub interval: RateLimitInterval,
+    pub interval_num: u64,
+    pub limit: u64,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolInfo {
-    symbol: String,
-    status: SymbolStatus,
-    base_asset: String,
-    base_asset_precision: u8, // value range: [0:8]
-    quote_asset: String,
+    pub symbol: String,
+    pub status: SymbolStatus,
+    pub base_asset: String,
+    pub base_asset_precision: u8, // value range: [0:8]
+    pub quote_asset: String,
     // INFO: 'quote_precision' will be removed in future api versions (v4+)
-    quote_asset_precision: u8,      // value range: [0:8]
-    base_commission_precision: u8,  // value range: [0:8]
-    quote_commission_precision: u8, // value range: [0:8]
-    order_types: Vec<OrderType>,
-    iceberg_allowed: bool,
-    oco_allowed: bool,
-    oto_allowed: bool,
-    quote_order_qty_market_allowed: bool,
-    allow_trailing_stop: bool,
-    cancel_replace_allowed: bool,
-    amend_allowed: bool,
-    is_spot_trading_allowed: bool,
-    is_margin_trading_allowed: bool,
-    filters: Vec<Filter>,
-    permissions: Vec<String>,
-    permission_sets: Vec<Vec<String>>,
-    default_self_trade_prevention_mode: STPMode,
-    allowed_self_trade_prevention_modes: Vec<STPMode>,
+    pub quote_asset_precision: u8,      // value range: [0:8]
+    pub base_commission_precision: u8,  // value range: [0:8]
+    pub quote_commission_precision: u8, // value range: [0:8]
+    pub order_types: Vec<OrderType>,
+    pub iceberg_allowed: bool,
+    pub oco_allowed: bool,
+    pub oto_allowed: bool,
+    pub quote_order_qty_market_allowed: bool,
+    pub allow_trailing_stop: bool,
+    pub cancel_replace_allowed: bool,
+    pub amend_allowed: bool,
+    pub is_spot_trading_allowed: bool,
+    pub is_margin_trading_allowed: bool,
+    pub filters: Vec<Filter>,
+    pub permissions: Vec<String>,
+    pub permission_sets: Vec<Vec<String>>,
+    pub default_self_trade_prevention_mode: STPMode,
+    pub allowed_self_trade_prevention_modes: Vec<STPMode>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -112,8 +112,8 @@ pub struct Filter {
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SOR {
-    base_asset: String,
-    symbols: Vec<String>,
+    pub base_asset: String,
+    pub symbols: Vec<String>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -128,9 +128,9 @@ pub struct GetOrderBookParams {
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct OrderBook {
-    last_update_id: u64,
-    bids: Vec<OrderLevel>,
-    asks: Vec<OrderLevel>,
+    pub last_update_id: i64,
+    pub bids: Vec<OrderLevel>,
+    pub asks: Vec<OrderLevel>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -156,13 +156,13 @@ pub struct GetRecentTradesParams {
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct RecentTrade {
-    id: u64,
-    price: Decimal,
-    qty: Decimal,
-    quote_qty: Decimal,
-    time: Timestamp,
-    is_buyer_maker: bool,
-    is_best_match: bool,
+    pub id: i64,
+    pub price: Decimal,
+    pub qty: Decimal,
+    pub quote_qty: Decimal,
+    pub time: Timestamp,
+    pub is_buyer_maker: bool,
+    pub is_best_match: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -172,7 +172,7 @@ pub struct GetOlderTradesParams {
     /// Default: 500; Maximum: 1000.
     pub limit: Option<u64>,
     /// TradeId to fetch from. Default gets most recent trades.
-    pub from_id: Option<u64>,
+    pub from_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -180,7 +180,7 @@ pub struct GetOlderTradesParams {
 pub struct GetAggregateTradesParams {
     pub symbol: String,
     /// ID to get aggregate trades from INCLUSIVE.
-    pub from_id: Option<u64>,
+    pub from_id: Option<i64>,
     /// Timestamp in ms to get aggregate trades from INCLUSIVE.
     pub start_time: Option<Timestamp>,
     /// Timestamp in ms to get aggregate trades until INCLUSIVE.
@@ -193,28 +193,28 @@ pub struct GetAggregateTradesParams {
 pub struct AggregateTrade {
     /// Aggregate tradeId
     #[serde(rename = "a")]
-    id: u64,
+    pub id: i64,
     /// Price
     #[serde(rename = "p")]
-    price: Decimal,
+    pub price: Decimal,
     /// Quantity
     #[serde(rename = "q")]
-    qty: Decimal,
+    pub qty: Decimal,
     /// First tradeId
     #[serde(rename = "f")]
-    first_trade_id: u64,
+    pub first_trade_id: i64,
     /// Last tradeId
     #[serde(rename = "l")]
-    last_trade_id: u64,
+    pub last_trade_id: i64,
     /// Timestamp
     #[serde(rename = "T")]
-    time: Timestamp,
+    pub time: Timestamp,
     /// Was the buyer the maker?
     #[serde(rename = "m")]
-    is_buyer_maker: bool,
+    pub is_buyer_maker: bool,
     /// Was the trade the best price match?
     #[serde(rename = "M")]
-    is_best_match: bool,
+    pub is_best_match: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -307,6 +307,94 @@ pub struct CurrentAveragePrice {
     pub price: Decimal,
     /// Last trade time
     pub close_time: Timestamp,
+}
+
+/// Supported values: FULL or MINI.
+/// If none provided, the default is FULL
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum GetTickerPriceChangeStatisticsParams {
+    Mini(SymbolOrSymbols),
+    Full(SymbolOrSymbols),
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+pub struct SymbolOrSymbols {
+    /// Parameter symbol and symbols cannot be used in combination.
+    /// If neither parameter is sent, tickers for all symbols will be returned in an array.
+    pub symbol: Option<String>,
+    /// Examples of accepted format for the symbols parameter: ["BTCUSDT","BNBUSDT"]
+    /// TODO: check serialization
+    /// or
+    /// %5B%22BTCUSDT%22,%22BNBUSDT%22%5D
+    pub symbols: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum TickerPriceChangeStatistic {
+    MiniElement(TickerPriceChangeStatisticMini),
+    MiniList(Vec<TickerPriceChangeStatisticMini>),
+    FullElement(TickerPriceChangeStatisticFull),
+    FullList(Vec<TickerPriceChangeStatisticFull>),
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TickerPriceChangeStatisticFull {
+    pub symbol: String,
+    pub price_change: Decimal,
+    pub price_change_percent: Decimal,
+    pub weighted_avg_price: Decimal,
+    pub prev_close_price: Decimal,
+    pub last_price: Decimal,
+    pub last_qty: Decimal,
+    pub bid_price: Decimal,
+    pub bid_qty: Decimal,
+    pub ask_price: Decimal,
+    pub ask_qty: Decimal,
+    pub open_price: Decimal,
+    pub high_price: Decimal,
+    pub low_price: Decimal,
+    pub volume: Decimal,
+    pub quote_volume: Decimal,
+    pub open_time: Timestamp,
+    pub close_time: Timestamp,
+    /// First traded
+    pub first_id: i64,
+    /// Last traded
+    pub last_id: i64,
+    /// Trade count
+    pub count: u64,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TickerPriceChangeStatisticMini {
+    /// Symbol Name
+    pub symbol: String,
+    /// Opening price of the Interval
+    pub open_price: Decimal,
+    /// Highest price in the interval
+    pub high_price: Decimal,
+    /// Lowest  price in the interval
+    pub low_price: Decimal,
+    /// Closing price of the interval
+    pub last_price: Decimal,
+    /// Total trade volume (in base asset)
+    pub volume: Decimal,
+    /// Total trade volume (in quote asset)
+    pub quote_volume: Decimal,
+    /// Start of the ticker interval
+    pub open_time: Timestamp,
+    /// End of the ticker interval
+    pub close_time: Timestamp,
+    /// First tradeId considered
+    pub first_id: i64,
+    /// Last tradeId considered
+    pub last_id: i64,
+    /// Total trade count
+    pub count: u64,
 }
 
 #[cfg(test)]

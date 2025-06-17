@@ -16,6 +16,7 @@ async fn main() -> anyhow::Result<()> {
         api_secret: None,
     };
     let client = Client::new(cfg);
+
     let response = client.get_server_time().await?;
     println!("{response:#?}");
 

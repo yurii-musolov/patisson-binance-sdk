@@ -2,8 +2,9 @@ use reqwest::{self, Method, RequestBuilder, header::HeaderMap};
 
 use crate::spot::{
     AggregateTrade, CurrentAveragePrice, GetAggregateTradesParams, GetCurrentAveragePriceParams,
-    GetKlineListParams, GetOlderTradesParams, GetOrderBookParams, GetRecentTradesParams, Kline,
-    OrderBook, RecentTrade, TestConnectivity,
+    GetKlineListParams, GetOlderTradesParams, GetOrderBookParams, GetRecentTradesParams,
+    GetTickerPriceChangeStatisticsParams, Kline, OrderBook, RecentTrade, TestConnectivity,
+    TickerPriceChangeStatistic,
 };
 
 use super::{
@@ -189,6 +190,21 @@ impl Client {
     ) -> Result<Response<CurrentAveragePrice>, Error> {
         let query = serde_urlencoded::to_string(&params)?;
         let url = format!("{}{}?{query}", self.base_url, Path::AvgPrice);
+
+        let client = reqwest::Client::builder().build()?;
+        let request = client.request(Method::GET, url);
+
+        let response = send(request).await?;
+        Ok(response)
+    }
+
+    /// 24 hour rolling window price change statistics. Careful when accessing this with no symbol.
+    pub async fn ticker_price_change_statistics(
+        &self,
+        params: GetTickerPriceChangeStatisticsParams,
+    ) -> Result<Response<TickerPriceChangeStatistic>, Error> {
+        let query = serde_urlencoded::to_string(&params)?;
+        let url = format!("{}{}?{query}", self.base_url, Path::Ticker24hr);
 
         let client = reqwest::Client::builder().build()?;
         let request = client.request(Method::GET, url);

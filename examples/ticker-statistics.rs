@@ -1,12 +1,12 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example exchange-info
+//! cargo run --example ticker-statistics
 //! ```
 
 use tokio;
 
-use binance::spot::{BASE_URL_API, Client, ClientConfig, GetExchangeInfoParams};
+use binance::spot::{BASE_URL_API, Client, ClientConfig, SymbolOrSymbols};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -17,14 +17,11 @@ async fn main() -> anyhow::Result<()> {
     };
     let client = Client::new(cfg);
 
-    let params = GetExchangeInfoParams {
+    let params = binance::spot::GetTickerPriceChangeStatisticsParams::Full(SymbolOrSymbols {
         symbol: Some(String::from("BTCUSDT")),
         symbols: None,
-        permissions: None,
-        show_permission_sets: None,
-        symbol_status: None,
-    };
-    let response = client.get_exchange_info(params).await?;
+    });
+    let response = client.ticker_price_change_statistics(params).await?;
     println!("{response:#?}");
 
     Ok(())
