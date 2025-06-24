@@ -6,16 +6,11 @@
 
 use tokio;
 
-use binance::spot::{BASE_URL_API, Client, ClientConfig, GetKlineListParams};
+use binance::spot::{BASE_URL_API, GetKlineListParams, MarketClient};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let cfg = ClientConfig {
-        base_url: BASE_URL_API.to_string(),
-        api_key: None,
-        api_secret: None,
-    };
-    let client = Client::new(cfg);
+    let client = MarketClient::new(BASE_URL_API.into());
 
     let params = GetKlineListParams {
         symbol: String::from("BTCUSDT"),
