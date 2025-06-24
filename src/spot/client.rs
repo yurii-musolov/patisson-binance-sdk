@@ -229,7 +229,49 @@ impl TradingClient {
 }
 
 impl TradingClient {
-    // TODO: Implement.
+    /// Send in a new order.
+    /// This adds 1 order to the EXCHANGE_MAX_ORDERS filter and the MAX_NUM_ORDERS filter.
+    ///
+    /// Other info:
+    /// Any LIMIT or LIMIT_MAKER type order can be made an iceberg order by sending an icebergQty.
+    /// Any order with an icebergQty MUST have timeInForce set to GTC.
+    /// For STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT_LIMIT and TAKE_PROFIT orders, trailingDelta can be combined with stopPrice.
+    /// MARKET orders using quoteOrderQty will not break LOT_SIZE filter rules; the order will execute a quantity that will have the notional value as close as possible to quoteOrderQty. Trigger order price rules against market price for both MARKET and LIMIT versions:
+    /// Price above market price: STOP_LOSS BUY, TAKE_PROFIT SELL
+    /// Price below market price: STOP_LOSS SELL, TAKE_PROFIT BUY
+    pub async fn new_order(&self, params: NewOrderParams) -> Result<Response<Order>, Error> {
+        let query = serde_urlencoded::to_string(&params)?;
+        let url = format!("{}{}?{query}", self.base_url, Path::Order);
+
+        let client = reqwest::Client::builder().build()?;
+        let request = client.request(Method::GET, url);
+
+        // INFO: not work: let response = send(request).await?;
+        let response = match params.new_order_resp_type {
+            crate::spot::OrderResponseType::ACK => {
+                let response = send::<OrderAck>(request).await?;
+                Response {
+                    result: Order::Ack(response.result),
+                    headers: response.headers,
+                }
+            }
+            crate::spot::OrderResponseType::RESULT => {
+                let response = send::<OrderResult>(request).await?;
+                Response {
+                    result: Order::Result(response.result),
+                    headers: response.headers,
+                }
+            }
+            crate::spot::OrderResponseType::FULL => {
+                let response = send::<OrderFull>(request).await?;
+                Response {
+                    result: Order::Full(response.result),
+                    headers: response.headers,
+                }
+            }
+        };
+        Ok(response)
+    }
 }
 
 pub struct AccountClient {
