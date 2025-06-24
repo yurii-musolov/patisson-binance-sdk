@@ -3,8 +3,8 @@ use reqwest::{self, Method, RequestBuilder, header::HeaderMap};
 use crate::spot::{
     AggregateTrade, CurrentAveragePrice, GetAggregateTradesParams, GetCurrentAveragePriceParams,
     GetKlineListParams, GetOlderTradesParams, GetOrderBookParams, GetRecentTradesParams,
-    GetTickerPriceChangeStatisticsParams, Kline, OrderBook, RecentTrade, TestConnectivity,
-    TickerPriceChangeStatistic,
+    GetTickerPriceChangeStatisticsParams, Kline, NewOrderParams, Order, OrderAck, OrderBook,
+    OrderFull, OrderResult, RecentTrade, TestConnectivity, TickerPriceChangeStatistic,
 };
 
 use super::{
@@ -12,28 +12,17 @@ use super::{
     crypto::SensitiveString, serde::deserialize_str, url::*,
 };
 
-pub struct ClientConfig {
-    pub base_url: String,
-    pub api_key: Option<SensitiveString>,
-    pub api_secret: Option<SensitiveString>,
-}
-
-pub struct Client {
+pub struct GeneralClient {
     base_url: String,
-    cfg: ClientConfig,
 }
 
-impl Client {
-    pub fn new(cfg: ClientConfig) -> Self {
-        Self {
-            base_url: cfg.base_url.clone(),
-            cfg,
-        }
+impl GeneralClient {
+    pub fn new(base_url: String) -> Self {
+        Self { base_url }
     }
 }
 
-// General.
-impl Client {
+impl GeneralClient {
     /// Test connectivity to the Rest API.
     pub async fn test_connectivity(&self) -> Result<Response<TestConnectivity>, Error> {
         let url = format!("{}{}", self.base_url, Path::Time);
@@ -70,8 +59,17 @@ impl Client {
     }
 }
 
-// Market Data.
-impl Client {
+pub struct MarketClient {
+    base_url: String,
+}
+
+impl MarketClient {
+    pub fn new(base_url: String) -> Self {
+        Self { base_url }
+    }
+}
+
+impl MarketClient {
     pub async fn get_order_book(
         &self,
         params: GetOrderBookParams,
@@ -212,6 +210,45 @@ impl Client {
         let response = send(request).await?;
         Ok(response)
     }
+}
+
+pub struct TradingClient {
+    base_url: String,
+    api_key: SensitiveString,
+    api_secret: SensitiveString,
+}
+
+impl TradingClient {
+    pub fn new(base_url: String, api_key: SensitiveString, api_secret: SensitiveString) -> Self {
+        Self {
+            base_url,
+            api_key,
+            api_secret,
+        }
+    }
+}
+
+impl TradingClient {
+    // TODO: Implement.
+}
+
+pub struct AccountClient {
+    base_url: String,
+    api_key: SensitiveString,
+    api_secret: SensitiveString,
+}
+
+impl AccountClient {
+    pub fn new(base_url: String, api_key: SensitiveString, api_secret: SensitiveString) -> Self {
+        Self {
+            base_url,
+            api_key,
+            api_secret,
+        }
+    }
+}
+impl AccountClient {
+    // TODO: Implement.
 }
 
 async fn send<T>(request: RequestBuilder) -> Result<Response<T>, Error>
