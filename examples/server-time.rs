@@ -6,16 +6,11 @@
 
 use tokio;
 
-use binance::spot::{BASE_URL_API, Client, ClientConfig};
+use binance::spot::{BASE_URL_API, GeneralClient};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let cfg = ClientConfig {
-        base_url: BASE_URL_API.to_string(),
-        api_key: None,
-        api_secret: None,
-    };
-    let client = Client::new(cfg);
+    let client = GeneralClient::new(BASE_URL_API.into());
 
     let response = client.get_server_time().await?;
     println!("{response:#?}");
