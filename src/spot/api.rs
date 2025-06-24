@@ -2,7 +2,8 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use crate::spot::{
-    ExchangeFilter, KlineInterval, OrderType, RateLimitInterval, RateLimiter, STPMode, SymbolStatus,
+    ErrorCode, ExchangeFilter, KlineInterval, OrderResponseType, OrderSide, OrderStatus, OrderType,
+    RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce,
 };
 
 pub type Timestamp = u64;
@@ -16,6 +17,12 @@ pub struct Response<T> {
 #[derive(Debug, PartialEq)]
 pub struct Headers {
     pub retry_after: Option<Timestamp>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct ResponseError {
+    pub code: ErrorCode,
+    pub msg: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -397,6 +404,159 @@ pub struct TickerPriceChangeStatisticMini {
     pub count: u64,
 }
 
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct NewOrderParams {
+    pub symbol: String,
+    pub side: OrderSide,
+    #[serde(rename = "type")]
+    pub order_type: OrderType,
+    pub time_in_force: Option<TimeInForce>,
+    pub quantity: Option<Decimal>,
+    pub quote_order_qty: Option<Decimal>,
+    pub price: Option<Decimal>,
+    /// A unique id among open orders. Automatically generated if not sent.
+    /// Orders with the same newClientOrderID can be accepted only when the previous one is filled, otherwise the order will be rejected.
+    pub new_client_order_id: Option<String>,
+    pub strategy_id: Option<i64>,
+    /// The value cannot be less than 1000000.
+    pub strategy_type: Option<i64>,
+    /// Used with STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, and TAKE_PROFIT_LIMIT orders.
+    pub stop_price: Option<Decimal>,
+    /// See Trailing Stop order FAQ.
+    pub trailing_delta: Option<i64>,
+    /// Used with LIMIT, STOP_LOSS_LIMIT, and TAKE_PROFIT_LIMIT to create an iceberg order.
+    pub iceberg_qty: Option<Decimal>,
+    /// Set the response JSON. ACK, RESULT, or FULL; MARKET and LIMIT order types default to FULL, all other orders default to ACK.
+    /// Mandatory - because there is a problem with deserialization of untagged enum Order
+    pub new_order_resp_type: OrderResponseType,
+    /// The allowed enums is dependent on what is configured on the symbol. The possible supported values are: STP Modes.
+    pub self_trade_prevention_mode: Option<STPMode>,
+    /// The value cannot be greater than 60000
+    pub recv_window: Option<i64>,
+    pub timestamp: Timestamp,
+}
+
+impl NewOrderParams {
+    pub fn validate(&self) -> bool {
+        match self.order_type {
+            OrderType::Limit => {
+                self.time_in_force.is_some() && self.quantity.is_some() && self.price.is_some()
+            }
+            OrderType::Market => {
+                // MARKET orders using the quantity field specifies the amount of the base asset the user wants to buy or sell at the market price.
+                // E.g. MARKET order on BTCUSDT will specify how much BTC the user is buying or selling.
+
+                // MARKET orders using quoteOrderQty specifies the amount the user wants to spend (when buying) or receive (when selling) the quote asset; the correct quantity will be determined based on the market liquidity and quoteOrderQty.
+                // E.g. Using the symbol BTCUSDT:
+                // BUY side, the order will buy as many BTC as quoteOrderQty USDT can.
+                // SELL side, the order will sell as much BTC needed to receive quoteOrderQty USDT.
+                self.quantity.is_some() || self.quote_order_qty.is_some()
+            }
+            OrderType::StopLoss => {
+                // This will execute a MARKET order when the conditions are met. (e.g. stopPrice is met or trailingDelta is activated)
+                self.quantity.is_some()
+                    && (self.stop_price.is_some() || self.trailing_delta.is_some())
+            }
+            OrderType::StopLossLimit => {
+                self.time_in_force.is_some()
+                    && self.quantity.is_some()
+                    && self.price.is_some()
+                    && (self.stop_price.is_some() || self.trailing_delta.is_some())
+            }
+            OrderType::TakeProfit => {
+                // This will execute a MARKET order when the conditions are met. (e.g. stopPrice is met or trailingDelta is activated)
+                self.quantity.is_some()
+                    && (self.stop_price.is_some() || self.trailing_delta.is_some())
+            }
+            OrderType::TakeProfitLimit => {
+                self.time_in_force.is_some()
+                    && self.quantity.is_some()
+                    && self.price.is_some()
+                    && (self.stop_price.is_some() || self.trailing_delta.is_some())
+            }
+            OrderType::LimitMaker => {
+                // This is a LIMIT order that will be rejected if the order immediately matches and trades as a taker.
+                // This is also known as a POST-ONLY order.
+                self.quantity.is_some() && self.price.is_some()
+            }
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum Order {
+    Ack(OrderAck),
+    Result(OrderResult),
+    Full(OrderFull),
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderAck {
+    pub symbol: String,
+    pub order_id: i64,
+    pub order_list_id: i64, // Unless it's part of an order list, value will be -1
+    pub client_order_id: String,
+    pub transact_time: Timestamp,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderResult {
+    pub symbol: String,
+    pub order_id: i64,
+    pub order_list_id: i64, // Unless it's part of an order list, value will be -1
+    pub client_order_id: String,
+    pub transact_time: Timestamp,
+    pub price: Decimal,
+    pub orig_qty: Decimal,
+    pub executed_qty: Decimal,
+    pub orig_quote_order_qty: Decimal,
+    pub cummulative_quote_qty: Decimal,
+    pub status: OrderStatus,
+    pub time_in_force: TimeInForce,
+    #[serde(rename = "type")]
+    pub order_type: OrderType,
+    pub side: OrderSide,
+    pub working_time: Timestamp,
+    pub self_trade_prevention_mode: STPMode,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderFull {
+    pub symbol: String,
+    pub order_id: i64,
+    pub order_list_id: i64, // Unless it's part of an order list, value will be -1
+    pub client_order_id: String,
+    pub transact_time: Timestamp,
+    pub price: Decimal,
+    pub orig_qty: Decimal,
+    pub executed_qty: Decimal,
+    pub orig_quote_order_qty: Decimal,
+    pub cummulative_quote_qty: Decimal,
+    pub status: OrderStatus,
+    pub time_in_force: TimeInForce,
+    #[serde(rename = "type")]
+    pub order_type: OrderType,
+    pub side: OrderSide,
+    pub working_time: Timestamp,
+    pub self_trade_prevention_mode: STPMode,
+    pub fills: Vec<OrderFill>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderFill {
+    pub price: Decimal,
+    pub qty: Decimal,
+    pub commission: Decimal,
+    pub commission_asset: String,
+    pub trade_id: i64,
+}
+
 #[cfg(test)]
 mod tests {
     use rust_decimal::dec;
@@ -535,6 +695,192 @@ mod tests {
             last_update_id: 1027024,
             bids: vec![OrderLevel(dec!(4.00000000), dec!(431.00000000))],
             asks: vec![OrderLevel(dec!(4.00000200), dec!(12.00000000))],
+        };
+
+        let current = deserialize_str(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_order_ack() {
+        let json = r#"{
+            "symbol": "BTCUSDT",
+            "orderId": 28,
+            "orderListId": -1,
+            "clientOrderId": "6gCrw2kRUAF9CvJDGP16IP",
+            "transactTime": 1507725176595
+        }"#;
+        let expected = Order::Ack(OrderAck {
+            symbol: String::from("BTCUSDT"),
+            order_id: 28,
+            order_list_id: -1,
+            client_order_id: String::from("6gCrw2kRUAF9CvJDGP16IP"),
+            transact_time: 1507725176595,
+        });
+
+        let current = deserialize_str(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_order_result() {
+        let json = r#"{
+            "symbol": "BTCUSDT",
+            "orderId": 28,
+            "orderListId": -1,
+            "clientOrderId": "6gCrw2kRUAF9CvJDGP16IP",
+            "transactTime": 1507725176595,
+            "price": "0.00000000",
+            "origQty": "10.00000000",
+            "executedQty": "10.00000000",
+            "origQuoteOrderQty": "0.000000",
+            "cummulativeQuoteQty": "10.00000000",
+            "status": "FILLED",
+            "timeInForce": "GTC",
+            "type": "MARKET",
+            "side": "SELL",
+            "workingTime": 1507725176595,
+            "selfTradePreventionMode": "NONE"
+        }"#;
+        // INFO: not work: Order::Result(OrderResult {})
+        let expected = OrderResult {
+            symbol: String::from("BTCUSDT"),
+            order_id: 28,
+            order_list_id: -1,
+            client_order_id: String::from("6gCrw2kRUAF9CvJDGP16IP"),
+            transact_time: 1507725176595,
+            price: dec!(0.00000000),
+            orig_qty: dec!(10.00000000),
+            executed_qty: dec!(10.00000000),
+            orig_quote_order_qty: dec!(0.00000000),
+            cummulative_quote_qty: dec!(10.00000000),
+            status: OrderStatus::Filled,
+            time_in_force: TimeInForce::GTC,
+            order_type: OrderType::Market,
+            side: OrderSide::SELL,
+            working_time: 1507725176595,
+            self_trade_prevention_mode: STPMode::None,
+        };
+
+        let current = deserialize_str(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_order_full() {
+        let json = r#"{
+            "symbol": "BTCUSDT",
+            "orderId": 28,
+            "orderListId": -1,
+            "clientOrderId": "6gCrw2kRUAF9CvJDGP16IP",
+            "transactTime": 1507725176595,
+            "price": "0.00000000",
+            "origQty": "10.00000000",
+            "executedQty": "10.00000000",
+            "origQuoteOrderQty": "0.000000",
+            "cummulativeQuoteQty": "10.00000000",
+            "status": "FILLED",
+            "timeInForce": "GTC",
+            "type": "MARKET",
+            "side": "SELL",
+            "workingTime": 1507725176595,
+            "selfTradePreventionMode": "NONE",
+            "fills": [
+                {
+                    "price": "4000.00000000",
+                    "qty": "1.00000000",
+                    "commission": "4.00000000",
+                    "commissionAsset": "USDT",
+                    "tradeId": 56
+                },
+                {
+                    "price": "3999.00000000",
+                    "qty": "5.00000000",
+                    "commission": "19.99500000",
+                    "commissionAsset": "USDT",
+                    "tradeId": 57
+                },
+                {
+                    "price": "3998.00000000",
+                    "qty": "2.00000000",
+                    "commission": "7.99600000",
+                    "commissionAsset": "USDT",
+                    "tradeId": 58
+                },
+                {
+                    "price": "3997.00000000",
+                    "qty": "1.00000000",
+                    "commission": "3.99700000",
+                    "commissionAsset": "USDT",
+                    "tradeId": 59
+                },
+                {
+                    "price": "3995.00000000",
+                    "qty": "1.00000000",
+                    "commission": "3.99500000",
+                    "commissionAsset": "USDT",
+                    "tradeId": 60
+                }
+            ]
+        }"#;
+        // INFO: not work: Order::Full(OrderFull {})
+        let expected = OrderFull {
+            symbol: String::from("BTCUSDT"),
+            order_id: 28,
+            order_list_id: -1,
+            client_order_id: String::from("6gCrw2kRUAF9CvJDGP16IP"),
+            transact_time: 1507725176595,
+            price: dec!(0.00000000),
+            orig_qty: dec!(10.00000000),
+            executed_qty: dec!(10.00000000),
+            orig_quote_order_qty: dec!(0.00000000),
+            cummulative_quote_qty: dec!(10.00000000),
+            status: OrderStatus::Filled,
+            time_in_force: TimeInForce::GTC,
+            order_type: OrderType::Market,
+            side: OrderSide::SELL,
+            working_time: 1507725176595,
+            self_trade_prevention_mode: STPMode::None,
+            fills: vec![
+                OrderFill {
+                    price: dec!(4000.00000000),
+                    qty: dec!(1.00000000),
+                    commission: dec!(4.00000000),
+                    commission_asset: String::from("USDT"),
+                    trade_id: 56,
+                },
+                OrderFill {
+                    price: dec!(3999.00000000),
+                    qty: dec!(5.00000000),
+                    commission: dec!(19.99500000),
+                    commission_asset: String::from("USDT"),
+                    trade_id: 57,
+                },
+                OrderFill {
+                    price: dec!(3998.00000000),
+                    qty: dec!(2.00000000),
+                    commission: dec!(7.99600000),
+                    commission_asset: String::from("USDT"),
+                    trade_id: 58,
+                },
+                OrderFill {
+                    price: dec!(3997.00000000),
+                    qty: dec!(1.00000000),
+                    commission: dec!(3.99700000),
+                    commission_asset: String::from("USDT"),
+                    trade_id: 59,
+                },
+                OrderFill {
+                    price: dec!(3995.00000000),
+                    qty: dec!(1.00000000),
+                    commission: dec!(3.99500000),
+                    commission_asset: String::from("USDT"),
+                    trade_id: 60,
+                },
+            ],
         };
 
         let current = deserialize_str(json).unwrap();
