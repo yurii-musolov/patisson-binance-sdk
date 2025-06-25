@@ -1,7 +1,8 @@
 use reqwest::{self, Method, RequestBuilder, header::HeaderMap};
 
 use crate::spot::{
-    AggregateTrade, CurrentAveragePrice, GetAggregateTradesParams, GetCurrentAveragePriceParams,
+    AggregateTrade, CommissionRates, CommissionRatesEmpty, CommissionRatesFull,
+    CurrentAveragePrice, GetAggregateTradesParams, GetCurrentAveragePriceParams,
     GetKlineListParams, GetOlderTradesParams, GetOrderBookParams, GetRecentTradesParams,
     GetTickerPriceChangeStatisticsParams, Kline, NewOrderParams, Order, OrderAck, OrderBook,
     OrderFull, OrderResult, RecentTrade, TestConnectivity, TickerPriceChangeStatistic,
@@ -244,7 +245,7 @@ impl TradingClient {
         let url = format!("{}{}?{query}", self.base_url, Path::Order);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::GET, url);
+        let request = client.request(Method::POST, url);
 
         // INFO: not work: let response = send(request).await?;
         let response = match params.new_order_resp_type {
@@ -268,6 +269,38 @@ impl TradingClient {
                     result: Order::Full(response.result),
                     headers: response.headers,
                 }
+            }
+        };
+        Ok(response)
+    }
+
+    /// Test new order creation and signature/recvWindow long. Creates and validates a new order but does not send it into the matching engine.
+    pub async fn test_new_order(
+        &self,
+        params: NewOrderParams,
+        compute_commission_rates: bool,
+    ) -> Result<Response<CommissionRates>, Error> {
+        let query = serde_urlencoded::to_string(&params)?;
+        let mut url = format!("{}{}?{query}", self.base_url, Path::OrderTest);
+        if compute_commission_rates {
+            url.push_str("&computeCommissionRates=true");
+        }
+
+        let client = reqwest::Client::builder().build()?;
+        let request = client.request(Method::POST, url);
+
+        // INFO: not work: let response = send(request).await?;
+        let response = if compute_commission_rates {
+            let response = send::<CommissionRatesFull>(request).await?;
+            Response {
+                result: CommissionRates::Full(response.result),
+                headers: response.headers,
+            }
+        } else {
+            let response = send::<CommissionRatesEmpty>(request).await?;
+            Response {
+                result: CommissionRates::Empty(response.result),
+                headers: response.headers,
             }
         };
         Ok(response)
