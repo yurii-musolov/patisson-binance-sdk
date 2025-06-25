@@ -6,7 +6,7 @@ use crate::spot::{
     RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce, WorkingFloor,
 };
 
-pub type Timestamp = u64;
+pub type Timestamp = u128;
 
 #[derive(Debug, PartialEq)]
 pub struct Response<T> {

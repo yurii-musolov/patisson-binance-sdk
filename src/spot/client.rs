@@ -1,16 +1,20 @@
-use reqwest::{self, Method, RequestBuilder, header::HeaderMap};
+use reqwest::{self, Method, RequestBuilder, StatusCode, header::HeaderMap};
 
-use crate::spot::{
-    AggregateTrade, CommissionRates, CommissionRatesEmpty, CommissionRatesFull,
-    CurrentAveragePrice, GetAggregateTradesParams, GetCurrentAveragePriceParams,
-    GetKlineListParams, GetOlderTradesParams, GetOrderBookParams, GetRecentTradesParams,
-    GetTickerPriceChangeStatisticsParams, Kline, NewOrderParams, Order, OrderAck, OrderBook,
-    OrderFull, OrderResult, RecentTrade, TestConnectivity, TickerPriceChangeStatistic,
+use crate::{
+    SensitiveString,
+    crypto::make_sign,
+    spot::{
+        AggregateTrade, CommissionRates, CommissionRatesEmpty, CommissionRatesFull,
+        CurrentAveragePrice, GetAggregateTradesParams, GetCurrentAveragePriceParams,
+        GetKlineListParams, GetOlderTradesParams, GetOrderBookParams, GetRecentTradesParams,
+        GetTickerPriceChangeStatisticsParams, Kline, NewOrderParams, Order, OrderAck, OrderBook,
+        OrderFull, OrderResult, RecentTrade, TestConnectivity, TickerPriceChangeStatistic,
+    },
 };
 
 use super::{
     Error, ExchangeInfo, GetExchangeInfoParams, Headers, Response, ServerTime,
-    crypto::SensitiveString, serde::deserialize_str, url::*,
+    serde::deserialize_str, url::*,
 };
 
 pub struct GeneralClient {
@@ -215,16 +219,21 @@ impl MarketClient {
 
 pub struct TradingClient {
     base_url: String,
-    api_key: SensitiveString,
-    api_secret: SensitiveString,
+    headers: HeaderMap,
+    sign: Box<dyn Fn(&str) -> String>,
 }
 
 impl TradingClient {
     pub fn new(base_url: String, api_key: SensitiveString, api_secret: SensitiveString) -> Self {
+        let mut headers = HeaderMap::new();
+
+        let api_key = api_key.expose().parse().unwrap();
+        headers.append(HEADER_X_MBX_APIKEY, api_key);
+
         Self {
             base_url,
-            api_key,
-            api_secret,
+            headers,
+            sign: Box::new(make_sign(api_secret)),
         }
     }
 }
@@ -242,10 +251,14 @@ impl TradingClient {
     /// Price below market price: STOP_LOSS SELL, TAKE_PROFIT BUY
     pub async fn new_order(&self, params: NewOrderParams) -> Result<Response<Order>, Error> {
         let query = serde_urlencoded::to_string(&params)?;
+        let body = (*self.sign)(&query);
         let url = format!("{}{}?{query}", self.base_url, Path::Order);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::POST, url);
+        let request = client
+            .request(Method::POST, url)
+            .headers(self.headers.clone())
+            .body(body);
 
         // INFO: not work: let response = send(request).await?;
         let response = match params.new_order_resp_type {
@@ -280,14 +293,18 @@ impl TradingClient {
         params: NewOrderParams,
         compute_commission_rates: bool,
     ) -> Result<Response<CommissionRates>, Error> {
-        let query = serde_urlencoded::to_string(&params)?;
-        let mut url = format!("{}{}?{query}", self.base_url, Path::OrderTest);
+        let mut query = serde_urlencoded::to_string(&params)?;
         if compute_commission_rates {
-            url.push_str("&computeCommissionRates=true");
+            query.push_str("&computeCommissionRates=true");
         }
+        let body = (*self.sign)(&query);
+        let url = format!("{}{}", self.base_url, Path::OrderTest);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::POST, url);
+        let request = client
+            .request(Method::POST, url)
+            .headers(self.headers.clone())
+            .body(body);
 
         // INFO: not work: let response = send(request).await?;
         let response = if compute_commission_rates {
@@ -331,8 +348,16 @@ where
     T: serde::de::DeserializeOwned,
 {
     let response = request.send().await?;
+    let status = response.status();
     let headers = parse_headers(&response.headers());
     let json = response.text().await?;
+
+    #[cfg(debug_assertions)]
+    {
+        if status != StatusCode::OK {
+            println!("DEBUG: {status} {json}");
+        }
+    }
 
     let result = deserialize_str(&json)?;
     let response = Response { result, headers };
