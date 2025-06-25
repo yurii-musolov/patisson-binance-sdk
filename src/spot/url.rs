@@ -1,5 +1,5 @@
-/// For APIs that only send public market data
-pub const BASE_URL_API_DATA: &str = "https://data-api.binance.vision";
+// Mainnet
+
 pub const BASE_URL_API: &str = "https://api.binance.com";
 pub const BASE_URL_API_GCP: &str = "https://api-gcp.binance.com";
 pub const BASE_URL_API1: &str = "https://api1.binance.com";
@@ -7,8 +7,30 @@ pub const BASE_URL_API2: &str = "https://api2.binance.com";
 pub const BASE_URL_API3: &str = "https://api3.binance.com";
 pub const BASE_URL_API4: &str = "https://api4.binance.com";
 
-pub const BASE_URL_STREAM_DATA1: &str = "wss://data-stream.binance.vision:9443";
-pub const BASE_URL_STREAM_DATA2: &str = "wss://data-stream.binance.vision:443";
+pub const BASE_URL_WEBSOCKET_API1: &str = "wss://ws-api.binance.com";
+// pub const BASE_URL_WEBSOCKET_API2: &str = "wss://ws-api.binance.com:443";
+pub const BASE_URL_WEBSOCKET_API3: &str = "wss://ws-api.binance.com:9443";
+
+pub const BASE_URL_STREAM1: &str = "wss://stream.binance.com";
+// pub const BASE_URL_STREAM2: &str = "wss://stream.binance.com:443";
+pub const BASE_URL_STREAM3: &str = "wss://stream.binance.com:9443";
+
+/// Market Data Only URLs
+/// These URLs do not require any authentication (i.e. The API key is not necessary) and serve only public market data.
+pub const BASE_URL_MARKET_DATA_API: &str = "https://data-api.binance.vision";
+// pub const BASE_URL_MARKET_DATA_STREAM1: &str = "wss://data-stream.binance.vision:443";
+pub const BASE_URL_MARKET_DATA_STREAM2: &str = "wss://data-stream.binance.vision:9443";
+
+// Testnet
+
+pub const BASE_URL_TESTNET_API: &str = "https://testnet.binance.vision";
+
+pub const BASE_URL_TESTNET_WEBSOCKET_API1: &str = "wss://ws-api.testnet.binance.vision";
+pub const BASE_URL_TESTNET_WEBSOCKET_API2: &str = "wss://ws-api.testnet.binance.vision:9443";
+
+pub const BASE_URL_TESTNET_STREAM1: &str = "wss://stream.testnet.binance.com";
+// pub const BASE_URL_TESTNET_STREAM2: &str = "wss://stream.testnet.binance.com:443";
+pub const BASE_URL_TESTNET_STREAM3: &str = "wss://stream.testnet.binance.com:9443";
 
 pub enum Path {
     // General endpoints.
@@ -44,6 +66,8 @@ pub enum Path {
     SOROrderTest,
 
     RateLimitOrder,
+    WebSocketApiV3,
+    MarketData,
 }
 
 impl std::fmt::Display for Path {
@@ -81,13 +105,22 @@ impl std::fmt::Display for Path {
             Self::SOROrder => "/api/v3/sor/order",
             Self::SOROrderTest => "/api/v3/sor/order/test",
 
+            // Account endpoints
             Self::RateLimitOrder => "/api/v3/rateLimit/order",
+
+            // Websocket endpoints
+            Self::WebSocketApiV3 => "/ws-api/v3",
+            Self::MarketData => "/ws",
         };
 
         write!(f, "{}", s)
     }
 }
 
-// TODO: X-MBX-USED-WEIGHT-(intervalNum)(intervalLetter)
+// TODO:
+// X-MBX-USED-WEIGHT-(intervalNum)(intervalLetter)
+// X-MBX-ORDER-COUNT-**
 pub const HEADER_RETRY_AFTER: &str = "Retry-After";
 pub const HEADER_X_MBX_APIKEY: &str = "X-MBX-APIKEY";
+pub const HEADER_X_MBX_TIME_UNIT: &str = "X-MBX-TIME-UNIT";
+pub const HEADER_VALUE_MICROSECOND: &str = "MICROSECOND";
