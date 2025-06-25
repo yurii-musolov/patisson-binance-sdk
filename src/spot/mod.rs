@@ -1,6 +1,5 @@
 mod api;
 mod client;
-mod crypto;
 mod enums;
 mod error;
 mod serde;
