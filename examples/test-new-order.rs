@@ -10,6 +10,7 @@ use tokio;
 use binance::{
     SensitiveString,
     spot::{BASE_URL_API, NewOrderParams, OrderResponseType, OrderSide, OrderType, TradingClient},
+    timestamp,
 };
 
 #[tokio::main]
@@ -38,7 +39,7 @@ async fn main() -> anyhow::Result<()> {
         new_order_resp_type: OrderResponseType::FULL,
         self_trade_prevention_mode: None,
         recv_window: None,
-        timestamp: std::time::UNIX_EPOCH.elapsed().unwrap().as_millis(),
+        timestamp: timestamp(),
     };
     if !params.validate() {
         println!("ERROR: not valid params: {params:#?}");
