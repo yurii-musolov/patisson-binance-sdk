@@ -497,9 +497,40 @@ pub enum Order {
 pub struct OrderAck {
     pub symbol: String,
     pub order_id: i64,
-    pub order_list_id: i64, // Unless it's part of an order list, value will be -1
+    /// Unless it's part of an order list, value will be -1
+    pub order_list_id: i64,
     pub client_order_id: String,
     pub transact_time: Timestamp,
+    /// Quantity for the iceberg order
+    /// Appears only if the parameter icebergQty was sent in the request.
+    pub iceberg_qty: Option<Decimal>,
+    /// When used in combination with symbol, can be used to query a prevented match.
+    /// Appears only if the order expired due to STP.
+    pub prevented_match_id: Option<i64>,
+    /// Order quantity that expired due to STP
+    /// Appears only if the order expired due to STP.
+    pub prevented_quantity: Option<Decimal>,
+    /// Price when the algorithmic order will be triggered
+    /// Appears for STOP_LOSS. TAKE_PROFIT, STOP_LOSS_LIMIT and TAKE_PROFIT_LIMIT orders.
+    pub stop_price: Option<Decimal>,
+    /// Can be used to label an order that's part of an order strategy.
+    /// Appears if the parameter was populated in the request.
+    pub strategy_id: Option<i64>,
+    /// Can be used to label an order that is using an order strategy.
+    /// Appears if the parameter was populated in the request.
+    pub strategy_type: Option<i64>,
+    /// Delta price change required before order activation
+    /// Appears for Trailing Stop Orders.
+    pub trailing_delta: Option<i64>,
+    /// Time when the trailing order is now active and tracking price changes
+    /// Appears only for Trailing Stop Orders.
+    pub trailing_time: Option<i64>,
+    /// Field that determines whether order used SOR
+    /// Appears when placing orders using SOR
+    pub used_sor: Option<bool>,
+    /// Field that determines whether the order is being filled by the SOR or by the order book the order was submitted to.
+    /// Appears when placing orders using SOR
+    pub working_floor: Option<WorkingFloor>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -507,7 +538,8 @@ pub struct OrderAck {
 pub struct OrderResult {
     pub symbol: String,
     pub order_id: i64,
-    pub order_list_id: i64, // Unless it's part of an order list, value will be -1
+    /// Unless it's part of an order list, value will be -1
+    pub order_list_id: i64,
     pub client_order_id: String,
     pub transact_time: Timestamp,
     pub price: Decimal,
@@ -522,6 +554,36 @@ pub struct OrderResult {
     pub side: OrderSide,
     pub working_time: Timestamp,
     pub self_trade_prevention_mode: STPMode,
+    /// Quantity for the iceberg order
+    /// Appears only if the parameter icebergQty was sent in the request.
+    pub iceberg_qty: Option<Decimal>,
+    /// When used in combination with symbol, can be used to query a prevented match.
+    /// Appears only if the order expired due to STP.
+    pub prevented_match_id: Option<i64>,
+    /// Order quantity that expired due to STP
+    /// Appears only if the order expired due to STP.
+    pub prevented_quantity: Option<Decimal>,
+    /// Price when the algorithmic order will be triggered
+    /// Appears for STOP_LOSS. TAKE_PROFIT, STOP_LOSS_LIMIT and TAKE_PROFIT_LIMIT orders.
+    pub stop_price: Option<Decimal>,
+    /// Can be used to label an order that's part of an order strategy.
+    /// Appears if the parameter was populated in the request.
+    pub strategy_id: Option<i64>,
+    /// Can be used to label an order that is using an order strategy.
+    /// Appears if the parameter was populated in the request.
+    pub strategy_type: Option<i64>,
+    /// Delta price change required before order activation
+    /// Appears for Trailing Stop Orders.
+    pub trailing_delta: Option<i64>,
+    /// Time when the trailing order is now active and tracking price changes
+    /// Appears only for Trailing Stop Orders.
+    pub trailing_time: Option<i64>,
+    /// Field that determines whether order used SOR
+    /// Appears when placing orders using SOR
+    pub used_sor: Option<bool>,
+    /// Field that determines whether the order is being filled by the SOR or by the order book the order was submitted to.
+    /// Appears when placing orders using SOR
+    pub working_floor: Option<WorkingFloor>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -529,7 +591,8 @@ pub struct OrderResult {
 pub struct OrderFull {
     pub symbol: String,
     pub order_id: i64,
-    pub order_list_id: i64, // Unless it's part of an order list, value will be -1
+    /// Unless it's part of an order list, value will be -1
+    pub order_list_id: i64,
     pub client_order_id: String,
     pub transact_time: Timestamp,
     pub price: Decimal,
@@ -545,6 +608,36 @@ pub struct OrderFull {
     pub working_time: Timestamp,
     pub self_trade_prevention_mode: STPMode,
     pub fills: Vec<OrderFill>,
+    /// Quantity for the iceberg order
+    /// Appears only if the parameter icebergQty was sent in the request.
+    pub iceberg_qty: Option<Decimal>,
+    /// When used in combination with symbol, can be used to query a prevented match.
+    /// Appears only if the order expired due to STP.
+    pub prevented_match_id: Option<i64>,
+    /// Order quantity that expired due to STP
+    /// Appears only if the order expired due to STP.
+    pub prevented_quantity: Option<Decimal>,
+    /// Price when the algorithmic order will be triggered
+    /// Appears for STOP_LOSS. TAKE_PROFIT, STOP_LOSS_LIMIT and TAKE_PROFIT_LIMIT orders.
+    pub stop_price: Option<Decimal>,
+    /// Can be used to label an order that's part of an order strategy.
+    /// Appears if the parameter was populated in the request.
+    pub strategy_id: Option<i64>,
+    /// Can be used to label an order that is using an order strategy.
+    /// Appears if the parameter was populated in the request.
+    pub strategy_type: Option<i64>,
+    /// Delta price change required before order activation
+    /// Appears for Trailing Stop Orders.
+    pub trailing_delta: Option<i64>,
+    /// Time when the trailing order is now active and tracking price changes
+    /// Appears only for Trailing Stop Orders.
+    pub trailing_time: Option<i64>,
+    /// Field that determines whether order used SOR
+    /// Appears when placing orders using SOR
+    pub used_sor: Option<bool>,
+    /// Field that determines whether the order is being filled by the SOR or by the order book the order was submitted to.
+    /// Appears when placing orders using SOR
+    pub working_floor: Option<WorkingFloor>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -717,6 +810,16 @@ mod tests {
             order_list_id: -1,
             client_order_id: String::from("6gCrw2kRUAF9CvJDGP16IP"),
             transact_time: 1507725176595,
+            iceberg_qty: None,
+            prevented_match_id: None,
+            prevented_quantity: None,
+            stop_price: None,
+            strategy_id: None,
+            strategy_type: None,
+            trailing_delta: None,
+            trailing_time: None,
+            used_sor: None,
+            working_floor: None,
         });
 
         let current = deserialize_str(json).unwrap();
@@ -762,6 +865,16 @@ mod tests {
             side: OrderSide::SELL,
             working_time: 1507725176595,
             self_trade_prevention_mode: STPMode::None,
+            iceberg_qty: None,
+            prevented_match_id: None,
+            prevented_quantity: None,
+            stop_price: None,
+            strategy_id: None,
+            strategy_type: None,
+            trailing_delta: None,
+            trailing_time: None,
+            used_sor: None,
+            working_floor: None,
         };
 
         let current = deserialize_str(json).unwrap();
@@ -881,6 +994,16 @@ mod tests {
                     trade_id: 60,
                 },
             ],
+            iceberg_qty: None,
+            prevented_match_id: None,
+            prevented_quantity: None,
+            stop_price: None,
+            strategy_id: None,
+            strategy_type: None,
+            trailing_delta: None,
+            trailing_time: None,
+            used_sor: None,
+            working_floor: None,
         };
 
         let current = deserialize_str(json).unwrap();
