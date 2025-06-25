@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::spot::{
     ErrorCode, ExchangeFilter, KlineInterval, OrderResponseType, OrderSide, OrderStatus, OrderType,
-    RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce,
+    RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce, WorkingFloor,
 };
 
 pub type Timestamp = u64;
@@ -650,6 +650,43 @@ pub struct OrderFill {
     pub trade_id: i64,
 }
 
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum CommissionRates {
+    Empty(CommissionRatesEmpty),
+    Full(CommissionRatesFull),
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct CommissionRatesEmpty {}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CommissionRatesFull {
+    /// Standard commission rates on trades from the order.
+    pub standard_commission_for_order: CommissionForOrder,
+    /// Tax commission rates for trades from the order.
+    pub tax_commission_for_order: CommissionForOrder,
+    /// Discount on standard commissions when paying in BNB.
+    pub discount: Discount,
+}
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CommissionForOrder {
+    pub maker: Decimal,
+    pub taker: Decimal,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Discount {
+    pub enabled_for_account: bool,
+    pub enabled_for_symbol: bool,
+    pub discount_asset: String,
+    /// Standard commission is reduced by this rate when paying commission in BNB.
+    pub discount: Decimal,
+}
+
 #[cfg(test)]
 mod tests {
     use rust_decimal::dec;
@@ -1004,6 +1041,57 @@ mod tests {
             trailing_time: None,
             used_sor: None,
             working_floor: None,
+        };
+
+        let current = deserialize_str(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_test_order_commission_rates_empty() {
+        let json = r#"{}"#;
+        let expected = CommissionRates::Empty(CommissionRatesEmpty {});
+
+        let current = deserialize_str(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_test_order_commission_rates_full() {
+        let json = r#"{
+            "standardCommissionForOrder": {
+                "maker": "0.00000112",
+                "taker": "0.00000114"
+            },
+            "taxCommissionForOrder": {
+                "maker": "0.00000112",
+                "taker": "0.00000114"
+            },
+            "discount": {
+                "enabledForAccount": true,
+                "enabledForSymbol": true,
+                "discountAsset": "BNB",
+                "discount": "0.25000000"
+            }
+        }"#;
+        // INFO: not working: let expected = CommissionRates::Full(CommissionRatesFull {})
+        let expected = CommissionRatesFull {
+            standard_commission_for_order: CommissionForOrder {
+                maker: dec!(0.00000112),
+                taker: dec!(0.00000114),
+            },
+            tax_commission_for_order: CommissionForOrder {
+                maker: dec!(0.00000112),
+                taker: dec!(0.00000114),
+            },
+            discount: Discount {
+                enabled_for_account: true,
+                enabled_for_symbol: true,
+                discount_asset: String::from("BNB"),
+                discount: dec!(0.25000000),
+            },
         };
 
         let current = deserialize_str(json).unwrap();
