@@ -1,4 +1,4 @@
 mod crypto;
 pub mod spot;
 
-pub use crypto::SensitiveString;
+pub use crypto::{SensitiveString, timestamp};

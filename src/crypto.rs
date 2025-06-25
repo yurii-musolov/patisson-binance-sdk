@@ -54,6 +54,11 @@ pub fn make_sign(api_secret: SensitiveString) -> impl Fn(&str) -> String {
     move |s: &str| format!("{}&signature={}", s, hmac_sha256(api_secret.expose(), s))
 }
 
+/// Return milliseconds.
+pub fn timestamp() -> u128 {
+    std::time::UNIX_EPOCH.elapsed().unwrap().as_millis()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
