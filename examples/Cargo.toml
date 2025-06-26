@@ -6,12 +6,20 @@ authors.workspace = true
 publish = false
 
 [[example]]
+name = "account-information"
+path = "account-information.rs"
+
+[[example]]
 name = "exchange-info"
 path = "exchange-info.rs"
 
 [[example]]
 name = "kline"
 path = "kline.rs"
+
+[[example]]
+name = "query-order"
+path = "query-order.rs"
 
 [[example]]
 name = "server-time"

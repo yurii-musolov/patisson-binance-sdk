@@ -4,7 +4,7 @@ This directory contains a number of examples showcasing various capabilities of 
 
 ## Example list
 
-`exchange-info`, `kline`, `server-time`, `test-new-order`, `ticker-statistics`
+`account-information`, `exchange-info`, `kline`, `query-order`, `server-time`, `test-new-order`, `ticker-statistics`
 
 All examples can be executed with:
 
