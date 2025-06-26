@@ -4,11 +4,13 @@ use crate::{
     SensitiveString,
     crypto::make_sign,
     spot::{
-        AggregateTrade, CommissionRates, CommissionRatesEmpty, CommissionRatesFull,
-        CurrentAveragePrice, GetAggregateTradesParams, GetCurrentAveragePriceParams,
-        GetKlineListParams, GetOlderTradesParams, GetOrderBookParams, GetRecentTradesParams,
-        GetTickerPriceChangeStatisticsParams, Kline, NewOrderParams, Order, OrderAck, OrderBook,
-        OrderFull, OrderResult, RecentTrade, TestConnectivity, TickerPriceChangeStatistic,
+        AccountInformation, AggregateTrade, CurrentAveragePrice, GetAccountInformationParams,
+        GetAggregateTradesParams, GetCurrentAveragePriceParams, GetKlineListParams,
+        GetOlderTradesParams, GetOrderBookParams, GetRecentTradesParams,
+        GetTickerPriceChangeStatisticsParams, Kline, NewOrderParams, NewOrderResponse,
+        NewOrderResponseAck, NewOrderResponseFull, NewOrderResponseResult, Order, OrderBook,
+        QueryOrderParams, RecentTrade, TestCommissionRates, TestCommissionRatesEmpty,
+        TestCommissionRatesFull, TestConnectivity, TickerPriceChangeStatistic,
     },
 };
 
@@ -249,7 +251,10 @@ impl TradingClient {
     /// MARKET orders using quoteOrderQty will not break LOT_SIZE filter rules; the order will execute a quantity that will have the notional value as close as possible to quoteOrderQty. Trigger order price rules against market price for both MARKET and LIMIT versions:
     /// Price above market price: STOP_LOSS BUY, TAKE_PROFIT SELL
     /// Price below market price: STOP_LOSS SELL, TAKE_PROFIT BUY
-    pub async fn new_order(&self, params: NewOrderParams) -> Result<Response<Order>, Error> {
+    pub async fn new_order(
+        &self,
+        params: NewOrderParams,
+    ) -> Result<Response<NewOrderResponse>, Error> {
         let query = serde_urlencoded::to_string(&params)?;
         let body = (*self.sign)(&query);
         let url = format!("{}{}?{query}", self.base_url, Path::Order);
@@ -263,23 +268,23 @@ impl TradingClient {
         // INFO: not work: let response = send(request).await?;
         let response = match params.new_order_resp_type {
             crate::spot::OrderResponseType::ACK => {
-                let response = send::<OrderAck>(request).await?;
+                let response = send::<NewOrderResponseAck>(request).await?;
                 Response {
-                    result: Order::Ack(response.result),
+                    result: NewOrderResponse::Ack(response.result),
                     headers: response.headers,
                 }
             }
             crate::spot::OrderResponseType::RESULT => {
-                let response = send::<OrderResult>(request).await?;
+                let response = send::<NewOrderResponseResult>(request).await?;
                 Response {
-                    result: Order::Result(response.result),
+                    result: NewOrderResponse::Result(response.result),
                     headers: response.headers,
                 }
             }
             crate::spot::OrderResponseType::FULL => {
-                let response = send::<OrderFull>(request).await?;
+                let response = send::<NewOrderResponseFull>(request).await?;
                 Response {
-                    result: Order::Full(response.result),
+                    result: NewOrderResponse::Full(response.result),
                     headers: response.headers,
                 }
             }
@@ -292,7 +297,7 @@ impl TradingClient {
         &self,
         params: NewOrderParams,
         compute_commission_rates: bool,
-    ) -> Result<Response<CommissionRates>, Error> {
+    ) -> Result<Response<TestCommissionRates>, Error> {
         let mut query = serde_urlencoded::to_string(&params)?;
         if compute_commission_rates {
             query.push_str("&computeCommissionRates=true");
@@ -308,15 +313,15 @@ impl TradingClient {
 
         // INFO: not work: let response = send(request).await?;
         let response = if compute_commission_rates {
-            let response = send::<CommissionRatesFull>(request).await?;
+            let response = send::<TestCommissionRatesFull>(request).await?;
             Response {
-                result: CommissionRates::Full(response.result),
+                result: TestCommissionRates::Full(response.result),
                 headers: response.headers,
             }
         } else {
-            let response = send::<CommissionRatesEmpty>(request).await?;
+            let response = send::<TestCommissionRatesEmpty>(request).await?;
             Response {
-                result: CommissionRates::Empty(response.result),
+                result: TestCommissionRates::Empty(response.result),
                 headers: response.headers,
             }
         };
@@ -326,21 +331,64 @@ impl TradingClient {
 
 pub struct AccountClient {
     base_url: String,
-    api_key: SensitiveString,
-    api_secret: SensitiveString,
+    headers: HeaderMap,
+    sign: Box<dyn Fn(&str) -> String>,
 }
 
 impl AccountClient {
     pub fn new(base_url: String, api_key: SensitiveString, api_secret: SensitiveString) -> Self {
+        let mut headers = HeaderMap::new();
+
+        let api_key = api_key.expose().parse().unwrap();
+        headers.append(HEADER_X_MBX_APIKEY, api_key);
+
         Self {
             base_url,
-            api_key,
-            api_secret,
+            headers,
+            sign: Box::new(make_sign(api_secret)),
         }
     }
 }
+
 impl AccountClient {
-    // TODO: Implement.
+    /// Get current account information.
+    pub async fn account_information(
+        &self,
+        params: GetAccountInformationParams,
+    ) -> Result<Response<AccountInformation>, Error> {
+        let query = serde_urlencoded::to_string(&params)?;
+        let query = (*self.sign)(&query);
+        let url = format!("{}{}?{query}", self.base_url, Path::Account);
+
+        let client = reqwest::Client::builder().build()?;
+        let request = client
+            .request(Method::GET, url)
+            .headers(self.headers.clone());
+
+        let response = send(request).await?;
+
+        Ok(response)
+    }
+
+    /// Check an order's status.
+    /// Notes:
+    /// Either orderId or origClientOrderId must be sent.
+    /// If both orderId and origClientOrderId are provided, the orderId is searched first, then the origClientOrderId from that result is checked against that order. If both conditions are not met the request will be rejected.
+    /// For some historical orders cummulativeQuoteQty will be < 0, meaning the data is not available at this time.
+    pub async fn query_order(&self, params: QueryOrderParams) -> Result<Response<Order>, Error> {
+        let query = serde_urlencoded::to_string(&params)?;
+        let query = (*self.sign)(&query);
+        let url = format!("{}{}?{query}", self.base_url, Path::Order);
+
+        let client = reqwest::Client::builder().build()?;
+        let request = client
+            .request(Method::GET, url)
+            .headers(self.headers.clone());
+
+        let response = send(request).await?;
+
+        Ok(response)
+    }
 }
 
 async fn send<T>(request: RequestBuilder) -> Result<Response<T>, Error>
