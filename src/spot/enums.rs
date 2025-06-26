@@ -238,3 +238,9 @@ pub enum ExchangeFilter {
     LotSize { step_size: Decimal },
     // TODO:
 }
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AccountType {
+    Spot,
+}

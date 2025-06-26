@@ -2,8 +2,9 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use crate::spot::{
-    ErrorCode, ExchangeFilter, KlineInterval, OrderResponseType, OrderSide, OrderStatus, OrderType,
-    RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce, WorkingFloor,
+    AccountType, ErrorCode, ExchangeFilter, KlineInterval, OrderResponseType, OrderSide,
+    OrderStatus, OrderType, RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce,
+    WorkingFloor,
 };
 
 pub type Timestamp = u128;
@@ -438,7 +439,7 @@ pub struct NewOrderParams {
 }
 
 impl NewOrderParams {
-    pub fn validate(&self) -> bool {
+    pub fn is_valid(&self) -> bool {
         match self.order_type {
             OrderType::Limit => {
                 self.time_in_force.is_some() && self.quantity.is_some() && self.price.is_some()
@@ -486,15 +487,15 @@ impl NewOrderParams {
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(untagged)]
-pub enum Order {
-    Ack(OrderAck),
-    Result(OrderResult),
-    Full(OrderFull),
+pub enum NewOrderResponse {
+    Ack(NewOrderResponseAck),
+    Result(NewOrderResponseResult),
+    Full(NewOrderResponseFull),
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct OrderAck {
+pub struct NewOrderResponseAck {
     pub symbol: String,
     pub order_id: i64,
     /// Unless it's part of an order list, value will be -1
@@ -535,7 +536,7 @@ pub struct OrderAck {
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct OrderResult {
+pub struct NewOrderResponseResult {
     pub symbol: String,
     pub order_id: i64,
     /// Unless it's part of an order list, value will be -1
@@ -588,7 +589,7 @@ pub struct OrderResult {
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct OrderFull {
+pub struct NewOrderResponseFull {
     pub symbol: String,
     pub order_id: i64,
     /// Unless it's part of an order list, value will be -1
@@ -652,17 +653,17 @@ pub struct OrderFill {
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(untagged)]
-pub enum CommissionRates {
-    Empty(CommissionRatesEmpty),
-    Full(CommissionRatesFull),
+pub enum TestCommissionRates {
+    Empty(TestCommissionRatesEmpty),
+    Full(TestCommissionRatesFull),
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub struct CommissionRatesEmpty {}
+pub struct TestCommissionRatesEmpty {}
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct CommissionRatesFull {
+pub struct TestCommissionRatesFull {
     /// Standard commission rates on trades from the order.
     pub standard_commission_for_order: CommissionForOrder,
     /// Tax commission rates for trades from the order.
@@ -685,6 +686,98 @@ pub struct Discount {
     pub discount_asset: String,
     /// Standard commission is reduced by this rate when paying commission in BNB.
     pub discount: Decimal,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAccountInformationParams {
+    /// When set to true, emits only the non-zero balances of an account.
+    /// Default value: false
+    pub omit_zero_balances: Option<bool>,
+    /// The value cannot be greater than 60000
+    pub recv_window: Option<i64>,
+    pub timestamp: Timestamp,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountInformation {
+    pub maker_commission: f64,
+    pub taker_commission: f64,
+    pub buyer_commission: f64,
+    pub seller_commission: f64,
+    pub commission_rates: CommissionRates,
+    pub can_trade: bool,
+    pub can_withdraw: bool,
+    pub can_deposit: bool,
+    pub brokered: bool,
+    pub require_self_trade_prevention: bool,
+    pub prevent_sor: bool,
+    pub update_time: Timestamp,
+    pub account_type: AccountType,
+    pub balances: Vec<Balance>,
+    pub permissions: Option<Vec<String>>,
+    pub permission_sets: Option<Vec<Vec<String>>>,
+    pub uid: i64,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CommissionRates {
+    pub maker: Decimal,
+    pub taker: Decimal,
+    pub buyer: Decimal,
+    pub seller: Decimal,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Balance {
+    pub asset: String,
+    pub free: Decimal,
+    pub locked: Decimal,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryOrderParams {
+    pub symbol: String,
+    pub order_id: Option<i64>,
+    pub orig_client_order_id: Option<String>,
+    /// The value cannot be greater than 60000
+    pub recv_window: Option<i64>,
+    pub timestamp: Timestamp,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Order {
+    pub symbol: String,
+    pub order_id: i64,
+    /// This field will always have a value of -1 if not an order list.
+    pub order_list_id: i64,
+    pub client_order_id: String,
+    pub price: Decimal,
+    pub orig_qty: Decimal,
+    pub executed_qty: Decimal,
+    pub cummulative_quote_qty: Decimal,
+    pub status: OrderStatus,
+    pub time_in_force: TimeInForce,
+    #[serde(rename = "type")]
+    pub order_type: OrderType,
+    pub side: OrderSide,
+    /// Price when the algorithmic order will be triggered
+    /// Appears for STOP_LOSS. TAKE_PROFIT, STOP_LOSS_LIMIT and TAKE_PROFIT_LIMIT orders.
+    pub stop_price: Option<Decimal>,
+    /// Quantity for the iceberg order
+    /// Appears only if the parameter icebergQty was sent in the request.
+    pub iceberg_qty: Option<Decimal>,
+    pub time: Timestamp,
+    pub update_time: Timestamp,
+    pub is_working: bool,
+    pub working_time: Timestamp,
+    pub orig_quote_order_qty: Decimal,
+    pub self_trade_prevention_mode: STPMode,
 }
 
 #[cfg(test)]
@@ -841,7 +934,7 @@ mod tests {
             "clientOrderId": "6gCrw2kRUAF9CvJDGP16IP",
             "transactTime": 1507725176595
         }"#;
-        let expected = Order::Ack(OrderAck {
+        let expected = NewOrderResponse::Ack(NewOrderResponseAck {
             symbol: String::from("BTCUSDT"),
             order_id: 28,
             order_list_id: -1,
@@ -885,7 +978,7 @@ mod tests {
             "selfTradePreventionMode": "NONE"
         }"#;
         // INFO: not work: Order::Result(OrderResult {})
-        let expected = OrderResult {
+        let expected = NewOrderResponseResult {
             symbol: String::from("BTCUSDT"),
             order_id: 28,
             order_list_id: -1,
@@ -977,7 +1070,7 @@ mod tests {
             ]
         }"#;
         // INFO: not work: Order::Full(OrderFull {})
-        let expected = OrderFull {
+        let expected = NewOrderResponseFull {
             symbol: String::from("BTCUSDT"),
             order_id: 28,
             order_list_id: -1,
@@ -1051,7 +1144,7 @@ mod tests {
     #[test]
     fn deserialize_response_test_order_commission_rates_empty() {
         let json = r#"{}"#;
-        let expected = CommissionRates::Empty(CommissionRatesEmpty {});
+        let expected = TestCommissionRates::Empty(TestCommissionRatesEmpty {});
 
         let current = deserialize_str(json).unwrap();
 
@@ -1076,8 +1169,8 @@ mod tests {
                 "discount": "0.25000000"
             }
         }"#;
-        // INFO: not working: let expected = CommissionRates::Full(CommissionRatesFull {})
-        let expected = CommissionRatesFull {
+        // INFO: not working: let expected = TestCommissionRates::Full(TestCommissionRatesFull {})
+        let expected = TestCommissionRatesFull {
             standard_commission_for_order: CommissionForOrder {
                 maker: dec!(0.00000112),
                 taker: dec!(0.00000114),
@@ -1092,6 +1185,137 @@ mod tests {
                 discount_asset: String::from("BNB"),
                 discount: dec!(0.25000000),
             },
+        };
+
+        let current = deserialize_str(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_account_information() {
+        let json = r#"{
+            "makerCommission": 15,
+            "takerCommission": 15,
+            "buyerCommission": 0,
+            "sellerCommission": 0,
+            "commissionRates": {
+                "maker": "0.00150000",
+                "taker": "0.00150000",
+                "buyer": "0.00000000",
+                "seller": "0.00000000"
+            },
+            "canTrade": true,
+            "canWithdraw": true,
+            "canDeposit": true,
+            "brokered": false,
+            "requireSelfTradePrevention": false,
+            "preventSor": false,
+            "updateTime": 123456789,
+            "accountType": "SPOT",
+            "balances": [
+                {
+                "asset": "BTC",
+                "free": "4723846.89208129",
+                "locked": "0.00000000"
+                },
+                {
+                "asset": "LTC",
+                "free": "4763368.68006011",
+                "locked": "0.00000000"
+                }
+            ],
+            "permissions": [
+                "SPOT"
+            ],
+            "uid": 354937868
+        }"#;
+        let expected = AccountInformation {
+            maker_commission: 15.0,
+            taker_commission: 15.0,
+            buyer_commission: 0.0,
+            seller_commission: 0.0,
+            commission_rates: CommissionRates {
+                maker: dec!(0.00150000),
+                taker: dec!(0.00150000),
+                buyer: dec!(0.00000000),
+                seller: dec!(0.00000000),
+            },
+            can_trade: true,
+            can_withdraw: true,
+            can_deposit: true,
+            brokered: false,
+            require_self_trade_prevention: false,
+            prevent_sor: false,
+            update_time: 123456789,
+            account_type: AccountType::Spot,
+            balances: vec![
+                Balance {
+                    asset: String::from("BTC"),
+                    free: dec!(4723846.89208129),
+                    locked: dec!(0.00000000),
+                },
+                Balance {
+                    asset: String::from("LTC"),
+                    free: dec!(4763368.68006011),
+                    locked: dec!(0.00000000),
+                },
+            ],
+            permissions: Some(vec![String::from("SPOT")]),
+            permission_sets: None,
+            uid: 354937868,
+        };
+
+        let current = deserialize_str(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_query_order() {
+        let json = r#"{
+            "symbol": "LTCBTC",
+            "orderId": 1,
+            "orderListId": -1,
+            "clientOrderId": "myOrder1",
+            "price": "0.1",
+            "origQty": "1.0",
+            "executedQty": "0.0",
+            "cummulativeQuoteQty": "0.0",
+            "status": "NEW",
+            "timeInForce": "GTC",
+            "type": "LIMIT",
+            "side": "BUY",
+            "stopPrice": "0.0",
+            "icebergQty": "0.0",
+            "time": 1499827319559,
+            "updateTime": 1499827319559,
+            "isWorking": true,
+            "workingTime":1499827319559,
+            "origQuoteOrderQty": "0.000000",
+            "selfTradePreventionMode": "NONE"
+        }"#;
+        let expected = Order {
+            symbol: String::from("LTCBTC"),
+            order_id: 1,
+            order_list_id: -1,
+            client_order_id: String::from("myOrder1"),
+            price: dec!(0.1),
+            orig_qty: dec!(1.0),
+            executed_qty: dec!(0.0),
+            cummulative_quote_qty: dec!(0.0),
+            status: OrderStatus::New,
+            time_in_force: TimeInForce::GTC,
+            order_type: OrderType::Limit,
+            side: OrderSide::BUY,
+            stop_price: Some(dec!(0.0)),
+            iceberg_qty: Some(dec!(0.0)),
+            time: 1499827319559,
+            update_time: 1499827319559,
+            is_working: true,
+            working_time: 1499827319559,
+            orig_quote_order_qty: dec!(0.000000),
+            self_trade_prevention_mode: STPMode::None,
         };
 
         let current = deserialize_str(json).unwrap();
