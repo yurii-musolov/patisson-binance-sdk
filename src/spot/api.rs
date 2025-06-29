@@ -654,8 +654,8 @@ pub struct OrderFill {
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum TestCommissionRates {
-    Empty(TestCommissionRatesEmpty),
     Full(TestCommissionRatesFull),
+    Empty(TestCommissionRatesEmpty),
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -1170,8 +1170,7 @@ mod tests {
                 "discount": "0.25000000"
             }
         }"#;
-        // INFO: not working: let expected = TestCommissionRates::Full(TestCommissionRatesFull {})
-        let expected = TestCommissionRatesFull {
+        let rates = TestCommissionRatesFull {
             standard_commission_for_order: CommissionForOrder {
                 maker: dec!(0.00000112),
                 taker: dec!(0.00000114),
@@ -1187,6 +1186,7 @@ mod tests {
                 discount: dec!(0.25000000),
             },
         };
+        let expected = TestCommissionRates::Full(rates);
 
         let current = deserialize_str(json).unwrap();
 

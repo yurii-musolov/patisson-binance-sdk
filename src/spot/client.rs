@@ -289,20 +289,8 @@ impl TradingClient {
             .headers(self.headers.clone())
             .body(body);
 
-        // INFO: not work: let response = send(request).await?;
-        let response = if compute_commission_rates {
-            let response = send::<TestCommissionRatesFull>(request).await?;
-            Response {
-                result: TestCommissionRates::Full(response.result),
-                headers: response.headers,
-            }
-        } else {
-            let response = send::<TestCommissionRatesEmpty>(request).await?;
-            Response {
-                result: TestCommissionRates::Empty(response.result),
-                headers: response.headers,
-            }
-        };
+        let response = send(request).await?;
+
         Ok(response)
     }
 }
