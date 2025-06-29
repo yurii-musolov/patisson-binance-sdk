@@ -147,7 +147,7 @@ pub struct KlineMsg {
     pub trade_number: i64,
     /// Is this kline closed?
     #[serde(rename = "x")]
-    is_closed: bool,
+    pub is_closed: bool,
     /// Quote asset volume
     #[serde(rename = "q")]
     pub quote_asset_volume: Decimal,

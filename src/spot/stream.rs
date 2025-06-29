@@ -8,6 +8,8 @@ use tokio_tungstenite::{
     tungstenite::{Utf8Bytes, http, protocol::Message},
 };
 
+use crate::spot::serde::deserialize_str;
+
 use super::{IncomingMessage, OutgoingMessage};
 
 pub async fn stream(
@@ -28,7 +30,7 @@ pub async fn stream(
             match result {
                 Ok(message) => match message {
                     Message::Text(slice) => {
-                        match serde_json::from_slice(slice.as_ref()) {
+                        match deserialize_str(&slice) {
                             Ok(message) => {
                                 if let Err(e) = incoming_tx.send(message).await {
                                     println!("Send IncomingMessage failed with: {e}");

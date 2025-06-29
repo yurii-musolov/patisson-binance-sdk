@@ -237,6 +237,7 @@ pub enum ErrorCode {
     ClientOrderIdInvalid = -2039,
 }
 
+// TODO: add ApiError (code + msg)
 #[derive(Debug)]
 pub enum Error {
     Io(std::io::Error),

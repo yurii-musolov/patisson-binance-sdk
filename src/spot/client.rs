@@ -373,6 +373,8 @@ where
         }
     }
 
+    // TODO: handle ApiError (code + msg)
+
     let result = deserialize_str(&json)?;
     let response = Response { result, headers };
     Ok(response)
