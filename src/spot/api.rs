@@ -488,9 +488,9 @@ impl NewOrderParams {
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum NewOrderResponse {
-    Ack(NewOrderResponseAck),
-    Result(NewOrderResponseResult),
     Full(NewOrderResponseFull),
+    Result(NewOrderResponseResult),
+    Ack(NewOrderResponseAck),
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -934,7 +934,7 @@ mod tests {
             "clientOrderId": "6gCrw2kRUAF9CvJDGP16IP",
             "transactTime": 1507725176595
         }"#;
-        let expected = NewOrderResponse::Ack(NewOrderResponseAck {
+        let response = NewOrderResponseAck {
             symbol: String::from("BTCUSDT"),
             order_id: 28,
             order_list_id: -1,
@@ -950,7 +950,8 @@ mod tests {
             trailing_time: None,
             used_sor: None,
             working_floor: None,
-        });
+        };
+        let expected = NewOrderResponse::Ack(response);
 
         let current = deserialize_str(json).unwrap();
 
@@ -977,8 +978,7 @@ mod tests {
             "workingTime": 1507725176595,
             "selfTradePreventionMode": "NONE"
         }"#;
-        // INFO: not work: Order::Result(OrderResult {})
-        let expected = NewOrderResponseResult {
+        let response = NewOrderResponseResult {
             symbol: String::from("BTCUSDT"),
             order_id: 28,
             order_list_id: -1,
@@ -1006,6 +1006,7 @@ mod tests {
             used_sor: None,
             working_floor: None,
         };
+        let expected = NewOrderResponse::Result(response);
 
         let current = deserialize_str(json).unwrap();
 
@@ -1069,8 +1070,7 @@ mod tests {
                 }
             ]
         }"#;
-        // INFO: not work: Order::Full(OrderFull {})
-        let expected = NewOrderResponseFull {
+        let response = NewOrderResponseFull {
             symbol: String::from("BTCUSDT"),
             order_id: 28,
             order_list_id: -1,
@@ -1135,6 +1135,7 @@ mod tests {
             used_sor: None,
             working_floor: None,
         };
+        let expected = NewOrderResponse::Full(response);
 
         let current = deserialize_str(json).unwrap();
 

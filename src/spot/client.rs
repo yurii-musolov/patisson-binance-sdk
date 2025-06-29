@@ -265,30 +265,8 @@ impl TradingClient {
             .headers(self.headers.clone())
             .body(body);
 
-        // INFO: not work: let response = send(request).await?;
-        let response = match params.new_order_resp_type {
-            crate::spot::OrderResponseType::ACK => {
-                let response = send::<NewOrderResponseAck>(request).await?;
-                Response {
-                    result: NewOrderResponse::Ack(response.result),
-                    headers: response.headers,
-                }
-            }
-            crate::spot::OrderResponseType::RESULT => {
-                let response = send::<NewOrderResponseResult>(request).await?;
-                Response {
-                    result: NewOrderResponse::Result(response.result),
-                    headers: response.headers,
-                }
-            }
-            crate::spot::OrderResponseType::FULL => {
-                let response = send::<NewOrderResponseFull>(request).await?;
-                Response {
-                    result: NewOrderResponse::Full(response.result),
-                    headers: response.headers,
-                }
-            }
-        };
+        let response = send(request).await?;
+
         Ok(response)
     }
 
