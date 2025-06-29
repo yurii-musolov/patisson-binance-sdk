@@ -2,7 +2,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::spot::KlineInterval;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StreamName {
     /// <symbol>@aggTrade
     AggTrade { symbol: String },
@@ -96,12 +96,12 @@ pub enum OutgoingMessage {
     #[serde(rename = "SUBSCRIBE")]
     Subscribe {
         id: String,
-        params: Vec<String>,
+        params: Vec<StreamName>,
     },
     #[serde(rename = "UNSUBSCRIBE")]
     Unsubscribe {
         id: String,
-        params: Vec<String>,
+        params: Vec<StreamName>,
     },
     #[serde(rename = "LIST_SUBSCRIPTIONS")]
     ListSubscriptions {

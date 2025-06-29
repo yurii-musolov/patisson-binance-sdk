@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
         recv_window: None,
         timestamp: timestamp(),
     };
-    if !params.validate() {
+    if !params.is_valid() {
         println!("ERROR: not valid params: {params:#?}");
         return Ok(());
     }

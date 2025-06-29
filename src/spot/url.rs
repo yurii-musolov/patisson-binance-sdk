@@ -8,18 +8,19 @@ pub const BASE_URL_API3: &str = "https://api3.binance.com";
 pub const BASE_URL_API4: &str = "https://api4.binance.com";
 
 pub const BASE_URL_WEBSOCKET_API1: &str = "wss://ws-api.binance.com";
-// pub const BASE_URL_WEBSOCKET_API2: &str = "wss://ws-api.binance.com:443";
+pub const BASE_URL_WEBSOCKET_API2: &str = "wss://ws-api.binance.com:443";
 pub const BASE_URL_WEBSOCKET_API3: &str = "wss://ws-api.binance.com:9443";
 
 pub const BASE_URL_STREAM1: &str = "wss://stream.binance.com";
-// pub const BASE_URL_STREAM2: &str = "wss://stream.binance.com:443";
+pub const BASE_URL_STREAM2: &str = "wss://stream.binance.com:443";
 pub const BASE_URL_STREAM3: &str = "wss://stream.binance.com:9443";
 
 /// Market Data Only URLs
 /// These URLs do not require any authentication (i.e. The API key is not necessary) and serve only public market data.
 pub const BASE_URL_MARKET_DATA_API: &str = "https://data-api.binance.vision";
-// pub const BASE_URL_MARKET_DATA_STREAM1: &str = "wss://data-stream.binance.vision:443";
-pub const BASE_URL_MARKET_DATA_STREAM2: &str = "wss://data-stream.binance.vision:9443";
+pub const BASE_URL_MARKET_DATA_STREAM1: &str = "wss://data-stream.binance.vision";
+pub const BASE_URL_MARKET_DATA_STREAM2: &str = "wss://data-stream.binance.vision:443";
+pub const BASE_URL_MARKET_DATA_STREAM3: &str = "wss://data-stream.binance.vision:9443";
 
 // Testnet
 
@@ -29,7 +30,7 @@ pub const BASE_URL_TESTNET_WEBSOCKET_API1: &str = "wss://ws-api.testnet.binance.
 pub const BASE_URL_TESTNET_WEBSOCKET_API2: &str = "wss://ws-api.testnet.binance.vision:9443";
 
 pub const BASE_URL_TESTNET_STREAM1: &str = "wss://stream.testnet.binance.com";
-// pub const BASE_URL_TESTNET_STREAM2: &str = "wss://stream.testnet.binance.com:443";
+pub const BASE_URL_TESTNET_STREAM2: &str = "wss://stream.testnet.binance.com:443";
 pub const BASE_URL_TESTNET_STREAM3: &str = "wss://stream.testnet.binance.com:9443";
 
 pub enum Path {
@@ -65,9 +66,14 @@ pub enum Path {
     SOROrder,
     SOROrderTest,
 
+    // Account endpoints
+    Account,
     RateLimitOrder,
+
+    // Websocket endpoints
     WebSocketApiV3,
-    MarketData,
+    WebSocket,
+    Stream,
 }
 
 impl std::fmt::Display for Path {
@@ -106,11 +112,13 @@ impl std::fmt::Display for Path {
             Self::SOROrderTest => "/api/v3/sor/order/test",
 
             // Account endpoints
+            Self::Account => "/api/v3/account",
             Self::RateLimitOrder => "/api/v3/rateLimit/order",
 
             // Websocket endpoints
             Self::WebSocketApiV3 => "/ws-api/v3",
-            Self::MarketData => "/ws",
+            Self::WebSocket => "/ws",
+            Self::Stream => "/stream",
         };
 
         write!(f, "{}", s)

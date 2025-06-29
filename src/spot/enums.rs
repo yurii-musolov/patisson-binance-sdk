@@ -147,7 +147,7 @@ pub enum RateLimitInterval {
     Day,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub enum KlineInterval {
     #[serde(rename = "1s")]
     Second1,
