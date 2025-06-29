@@ -26,6 +26,10 @@ name = "server-time"
 path = "server-time.rs"
 
 [[example]]
+name = "stream-public"
+path = "stream-public.rs"
+
+[[example]]
 name = "test-new-order"
 path = "test-new-order.rs"
 
