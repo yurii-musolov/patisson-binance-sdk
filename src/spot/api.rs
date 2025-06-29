@@ -7,7 +7,7 @@ use crate::spot::{
     WorkingFloor,
 };
 
-pub type Timestamp = u128;
+pub type Timestamp = u64;
 
 #[derive(Debug, PartialEq)]
 pub struct Response<T> {
@@ -787,6 +787,20 @@ mod tests {
     use crate::spot::serde::deserialize_str;
 
     use super::*;
+
+    #[test]
+    fn deserialize_response_server_time() {
+        let json = r#"{
+            "serverTime": 1499827319559
+        }"#;
+        let expected = ServerTime {
+            server_time: 1499827319559,
+        };
+
+        let current = deserialize_str(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
 
     #[test]
     fn deserialize_response_exchange_info() {

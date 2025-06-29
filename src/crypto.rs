@@ -3,6 +3,8 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use std::fmt::{self, Display, Formatter};
 
+use crate::spot::Timestamp;
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SensitiveString(String);
 
@@ -55,8 +57,8 @@ pub fn make_sign(api_secret: SensitiveString) -> impl Fn(&str) -> String {
 }
 
 /// Return milliseconds.
-pub fn timestamp() -> u128 {
-    std::time::UNIX_EPOCH.elapsed().unwrap().as_millis()
+pub fn timestamp() -> Timestamp {
+    std::time::UNIX_EPOCH.elapsed().unwrap().as_millis() as Timestamp
 }
 
 #[cfg(test)]
