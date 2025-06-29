@@ -227,7 +227,7 @@ mod tests {
             "m": true,
             "M": true
         }"#;
-        let event = EventAggTrade {
+        let expected = EventAggTrade {
             event_time: 1672515782136,
             symbol: String::from("BNBBTC"),
             trade_id: 12345,
@@ -238,9 +238,10 @@ mod tests {
             trade_time: 1672515782136,
             is_buyer: true,
         };
-        let expected = IncomingMessage::StreamEvent(StreamEvent::AggTrade(event));
-        let serialized = serde_json::from_str(json).unwrap();
-        assert_eq!(expected, serialized);
+
+        let current = serde_json::from_str(json).unwrap();
+
+        assert_eq!(expected, current);
     }
 
     #[test]
@@ -256,7 +257,7 @@ mod tests {
             "m": true,
             "M": true
         }"#;
-        let event = EventTrade {
+        let expected = EventTrade {
             event_time: 1672515782136,
             symbol: String::from("BNBBTC"),
             trade_id: 12345,
@@ -265,9 +266,10 @@ mod tests {
             trade_time: 1672515782136,
             is_buyer: true,
         };
-        let expected = IncomingMessage::StreamEvent(StreamEvent::Trade(event));
-        let serialized = serde_json::from_str(json).unwrap();
-        assert_eq!(expected, serialized);
+
+        let current = serde_json::from_str(json).unwrap();
+
+        assert_eq!(expected, current);
     }
 
     #[test]
@@ -296,13 +298,14 @@ mod tests {
                 "B": "123456"
             }
         }"#;
-        let event = EventKline {
+        let symbol = String::from("BNBBTC");
+        let expected = EventKline {
             event_time: 1672515782136,
-            symbol: String::from("BNBBTC"),
+            symbol: symbol.clone(),
             kline: KlineMsg {
                 start_time: 1672515780000,
                 close_time: 1672515839999,
-                symbol: String::from("BNBBTC"),
+                symbol,
                 interval: KlineInterval::Minute1,
                 first_trade_id: 100,
                 last_trade_id: 200,
@@ -318,14 +321,15 @@ mod tests {
                 taker_buy_quote_asset_volume: dec!(0.500),
             },
         };
-        let expected = IncomingMessage::StreamEvent(StreamEvent::Kline(event));
-        let serialized = serde_json::from_str(json).unwrap();
-        assert_eq!(expected, serialized);
+
+        let current = serde_json::from_str(json).unwrap();
+
+        assert_eq!(expected, current);
     }
 
     #[test]
     fn test_deserialize_stream_event_mini_ticker24() {
-        let json = r#"  {
+        let json = r#"{
             "e": "24hrMiniTicker",
             "E": 1672515782136,
             "s": "BNBBTC",
@@ -336,7 +340,7 @@ mod tests {
             "v": "10000",
             "q": "18"
         }"#;
-        let event = EventMiniTicker24 {
+        let expected = EventMiniTicker24 {
             event_time: 1672515782136,
             symbol: String::from("BNBBTC"),
             open_price: dec!(0.0010),
@@ -346,8 +350,9 @@ mod tests {
             total_base_asset_volume: dec!(10000),
             total_quote_asset_volume: dec!(18),
         };
-        let expected = IncomingMessage::StreamEvent(StreamEvent::MiniTicker24(event));
-        let serialized = serde_json::from_str(json).unwrap();
-        assert_eq!(expected, serialized);
+
+        let current = serde_json::from_str(json).unwrap();
+
+        assert_eq!(expected, current);
     }
 }
