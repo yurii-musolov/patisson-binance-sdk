@@ -15,7 +15,7 @@ pub enum IncomingMessage {
         msg: String,
         id: Option<String>,
     },
-    StreamEvent(StreamEvent),
+    StreamEvent(CombinedStreamEvent<StreamEvent>),
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -193,6 +193,24 @@ mod tests {
     use rust_decimal::dec;
 
     use super::*;
+
+    #[test]
+    fn test_deserialize_combined_stream_event() {
+        let json = r#"{
+            "stream": "bnbbtc@trade",
+            "data": "DATA"
+        }"#;
+        let expected = CombinedStreamEvent {
+            stream: StreamName::Trade {
+                symbol: String::from("BNBBTC").to_lowercase(),
+            },
+            data: String::from("DATA"),
+        };
+
+        let current = serde_json::from_str(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
 
     #[test]
     fn test_deserialize_stream_event_agg_trade() {
