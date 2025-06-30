@@ -1,4 +1,3 @@
-use hex;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use std::fmt::{self, Display, Formatter};

@@ -7,10 +7,9 @@ use crate::{
         AccountInformation, AggregateTrade, CurrentAveragePrice, GetAccountInformationParams,
         GetAggregateTradesParams, GetCurrentAveragePriceParams, GetKlineListParams,
         GetOlderTradesParams, GetOrderBookParams, GetRecentTradesParams,
-        GetTickerPriceChangeStatisticsParams, Kline, NewOrderParams, NewOrderResponse,
-        NewOrderResponseAck, NewOrderResponseFull, NewOrderResponseResult, Order, OrderBook,
-        QueryOrderParams, RecentTrade, TestCommissionRates, TestCommissionRatesEmpty,
-        TestCommissionRatesFull, TestConnectivity, TickerPriceChangeStatistic,
+        GetTickerPriceChangeStatisticsParams, Kline, NewOrderParams, NewOrderResponse, Order,
+        OrderBook, QueryOrderParams, RecentTrade, TestCommissionRates, TestConnectivity,
+        TickerPriceChangeStatistic,
     },
 };
 
@@ -363,7 +362,7 @@ where
 {
     let response = request.send().await?;
     let status = response.status();
-    let headers = parse_headers(&response.headers());
+    let headers = parse_headers(response.headers());
     let json = response.text().await?;
 
     #[cfg(debug_assertions)]
@@ -384,8 +383,7 @@ where
 fn parse_headers(headers: &HeaderMap) -> Headers {
     let retry_after = headers
         .get(HEADER_RETRY_AFTER)
-        .map(|h| h.to_str().unwrap_or_default().parse().ok())
-        .flatten();
+        .and_then(|h| h.to_str().unwrap_or_default().parse().ok());
 
     Headers { retry_after }
 }
