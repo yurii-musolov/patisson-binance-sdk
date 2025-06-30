@@ -5,6 +5,7 @@ use crate::spot::{KlineInterval, StreamName, Timestamp};
 
 #[derive(PartialEq, Deserialize, Debug)]
 #[serde(untagged)]
+#[allow(clippy::large_enum_variant)]
 pub enum IncomingMessage {
     Response {
         result: Option<serde_json::Value>,

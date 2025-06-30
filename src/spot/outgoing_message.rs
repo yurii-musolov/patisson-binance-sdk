@@ -74,8 +74,7 @@ impl<'de> Deserialize<'de> for StreamName {
                                 })
                             }
                             _ => Err(serde::de::Error::custom(format!(
-                                "unknown stream type: {}",
-                                kind
+                                "unknown stream type: {kind}"
                             ))),
                         }
                     } else {

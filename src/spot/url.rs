@@ -121,7 +121,7 @@ impl std::fmt::Display for Path {
             Self::Stream => "/stream",
         };
 
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
