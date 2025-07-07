@@ -25,34 +25,34 @@ impl Serialize for StreamName {
         S: Serializer,
     {
         let s = match self {
-            StreamName::AggTrade { symbol } => format!("{symbol}@aggTrade"),
-            StreamName::Trade { symbol } => format!("{symbol}@trade"),
-            StreamName::Depth { symbol } => format!("{symbol}@depth"),
-            StreamName::Kline { symbol, interval } => format!("{symbol}@kline_{interval}"),
-            StreamName::MiniTicker24 { symbol } => format!("{symbol}@24hrMiniTicker"),
+            Self::AggTrade { symbol } => format!("{symbol}@aggTrade"),
+            Self::Trade { symbol } => format!("{symbol}@trade"),
+            Self::Depth { symbol } => format!("{symbol}@depth"),
+            Self::Kline { symbol, interval } => format!("{symbol}@kline_{interval}"),
+            Self::MiniTicker24 { symbol } => format!("{symbol}@24hrMiniTicker"),
         };
         serializer.serialize_str(&s)
     }
 }
 
 impl<'de> Deserialize<'de> for StreamName {
-    fn deserialize<D>(deserializer: D) -> Result<StreamName, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         let s: &str = Deserialize::deserialize(deserializer)?;
         if let Some((symbol, kind)) = s.split_once('@') {
             match kind {
-                "aggTrade" => Ok(StreamName::AggTrade {
+                "aggTrade" => Ok(Self::AggTrade {
                     symbol: symbol.to_owned(),
                 }),
-                "trade" => Ok(StreamName::Trade {
+                "trade" => Ok(Self::Trade {
                     symbol: symbol.to_owned(),
                 }),
-                "depth" => Ok(StreamName::Depth {
+                "depth" => Ok(Self::Depth {
                     symbol: symbol.to_owned(),
                 }),
-                "24hrMiniTicker" => Ok(StreamName::MiniTicker24 {
+                "24hrMiniTicker" => Ok(Self::MiniTicker24 {
                     symbol: symbol.to_owned(),
                 }),
                 kind => {
@@ -68,7 +68,7 @@ impl<'de> Deserialize<'de> for StreamName {
                                         ));
                                     }
                                 };
-                                Ok(StreamName::Kline {
+                                Ok(Self::Kline {
                                     symbol: symbol.to_owned(),
                                     interval,
                                 })
