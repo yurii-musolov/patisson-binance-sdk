@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub fn deserialize_json<'de, T>(
     json: &'de str,
@@ -9,6 +9,22 @@ where
     let deserializer = &mut serde_json::Deserializer::from_str(json);
 
     serde_path_to_error::deserialize(deserializer)
+}
+
+#[inline]
+pub fn serialize_json<T>(msg: &T) -> serde_json::Result<String>
+where
+    T: ?Sized + Serialize,
+{
+    serde_json::to_string(msg)
+}
+
+#[inline]
+pub fn serialize_query<T>(msg: &T) -> Result<String, serde_urlencoded::ser::Error>
+where
+    T: ?Sized + Serialize,
+{
+    serde_urlencoded::to_string(msg)
 }
 
 #[cfg(test)]
@@ -23,7 +39,7 @@ mod tests {
     fn test_deserialize_incoming_message_combined_stream_event_trade() {
         let json = r#"{"stream":"btcusdt@trade","data":{"e":"trade","E":1751132780369,"s":"BTCUSDT","t":5052328858,"p":"107407.88000000","q":"0.00024000","T":1751132780368,"m":true,"M":true}}"#;
         let symbol = String::from("BTCUSDT");
-        let event = EventTrade {
+        let event = TradeMsg {
             event_time: 1751132780369,
             symbol: String::from("BTCUSDT"),
             trade_id: 5052328858,
@@ -32,13 +48,13 @@ mod tests {
             trade_time: 1751132780368,
             is_buyer: true,
         };
-        let event = CombinedStreamEvent {
+        let event = CombinedStreamMessage {
             stream: StreamName::Trade {
                 symbol: symbol.to_lowercase(),
             },
-            data: StreamEvent::Trade(event),
+            data: StreamMessage::Trade(event),
         };
-        let expected = IncomingMessage::StreamEvent(event);
+        let expected = IncomingMessage::CombinedStream(event);
 
         let current = deserialize_json(json).unwrap();
 
@@ -50,10 +66,10 @@ mod tests {
         let json = r#"{"stream":"btcusdt@kline_1m","data":{"e":"kline","E":1751132772018,"s":"BTCUSDT","k":{"t":1751132760000,"T":1751132819999,"s":"BTCUSDT","i":"1m","f":5052328412,"L":5052328605,"o":"107413.25000000","c":"107413.18000000","h":"107413.25000000","l":"107413.18000000","v":"0.61673000","n":194,"x":false,"q":"66244.96435620","V":"0.02328000","Q":"2500.57910880","B":"0"}}}"#;
         let symbol = String::from("BTCUSDT");
         let interval = crate::spot::KlineInterval::Minute1;
-        let event = EventKline {
+        let event = KlineMsg {
             event_time: 1751132772018,
             symbol: symbol.clone(),
-            kline: KlineMsg {
+            kline: Kline {
                 start_time: 1751132760000,
                 close_time: 1751132819999,
                 symbol: symbol.clone(),
@@ -72,14 +88,14 @@ mod tests {
                 taker_buy_quote_asset_volume: dec!(2500.57910880),
             },
         };
-        let event = CombinedStreamEvent {
+        let event = CombinedStreamMessage {
             stream: StreamName::Kline {
                 symbol: symbol.to_lowercase(),
                 interval,
             },
-            data: StreamEvent::Kline(event),
+            data: StreamMessage::Kline(event),
         };
-        let expected = IncomingMessage::StreamEvent(event);
+        let expected = IncomingMessage::CombinedStream(event);
 
         let current = deserialize_json(json).unwrap();
 

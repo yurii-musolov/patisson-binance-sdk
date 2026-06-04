@@ -3,47 +3,70 @@ use serde::Deserialize;
 
 use crate::{
     Timestamp,
-    spot::{KlineInterval, ws::StreamName},
+    spot::{
+        KlineInterval,
+        ws::{MessageID, StreamName},
+    },
+    ws::ReceivedMessage,
 };
 
 #[derive(PartialEq, Deserialize, Debug)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
 pub enum IncomingMessage {
-    Response {
-        result: Option<serde_json::Value>,
-        id: String,
-    },
-    Error {
-        code: i64,
-        msg: String,
-        id: Option<String>,
-    },
-    StreamEvent(CombinedStreamEvent<StreamEvent>),
+    CombinedStream(CombinedStreamMessage<StreamMessage>),
+    Stream(StreamMessage),
+    Error(ErrorMessage),
+    Response(ResponseMessage), // last.
+}
+
+impl ReceivedMessage for IncomingMessage {
+    fn server_shutdown_event_time(&self) -> Option<u64> {
+        match self {
+            IncomingMessage::Stream(StreamMessage::ServerShutdown(ServerShutdownMsg {
+                event_time,
+            })) => Some(*event_time),
+            IncomingMessage::CombinedStream(CombinedStreamMessage {
+                data: StreamMessage::ServerShutdown(ServerShutdownMsg { event_time }),
+                ..
+            }) => Some(*event_time),
+            _ => None,
+        }
+    }
+}
+
+#[derive(PartialEq, Deserialize, Debug)]
+pub struct ResponseMessage {
+    pub id: Option<MessageID>,
+    pub status: Option<i64>,
+    pub result: Option<serde_json::Value>,
+    pub rate_limits: Option<Vec<serde_json::Value>>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub struct CombinedStreamEvent<T> {
+pub struct CombinedStreamMessage<T> {
     pub stream: StreamName,
     pub data: T,
 }
 
 #[derive(PartialEq, Deserialize, Debug)]
 #[serde(tag = "e")]
-pub enum StreamEvent {
+pub enum StreamMessage {
     #[serde(rename = "aggTrade")]
-    AggTrade(EventAggTrade),
+    AggTrade(AggTradeMsg),
     #[serde(rename = "trade")]
-    Trade(EventTrade),
+    Trade(TradeMsg),
     #[serde(rename = "kline")]
-    Kline(EventKline),
+    Kline(KlineMsg),
     #[serde(rename = "24hrMiniTicker")]
-    MiniTicker24(EventMiniTicker24),
+    MiniTicker24(MiniTicker24Msg),
+    #[serde(rename = "serverShutdown")]
+    ServerShutdown(ServerShutdownMsg),
 }
 
 /// The Aggregate Trade Streams push trade information that is aggregated for a single taker order.
 #[derive(PartialEq, Deserialize, Debug)]
-pub struct EventAggTrade {
+pub struct AggTradeMsg {
     /// Event time
     #[serde(rename = "E")]
     pub event_time: Timestamp,
@@ -75,7 +98,7 @@ pub struct EventAggTrade {
 
 /// The Trade Streams push raw trade information; each trade has a unique buyer and seller.
 #[derive(PartialEq, Deserialize, Debug)]
-pub struct EventTrade {
+pub struct TradeMsg {
     /// Event time
     #[serde(rename = "E")]
     pub event_time: Timestamp,
@@ -101,7 +124,7 @@ pub struct EventTrade {
 
 /// The Kline/Candlestick Stream push updates to the current klines/candlestick every second in UTC+0 timezone
 #[derive(PartialEq, Deserialize, Debug)]
-pub struct EventKline {
+pub struct KlineMsg {
     /// Event time
     #[serde(rename = "E")]
     pub event_time: Timestamp,
@@ -109,10 +132,10 @@ pub struct EventKline {
     #[serde(rename = "s")]
     pub symbol: String,
     #[serde(rename = "k")]
-    pub kline: KlineMsg,
+    pub kline: Kline,
 }
 #[derive(PartialEq, Deserialize, Debug)]
-pub struct KlineMsg {
+pub struct Kline {
     /// Kline start time
     #[serde(rename = "t")]
     pub start_time: Timestamp,
@@ -165,7 +188,7 @@ pub struct KlineMsg {
 
 /// 24hr rolling window mini-ticker statistics. These are NOT the statistics of the UTC day, but a 24hr rolling window for the previous 24hrs.
 #[derive(PartialEq, Deserialize, Debug)]
-pub struct EventMiniTicker24 {
+pub struct MiniTicker24Msg {
     /// Event time
     #[serde(rename = "E")]
     pub event_time: Timestamp,
@@ -192,11 +215,34 @@ pub struct EventMiniTicker24 {
     pub total_quote_asset_volume: Decimal,
 }
 
+#[derive(PartialEq, Deserialize, Debug)]
+pub struct ServerShutdownMsg {
+    /// Event time
+    #[serde(rename = "E")]
+    pub event_time: Timestamp,
+}
+
+#[derive(PartialEq, Deserialize, Debug)]
+pub struct ErrorMessage {
+    ///
+    pub error: ErrorValueMessage,
+    ///
+    pub id: Option<MessageID>,
+}
+
+#[derive(PartialEq, Deserialize, Debug)]
+pub struct ErrorValueMessage {
+    ///
+    pub code: i64,
+    ///
+    pub msg: String,
+}
+
 #[cfg(test)]
 mod tests {
     use rust_decimal::dec;
 
-    use crate::spot::serde::deserialize_json;
+    use crate::serde::deserialize_json;
 
     use super::*;
 
@@ -206,7 +252,7 @@ mod tests {
             "stream": "bnbbtc@trade",
             "data": "DATA"
         }"#;
-        let expected = CombinedStreamEvent {
+        let expected = CombinedStreamMessage {
             stream: StreamName::Trade {
                 symbol: String::from("BNBBTC").to_lowercase(),
             },
@@ -219,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_stream_event_agg_trade() {
+    fn test_deserialize_stream_message_agg_trade() {
         let json = r#"{
             "e": "aggTrade",
             "E": 1672515782136,
@@ -233,7 +279,7 @@ mod tests {
             "m": true,
             "M": true
         }"#;
-        let expected = EventAggTrade {
+        let expected = AggTradeMsg {
             event_time: 1672515782136,
             symbol: String::from("BNBBTC"),
             trade_id: 12345,
@@ -251,7 +297,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_stream_event_trade() {
+    fn test_deserialize_stream_message_trade() {
         let json = r#"{
             "e": "trade",
             "E": 1672515782136,
@@ -263,7 +309,7 @@ mod tests {
             "m": true,
             "M": true
         }"#;
-        let expected = EventTrade {
+        let expected = TradeMsg {
             event_time: 1672515782136,
             symbol: String::from("BNBBTC"),
             trade_id: 12345,
@@ -279,7 +325,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_stream_event_kline() {
+    fn test_deserialize_stream_message_kline() {
         let json = r#"{
             "e": "kline",
             "E": 1672515782136,
@@ -305,10 +351,10 @@ mod tests {
             }
         }"#;
         let symbol = String::from("BNBBTC");
-        let expected = EventKline {
+        let expected = KlineMsg {
             event_time: 1672515782136,
             symbol: symbol.clone(),
-            kline: KlineMsg {
+            kline: Kline {
                 start_time: 1672515780000,
                 close_time: 1672515839999,
                 symbol,
@@ -334,7 +380,7 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_stream_event_mini_ticker24() {
+    fn test_deserialize_stream_message_mini_ticker24() {
         let json = r#"{
             "e": "24hrMiniTicker",
             "E": 1672515782136,
@@ -346,7 +392,7 @@ mod tests {
             "v": "10000",
             "q": "18"
         }"#;
-        let expected = EventMiniTicker24 {
+        let expected = MiniTicker24Msg {
             event_time: 1672515782136,
             symbol: String::from("BNBBTC"),
             open_price: dec!(0.0010),
@@ -360,5 +406,15 @@ mod tests {
         let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn test_deserialize_stream_message_response() {
+        let json = r#"{"result":null,"id":"message-id"}"#;
+        let parsed: IncomingMessage = deserialize_json(json).unwrap();
+        assert!(
+            matches!(parsed, IncomingMessage::Response(_)),
+            "expected Response variant, got {parsed:?}",
+        );
     }
 }

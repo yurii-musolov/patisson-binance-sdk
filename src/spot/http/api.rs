@@ -785,7 +785,7 @@ pub struct Order {
 mod tests {
     use rust_decimal::dec;
 
-    use crate::spot::serde::deserialize_json;
+    use crate::serde::deserialize_json;
 
     use super::*;
 
