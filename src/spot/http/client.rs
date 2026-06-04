@@ -4,18 +4,18 @@ use crate::{
     SensitiveString,
     crypto::make_sign,
     spot::{
-        AccountInformation, AggregateTrade, CurrentAveragePrice, GetAccountInformationParams,
-        GetAggregateTradesParams, GetCurrentAveragePriceParams, GetKlineListParams,
-        GetOlderTradesParams, GetOrderBookParams, GetRecentTradesParams,
-        GetTickerPriceChangeStatisticsParams, Kline, NewOrderParams, NewOrderResponse, Order,
-        OrderBook, QueryOrderParams, RecentTrade, TestCommissionRates, TestConnectivity,
-        TickerPriceChangeStatistic,
+        Error, HEADER_RETRY_AFTER, HEADER_X_MBX_APIKEY, Path,
+        http::{
+            AccountInformation, AggregateTrade, CurrentAveragePrice, ExchangeInfo,
+            GetAccountInformationParams, GetAggregateTradesParams, GetCurrentAveragePriceParams,
+            GetExchangeInfoParams, GetKlineListParams, GetOlderTradesParams, GetOrderBookParams,
+            GetRecentTradesParams, GetTickerPriceChangeStatisticsParams, Headers, Kline,
+            NewOrderRequest, NewOrderResponse, Order, OrderBook, QueryOrderParams, RecentTrade,
+            Response, ServerTime, TestCommissionRates, TestConnectivity,
+            TickerPriceChangeStatistic,
+        },
+        serde::deserialize_json,
     },
-};
-
-use super::{
-    Error, ExchangeInfo, GetExchangeInfoParams, Headers, Response, ServerTime,
-    serde::deserialize_str, url::*,
 };
 
 pub struct GeneralClient {
@@ -252,7 +252,7 @@ impl TradingClient {
     /// Price below market price: STOP_LOSS SELL, TAKE_PROFIT BUY
     pub async fn new_order(
         &self,
-        params: NewOrderParams,
+        params: NewOrderRequest,
     ) -> Result<Response<NewOrderResponse>, Error> {
         let query = serde_urlencoded::to_string(&params)?;
         let body = (*self.sign)(&query);
@@ -272,7 +272,7 @@ impl TradingClient {
     /// Test new order creation and signature/recvWindow long. Creates and validates a new order but does not send it into the matching engine.
     pub async fn test_new_order(
         &self,
-        params: NewOrderParams,
+        params: NewOrderRequest,
         compute_commission_rates: bool,
     ) -> Result<Response<TestCommissionRates>, Error> {
         let mut query = serde_urlencoded::to_string(&params)?;
@@ -374,7 +374,7 @@ where
 
     // TODO: handle ApiError (code + msg)
 
-    let result = deserialize_str(&json)?;
+    let result = deserialize_json(&json)?;
     let response = Response { result, headers };
     Ok(response)
 }

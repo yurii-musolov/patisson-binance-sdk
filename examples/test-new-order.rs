@@ -9,7 +9,10 @@ use tokio;
 
 use binance::{
     SensitiveString,
-    spot::{BASE_URL_API, NewOrderParams, OrderResponseType, OrderSide, OrderType, TradingClient},
+    spot::{
+        BASE_URL_API, OrderResponseType, OrderSide, OrderType,
+        http::{NewOrderRequest, TradingClient},
+    },
     timestamp,
 };
 
@@ -22,7 +25,7 @@ async fn main() -> anyhow::Result<()> {
     let api_secret = SensitiveString::from(api_secret);
     let client = TradingClient::new(BASE_URL_API.into(), api_key, api_secret);
 
-    let params = NewOrderParams {
+    let params = NewOrderRequest {
         symbol: String::from("BTCUSDT"),
         side: OrderSide::BUY,
         order_type: OrderType::Market,

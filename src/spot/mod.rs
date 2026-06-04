@@ -1,18 +1,13 @@
-mod api;
-mod client;
+mod common;
 mod enums;
 mod error;
-mod incoming_message;
-mod outgoing_message;
 mod serde;
-mod stream;
 mod url;
 
-pub use api::*;
-pub use client::*;
+pub mod http;
+pub mod ws;
+
+pub use common::*;
 pub use enums::*;
 pub use error::*;
-pub use incoming_message::*;
-pub use outgoing_message::*;
-pub use stream::*;
 pub use url::*;

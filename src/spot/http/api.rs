@@ -4,10 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::spot::{
     AccountType, ErrorCode, ExchangeFilter, KlineInterval, OrderResponseType, OrderSide,
     OrderStatus, OrderType, RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce,
-    WorkingFloor,
+    Timestamp, WorkingFloor,
 };
-
-pub type Timestamp = u64;
 
 #[derive(Debug, PartialEq)]
 pub struct Response<T> {
@@ -407,7 +405,7 @@ pub struct TickerPriceChangeStatisticMini {
 
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct NewOrderParams {
+pub struct NewOrderRequest {
     pub symbol: String,
     pub side: OrderSide,
     #[serde(rename = "type")]
@@ -438,7 +436,7 @@ pub struct NewOrderParams {
     pub timestamp: Timestamp,
 }
 
-impl NewOrderParams {
+impl NewOrderRequest {
     pub fn is_valid(&self) -> bool {
         match self.order_type {
             OrderType::Limit => {
@@ -784,7 +782,7 @@ pub struct Order {
 mod tests {
     use rust_decimal::dec;
 
-    use crate::spot::serde::deserialize_str;
+    use crate::spot::serde::deserialize_json;
 
     use super::*;
 
@@ -797,7 +795,7 @@ mod tests {
             server_time: 1499827319559,
         };
 
-        let current = deserialize_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -906,7 +904,7 @@ mod tests {
             }]),
         };
 
-        let current = deserialize_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -934,7 +932,7 @@ mod tests {
             asks: vec![OrderLevel(dec!(4.00000200), dec!(12.00000000))],
         };
 
-        let current = deserialize_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -967,7 +965,7 @@ mod tests {
         };
         let expected = NewOrderResponse::Ack(response);
 
-        let current = deserialize_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -1022,7 +1020,7 @@ mod tests {
         };
         let expected = NewOrderResponse::Result(response);
 
-        let current = deserialize_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -1151,7 +1149,7 @@ mod tests {
         };
         let expected = NewOrderResponse::Full(response);
 
-        let current = deserialize_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -1161,7 +1159,7 @@ mod tests {
         let json = r#"{}"#;
         let expected = TestCommissionRates::Empty(TestCommissionRatesEmpty {});
 
-        let current = deserialize_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -1202,7 +1200,7 @@ mod tests {
         };
         let expected = TestCommissionRates::Full(rates);
 
-        let current = deserialize_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -1281,7 +1279,7 @@ mod tests {
             uid: 354937868,
         };
 
-        let current = deserialize_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -1333,7 +1331,7 @@ mod tests {
             self_trade_prevention_mode: STPMode::None,
         };
 
-        let current = deserialize_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }

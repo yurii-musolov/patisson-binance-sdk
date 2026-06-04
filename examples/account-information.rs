@@ -8,7 +8,10 @@ use tokio;
 
 use binance::{
     SensitiveString,
-    spot::{AccountClient, BASE_URL_API, GetAccountInformationParams},
+    spot::{
+        BASE_URL_API,
+        http::{AccountClient, GetAccountInformationParams},
+    },
     timestamp,
 };
 

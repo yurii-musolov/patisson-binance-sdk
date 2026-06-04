@@ -6,13 +6,16 @@
 
 use tokio;
 
-use binance::spot::{BASE_URL_API, MarketClient, SymbolOrSymbols};
+use binance::spot::{
+    BASE_URL_API,
+    http::{GetTickerPriceChangeStatisticsParams, MarketClient, SymbolOrSymbols},
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let client = MarketClient::new(BASE_URL_API.into());
 
-    let params = binance::spot::GetTickerPriceChangeStatisticsParams::Full(SymbolOrSymbols {
+    let params = GetTickerPriceChangeStatisticsParams::Full(SymbolOrSymbols {
         symbol: Some(String::from("BTCUSDT")),
         symbols: None,
     });

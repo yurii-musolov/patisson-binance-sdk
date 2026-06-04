@@ -1,7 +1,7 @@
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
-use crate::spot::{KlineInterval, StreamName, Timestamp};
+use crate::spot::{KlineInterval, Timestamp, ws::StreamName};
 
 #[derive(PartialEq, Deserialize, Debug)]
 #[serde(untagged)]
@@ -193,6 +193,8 @@ pub struct EventMiniTicker24 {
 mod tests {
     use rust_decimal::dec;
 
+    use crate::spot::serde::deserialize_json;
+
     use super::*;
 
     #[test]
@@ -208,7 +210,7 @@ mod tests {
             data: String::from("DATA"),
         };
 
-        let current = serde_json::from_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -240,7 +242,7 @@ mod tests {
             is_buyer: true,
         };
 
-        let current = serde_json::from_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -268,7 +270,7 @@ mod tests {
             is_buyer: true,
         };
 
-        let current = serde_json::from_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -323,7 +325,7 @@ mod tests {
             },
         };
 
-        let current = serde_json::from_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -352,7 +354,7 @@ mod tests {
             total_quote_asset_volume: dec!(18),
         };
 
-        let current = serde_json::from_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
