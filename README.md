@@ -17,14 +17,10 @@ Unofficial Rust SDK for the [Binance exchange API](https://developers.binance.co
 ### Server time
 
 ```rs
-use binance::spot::{BASE_URL_API, Client, ClientConfig};
+use binance::spot::{BASE_URL_API, http::GeneralClient};
 
-let cfg = ClientConfig {
-    base_url: BASE_URL_API.to_string(),
-    api_key: None,
-    api_secret: None,
-};
-let client = Client::new(cfg);
+let client = GeneralClient::new(BASE_URL_API.into());
+
 let response = client.get_server_time().await?;
 println!("{response:#?}");
 ```
@@ -32,14 +28,10 @@ println!("{response:#?}");
 ### Exchange info
 
 ```rs
-use binance::spot::{BASE_URL_API, Client, ClientConfig, GetExchangeInfoParams};
+use binance::spot::{BASE_URL_API, http::{GetKlineListParams, MarketClient}};
 
-let cfg = ClientConfig {
-    base_url: BASE_URL_API.to_string(),
-    api_key: None,
-    api_secret: None,
-};
-let client = Client::new(cfg);
+let client = GeneralClient::new(BASE_URL_API.into());
+
 let params = GetExchangeInfoParams {
     symbol: Some(String::from("BTCUSDT")),
     symbols: None,

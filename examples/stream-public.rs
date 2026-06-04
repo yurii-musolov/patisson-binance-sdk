@@ -9,7 +9,8 @@ use std::time::Duration;
 use tokio::{self, time::sleep};
 
 use binance::spot::{
-    BASE_URL_MARKET_DATA_STREAM1, KlineInterval, OutgoingMessage, Path, StreamName, stream,
+    BASE_URL_MARKET_DATA_STREAM1, KlineInterval, Path,
+    ws::{OutgoingMessage, StreamName, stream},
 };
 
 #[tokio::main]

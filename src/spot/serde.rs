@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-pub fn deserialize_str<'de, T>(
+pub fn deserialize_json<'de, T>(
     json: &'de str,
 ) -> Result<T, serde_path_to_error::Error<serde_json::Error>>
 where
@@ -15,7 +15,7 @@ where
 mod tests {
     use rust_decimal::dec;
 
-    use crate::spot::*;
+    use crate::spot::ws::*;
 
     use super::*;
 
@@ -40,7 +40,7 @@ mod tests {
         };
         let expected = IncomingMessage::StreamEvent(event);
 
-        let current = deserialize_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }
@@ -81,7 +81,7 @@ mod tests {
         };
         let expected = IncomingMessage::StreamEvent(event);
 
-        let current = deserialize_str(json).unwrap();
+        let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }

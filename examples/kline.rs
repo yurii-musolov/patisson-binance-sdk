@@ -6,7 +6,10 @@
 
 use tokio;
 
-use binance::spot::{BASE_URL_API, GetKlineListParams, MarketClient};
+use binance::spot::{
+    BASE_URL_API,
+    http::{GetKlineListParams, MarketClient},
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

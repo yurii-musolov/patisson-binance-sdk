@@ -1,6 +1,6 @@
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::spot::KlineInterval;
+use crate::spot::{KlineInterval, serde::deserialize_json};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StreamName {
@@ -60,7 +60,7 @@ impl<'de> Deserialize<'de> for StreamName {
                         match kind {
                             "kline" => {
                                 let interval = format!("\"{params}\"");
-                                let interval = match serde_json::from_str(&interval) {
+                                let interval = match deserialize_json(&interval) {
                                     Ok(interval) => interval,
                                     Err(_) => {
                                         return Err(serde::de::Error::custom(
@@ -120,6 +120,8 @@ pub enum OutgoingMessage {
 
 #[cfg(test)]
 mod tests {
+    use crate::spot::serde::deserialize_json;
+
     use super::*;
 
     #[test]
@@ -201,7 +203,7 @@ mod tests {
         ];
 
         cases.into_iter().for_each(|(serialized, expected)| {
-            let stream = serde_json::from_str(serialized).unwrap();
+            let stream = deserialize_json(serialized).unwrap();
             assert_eq!(expected, stream);
         });
     }

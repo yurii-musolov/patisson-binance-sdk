@@ -6,7 +6,10 @@
 
 use tokio;
 
-use binance::spot::{BASE_URL_API, GeneralClient, GetExchangeInfoParams};
+use binance::spot::{
+    BASE_URL_API,
+    http::{GeneralClient, GetExchangeInfoParams},
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
