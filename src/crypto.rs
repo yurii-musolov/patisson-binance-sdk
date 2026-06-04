@@ -2,7 +2,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use std::fmt::{self, Display, Formatter};
 
-use crate::spot::Timestamp;
+use crate::Timestamp;
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SensitiveString(String);
