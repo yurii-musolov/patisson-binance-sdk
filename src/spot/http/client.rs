@@ -3,6 +3,7 @@ use reqwest::{self, Method, RequestBuilder, StatusCode, header::HeaderMap};
 use crate::{
     SensitiveString,
     crypto::make_sign,
+    serde::deserialize_json,
     spot::{
         Error, HEADER_RETRY_AFTER, HEADER_X_MBX_APIKEY, Path,
         http::{
@@ -14,7 +15,6 @@ use crate::{
             Response, ServerTime, TestCommissionRates, TestConnectivity,
             TickerPriceChangeStatistic,
         },
-        serde::deserialize_json,
     },
 };
 
@@ -31,7 +31,7 @@ impl GeneralClient {
 impl GeneralClient {
     /// Test connectivity to the Rest API.
     pub async fn test_connectivity(&self) -> Result<Response<TestConnectivity>, Error> {
-        let url = format!("{}{}", self.base_url, Path::Time);
+        let url = format!("{}{}", self.base_url, Path::Ping);
 
         let client = reqwest::Client::builder().build()?;
         let request = client.request(Method::GET, url);

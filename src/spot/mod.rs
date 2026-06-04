@@ -1,6 +1,5 @@
 mod enums;
 mod error;
-mod serde;
 mod url;
 
 pub mod http;

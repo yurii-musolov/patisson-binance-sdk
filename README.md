@@ -8,9 +8,12 @@ Unofficial Rust SDK for the [Binance exchange API](https://developers.binance.co
 
 ## Features
 
-- REST API support (Spot)
-- Unauthenticated endpoints
-- Only async clients
+- Spot Trading
+- Margin Trading
+- Derivatives Trading
+  - USDⓈ-M Futures
+  - COIN-M Futures
+- Wallet
 
 ## Examples
 
