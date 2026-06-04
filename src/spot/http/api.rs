@@ -1,10 +1,13 @@
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-use crate::spot::{
-    AccountType, ErrorCode, ExchangeFilter, KlineInterval, OrderResponseType, OrderSide,
-    OrderStatus, OrderType, RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce,
-    Timestamp, WorkingFloor,
+use crate::{
+    Timestamp,
+    spot::{
+        AccountType, ErrorCode, ExchangeFilter, KlineInterval, OrderResponseType, OrderSide,
+        OrderStatus, OrderType, RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce,
+        WorkingFloor,
+    },
 };
 
 #[derive(Debug, PartialEq)]

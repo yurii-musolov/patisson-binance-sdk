@@ -1,7 +1,10 @@
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
-use crate::spot::{KlineInterval, Timestamp, ws::StreamName};
+use crate::{
+    Timestamp,
+    spot::{KlineInterval, ws::StreamName},
+};
 
 #[derive(PartialEq, Deserialize, Debug)]
 #[serde(untagged)]
