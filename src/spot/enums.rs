@@ -1,4 +1,4 @@
-//! ENUM Definitions
+//! Enum definitions for the Binance Spot API.
 //!
 //! This will apply for both REST API and WebSocket API.
 
