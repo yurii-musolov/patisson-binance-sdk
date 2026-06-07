@@ -1,7 +1,7 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example kline
+//! cargo run --example spot-kline
 //! ```
 
 use binance::spot::{

@@ -1,7 +1,7 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example test-new-order
+//! cargo run --example spot-test-new-order
 //! ```
 
 use anyhow::bail;

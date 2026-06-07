@@ -1,12 +1,12 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example exchange-info
+//! cargo run --example spot-ticker-statistics
 //! ```
 
 use binance::spot::{
     BASE_URL_API,
-    http::{GetExchangeInfoParams, PublicClient, PublicConfig},
+    http::{GetTickerPriceChangeStatisticsParams, PublicClient, PublicConfig, SymbolOrSymbols},
 };
 use tokio;
 use tracing::{Level, info};
@@ -22,8 +22,10 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PublicConfig::new(BASE_URL_API);
     let client = PublicClient::new(cfg);
 
-    let params = GetExchangeInfoParams::new().symbol("BTCUSDT");
-    let response = client.get_exchange_info(params).await?;
+    let params = GetTickerPriceChangeStatisticsParams::Full(
+        SymbolOrSymbols::new().symbol("BTCUSDT"),
+    );
+    let response = client.ticker_price_change_statistics(params).await?;
     info!(?response, "response");
 
     Ok(())

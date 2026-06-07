@@ -1,7 +1,7 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example stream-public
+//! cargo run --example spot-stream-public
 //! ```
 
 use binance::{

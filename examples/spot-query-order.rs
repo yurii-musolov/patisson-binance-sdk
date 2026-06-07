@@ -1,7 +1,7 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example query-order
+//! cargo run --example spot-query-order
 //! ```
 
 use binance::{

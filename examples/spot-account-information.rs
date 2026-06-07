@@ -1,7 +1,7 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example account-information
+//! cargo run --example spot-account-information
 //! ```
 
 use binance::{
