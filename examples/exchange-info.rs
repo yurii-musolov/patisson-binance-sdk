@@ -4,16 +4,23 @@
 //! cargo run --example exchange-info
 //! ```
 
-use tokio;
-
 use binance::spot::{
     BASE_URL_API,
-    http::{GeneralClient, GetExchangeInfoParams},
+    http::{GetExchangeInfoParams, PublicClient, PublicConfig},
 };
+use tokio;
+use tracing::{Level, info};
+use tracing_subscriber::FmtSubscriber;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let client = GeneralClient::new(BASE_URL_API.into());
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::DEBUG)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
+    let cfg = PublicConfig::new(BASE_URL_API);
+    let client = PublicClient::new(cfg);
 
     let params = GetExchangeInfoParams {
         symbol: Some(String::from("BTCUSDT")),
@@ -23,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
         symbol_status: None,
     };
     let response = client.get_exchange_info(params).await?;
-    println!("{response:#?}");
+    info!(?response, "response");
 
     Ok(())
 }

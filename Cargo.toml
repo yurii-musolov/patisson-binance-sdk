@@ -25,7 +25,7 @@ futures-util = { version = "0.3.31", default-features = false, features = [
 ] }
 hex = "0.4.3"
 hmac = "0.13.0"
-reqwest = { version = "0.13.4", features = ["json"] }
+reqwest = { version = "0.13.4", features = ["json", "query"] }
 rust_decimal = { version = "1.42.0", features = [
   "std",
   "macros",

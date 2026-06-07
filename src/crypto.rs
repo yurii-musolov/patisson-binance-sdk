@@ -51,8 +51,12 @@ pub fn hmac_sha256(key: impl AsRef<[u8]>, message: impl AsRef<[u8]>) -> String {
     hex::encode(&mac)
 }
 
-pub fn make_sign(api_secret: SensitiveString) -> impl Fn(&str) -> String {
-    move |s: &str| format!("{}&signature={}", s, hmac_sha256(api_secret.expose(), s))
+pub fn sign_query(api_secret: &SensitiveString, query: &str) -> String {
+    format!(
+        "{}&signature={}",
+        query,
+        hmac_sha256(api_secret.expose(), query)
+    )
 }
 
 /// Return milliseconds.
@@ -65,17 +69,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sign_query() {
+    fn test_sign_query() {
         let api_secret = SensitiveString(
             "NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j".to_string(),
         );
-        let sign = make_sign(api_secret);
         let query = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559";
         let signature = "c8db56825ae71d6d79447849e617115f4a920fa2acdcab2b053c4b2838bd6b71";
         let expected = format!("{query}&signature={signature}");
 
-        let body = sign(query);
+        let signed_query = sign_query(&api_secret, query);
 
-        assert_eq!(expected, body);
+        assert_eq!(expected, signed_query);
     }
 }

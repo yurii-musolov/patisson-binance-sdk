@@ -1,9 +1,7 @@
-use reqwest::{self, Method, RequestBuilder, StatusCode, header::HeaderMap};
-
 use crate::{
     SensitiveString,
-    crypto::make_sign,
-    serde::deserialize_json,
+    crypto::sign_query,
+    serde::{deserialize_json, serialize_query},
     spot::{
         Error, HEADER_RETRY_AFTER, HEADER_X_MBX_APIKEY, Path,
         http::{
@@ -11,30 +9,39 @@ use crate::{
             GetAccountInformationParams, GetAggregateTradesParams, GetCurrentAveragePriceParams,
             GetExchangeInfoParams, GetKlineListParams, GetOlderTradesParams, GetOrderBookParams,
             GetRecentTradesParams, GetTickerPriceChangeStatisticsParams, Headers, Kline,
-            NewOrderRequest, NewOrderResponse, Order, OrderBook, QueryOrderParams, RecentTrade,
-            Response, ServerTime, TestCommissionRates, TestConnectivity,
-            TickerPriceChangeStatistic,
+            NewOrderRequest, NewOrderResponse, Order, OrderBook, PrivateConfig, PublicConfig,
+            QueryOrderParams, RecentTrade, Response, ServerTime, TestCommissionRates,
+            TestConnectivity, TickerPriceChangeStatistic,
         },
     },
 };
+use reqwest::{self, Method, RequestBuilder, StatusCode, header::HeaderMap};
+use tracing::debug;
 
-pub struct GeneralClient {
+pub struct PublicClient {
     base_url: String,
+    headers: HeaderMap,
 }
 
-impl GeneralClient {
-    pub fn new(base_url: String) -> Self {
-        Self { base_url }
+impl PublicClient {
+    pub fn new(cfg: PublicConfig) -> Self {
+        Self {
+            base_url: cfg.base_url,
+            headers: cfg.headers.unwrap_or_default(),
+        }
     }
 }
 
-impl GeneralClient {
+// General
+impl PublicClient {
     /// Test connectivity to the Rest API.
     pub async fn test_connectivity(&self) -> Result<Response<TestConnectivity>, Error> {
         let url = format!("{}{}", self.base_url, Path::Ping);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::GET, url);
+        let request = client
+            .request(Method::GET, url)
+            .headers(self.headers.clone());
 
         let response = send(request).await?;
         Ok(response)
@@ -44,7 +51,9 @@ impl GeneralClient {
         let url = format!("{}{}", self.base_url, Path::Time);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::GET, url);
+        let request = client
+            .request(Method::GET, url)
+            .headers(self.headers.clone());
 
         let response = send(request).await?;
         Ok(response)
@@ -54,37 +63,32 @@ impl GeneralClient {
         &self,
         params: GetExchangeInfoParams,
     ) -> Result<Response<ExchangeInfo>, Error> {
-        let query = serde_urlencoded::to_string(&params)?;
-        let url = format!("{}{}?{query}", self.base_url, Path::ExchangeInfo);
+        let url = format!("{}{}", self.base_url, Path::ExchangeInfo);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::GET, url);
+        let request = client
+            .request(Method::GET, url)
+            .headers(self.headers.clone())
+            .query(&params);
 
         let response = send(request).await?;
         Ok(response)
     }
 }
 
-pub struct MarketClient {
-    base_url: String,
-}
-
-impl MarketClient {
-    pub fn new(base_url: String) -> Self {
-        Self { base_url }
-    }
-}
-
-impl MarketClient {
+//  Market
+impl PublicClient {
     pub async fn get_order_book(
         &self,
         params: GetOrderBookParams,
     ) -> Result<Response<OrderBook>, Error> {
-        let query = serde_urlencoded::to_string(&params)?;
-        let url = format!("{}{}?{query}", self.base_url, Path::ExchangeInfo);
+        let url = format!("{}{}", self.base_url, Path::ExchangeInfo);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::GET, url);
+        let request = client
+            .request(Method::GET, url)
+            .headers(self.headers.clone())
+            .query(&params);
 
         let response = send(request).await?;
         Ok(response)
@@ -95,11 +99,13 @@ impl MarketClient {
         &self,
         params: GetRecentTradesParams,
     ) -> Result<Response<Vec<RecentTrade>>, Error> {
-        let query = serde_urlencoded::to_string(&params)?;
-        let url = format!("{}{}?{query}", self.base_url, Path::Trades);
+        let url = format!("{}{}", self.base_url, Path::Trades);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::GET, url);
+        let request = client
+            .request(Method::GET, url)
+            .headers(self.headers.clone())
+            .query(&params);
 
         let response = send(request).await?;
         Ok(response)
@@ -110,11 +116,13 @@ impl MarketClient {
         &self,
         params: GetOlderTradesParams,
     ) -> Result<Response<Vec<RecentTrade>>, Error> {
-        let query = serde_urlencoded::to_string(&params)?;
-        let url = format!("{}{}?{query}", self.base_url, Path::HistoricalTrades);
+        let url = format!("{}{}", self.base_url, Path::HistoricalTrades);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::GET, url);
+        let request = client
+            .request(Method::GET, url)
+            .headers(self.headers.clone())
+            .query(&params);
 
         let response = send(request).await?;
         Ok(response)
@@ -128,11 +136,13 @@ impl MarketClient {
         &self,
         params: GetAggregateTradesParams,
     ) -> Result<Response<Vec<AggregateTrade>>, Error> {
-        let query = serde_urlencoded::to_string(&params)?;
-        let url = format!("{}{}?{query}", self.base_url, Path::AggTrades);
+        let url = format!("{}{}", self.base_url, Path::AggTrades);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::GET, url);
+        let request = client
+            .request(Method::GET, url)
+            .headers(self.headers.clone())
+            .query(&params);
 
         let response = send(request).await?;
         Ok(response)
@@ -151,11 +161,13 @@ impl MarketClient {
         &self,
         params: GetKlineListParams,
     ) -> Result<Response<Vec<Kline>>, Error> {
-        let query = serde_urlencoded::to_string(&params)?;
-        let url = format!("{}{}?{query}", self.base_url, Path::KLines);
+        let url = format!("{}{}", self.base_url, Path::KLines);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::GET, url);
+        let request = client
+            .request(Method::GET, url)
+            .headers(self.headers.clone())
+            .query(&params);
 
         let response = send(request).await?;
         Ok(response)
@@ -177,11 +189,13 @@ impl MarketClient {
         &self,
         params: GetKlineListParams,
     ) -> Result<Response<Vec<Kline>>, Error> {
-        let query = serde_urlencoded::to_string(&params)?;
-        let url = format!("{}{}?{query}", self.base_url, Path::UIKLines);
+        let url = format!("{}{}", self.base_url, Path::UIKLines);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::GET, url);
+        let request = client
+            .request(Method::GET, url)
+            .headers(self.headers.clone())
+            .query(&params);
 
         let response = send(request).await?;
         Ok(response)
@@ -192,11 +206,13 @@ impl MarketClient {
         &self,
         params: GetCurrentAveragePriceParams,
     ) -> Result<Response<CurrentAveragePrice>, Error> {
-        let query = serde_urlencoded::to_string(&params)?;
-        let url = format!("{}{}?{query}", self.base_url, Path::AvgPrice);
+        let url = format!("{}{}", self.base_url, Path::AvgPrice);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::GET, url);
+        let request = client
+            .request(Method::GET, url)
+            .headers(self.headers.clone())
+            .query(&params);
 
         let response = send(request).await?;
         Ok(response)
@@ -207,39 +223,50 @@ impl MarketClient {
         &self,
         params: GetTickerPriceChangeStatisticsParams,
     ) -> Result<Response<TickerPriceChangeStatistic>, Error> {
-        let query = serde_urlencoded::to_string(&params)?;
-        let url = format!("{}{}?{query}", self.base_url, Path::Ticker24hr);
+        let url = format!("{}{}", self.base_url, Path::Ticker24hr);
 
         let client = reqwest::Client::builder().build()?;
-        let request = client.request(Method::GET, url);
+        let request = client
+            .request(Method::GET, url)
+            .headers(self.headers.clone())
+            .query(&params);
 
         let response = send(request).await?;
         Ok(response)
     }
 }
 
-pub struct TradingClient {
+pub struct PrivateClient {
     base_url: String,
     headers: HeaderMap,
-    sign: Box<dyn Fn(&str) -> String>,
+    api_secret: SensitiveString,
 }
 
-impl TradingClient {
-    pub fn new(base_url: String, api_key: SensitiveString, api_secret: SensitiveString) -> Self {
-        let mut headers = HeaderMap::new();
+impl PrivateClient {
+    pub fn new(cfg: PrivateConfig) -> Self {
+        let headers = {
+            let mut headers = HeaderMap::new();
 
-        let api_key = api_key.expose().parse().unwrap();
-        headers.append(HEADER_X_MBX_APIKEY, api_key);
+            let api_key = cfg.api_key.expose().parse().unwrap();
+            headers.append(HEADER_X_MBX_APIKEY, api_key);
+
+            if let Some(extra_headers) = cfg.headers {
+                headers.extend(extra_headers);
+            }
+
+            headers
+        };
 
         Self {
-            base_url,
+            base_url: cfg.base_url,
             headers,
-            sign: Box::new(make_sign(api_secret)),
+            api_secret: cfg.api_secret,
         }
     }
 }
 
-impl TradingClient {
+// Trading
+impl PrivateClient {
     /// Send in a new order.
     /// This adds 1 order to the EXCHANGE_MAX_ORDERS filter and the MAX_NUM_ORDERS filter.
     ///
@@ -254,18 +281,17 @@ impl TradingClient {
         &self,
         params: NewOrderRequest,
     ) -> Result<Response<NewOrderResponse>, Error> {
-        let query = serde_urlencoded::to_string(&params)?;
-        let body = (*self.sign)(&query);
-        let url = format!("{}{}?{query}", self.base_url, Path::Order);
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, &query);
+        let url = format!("{}{}", self.base_url, Path::Order);
 
         let client = reqwest::Client::builder().build()?;
         let request = client
             .request(Method::POST, url)
             .headers(self.headers.clone())
-            .body(body);
+            .body(query);
 
         let response = send(request).await?;
-
         Ok(response)
     }
 
@@ -273,56 +299,31 @@ impl TradingClient {
     pub async fn test_new_order(
         &self,
         params: NewOrderRequest,
-        compute_commission_rates: bool,
     ) -> Result<Response<TestCommissionRates>, Error> {
-        let mut query = serde_urlencoded::to_string(&params)?;
-        if compute_commission_rates {
-            query.push_str("&computeCommissionRates=true");
-        }
-        let body = (*self.sign)(&query);
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, &query);
         let url = format!("{}{}", self.base_url, Path::OrderTest);
 
         let client = reqwest::Client::builder().build()?;
         let request = client
             .request(Method::POST, url)
             .headers(self.headers.clone())
-            .body(body);
+            .body(query);
 
         let response = send(request).await?;
-
         Ok(response)
     }
 }
 
-pub struct AccountClient {
-    base_url: String,
-    headers: HeaderMap,
-    sign: Box<dyn Fn(&str) -> String>,
-}
-
-impl AccountClient {
-    pub fn new(base_url: String, api_key: SensitiveString, api_secret: SensitiveString) -> Self {
-        let mut headers = HeaderMap::new();
-
-        let api_key = api_key.expose().parse().unwrap();
-        headers.append(HEADER_X_MBX_APIKEY, api_key);
-
-        Self {
-            base_url,
-            headers,
-            sign: Box::new(make_sign(api_secret)),
-        }
-    }
-}
-
-impl AccountClient {
+// Account
+impl PrivateClient {
     /// Get current account information.
     pub async fn account_information(
         &self,
         params: GetAccountInformationParams,
     ) -> Result<Response<AccountInformation>, Error> {
-        let query = serde_urlencoded::to_string(&params)?;
-        let query = (*self.sign)(&query);
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, &query);
         let url = format!("{}{}?{query}", self.base_url, Path::Account);
 
         let client = reqwest::Client::builder().build()?;
@@ -331,7 +332,6 @@ impl AccountClient {
             .headers(self.headers.clone());
 
         let response = send(request).await?;
-
         Ok(response)
     }
 
@@ -341,8 +341,8 @@ impl AccountClient {
     /// If both orderId and origClientOrderId are provided, the orderId is searched first, then the origClientOrderId from that result is checked against that order. If both conditions are not met the request will be rejected.
     /// For some historical orders cummulativeQuoteQty will be < 0, meaning the data is not available at this time.
     pub async fn query_order(&self, params: QueryOrderParams) -> Result<Response<Order>, Error> {
-        let query = serde_urlencoded::to_string(&params)?;
-        let query = (*self.sign)(&query);
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, &query);
         let url = format!("{}{}?{query}", self.base_url, Path::Order);
 
         let client = reqwest::Client::builder().build()?;
@@ -351,7 +351,6 @@ impl AccountClient {
             .headers(self.headers.clone());
 
         let response = send(request).await?;
-
         Ok(response)
     }
 }
@@ -367,12 +366,17 @@ where
 
     #[cfg(debug_assertions)]
     {
-        if status != StatusCode::OK {
-            println!("DEBUG: {status} {json}");
+        if !matches!(
+            status,
+            StatusCode::ACCEPTED | StatusCode::CREATED | StatusCode::OK
+        ) {
+            debug!(?status, ?json, "request failed");
         }
     }
 
     // TODO: handle ApiError (code + msg)
+    // response json="{\"code\":-1102,\"msg\":\"Param 'origClientOrderId' or 'orderId' must be sent, but both were empty/null!\"}"
+    // Error: serde_path_to_error error: path: ., msg: missing field `symbol` at line 1 column 101
 
     let result = deserialize_json(&json)?;
     let response = Response { result, headers };
