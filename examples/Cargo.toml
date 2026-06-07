@@ -5,34 +5,77 @@ edition.workspace = true
 authors.workspace = true
 publish = false
 
+# Spot
 [[example]]
-name = "account-information"
-path = "account-information.rs"
+name = "spot-account-information"
+path = "spot-account-information.rs"
 
 [[example]]
-name = "exchange-info"
-path = "exchange-info.rs"
+name = "spot-exchange-info"
+path = "spot-exchange-info.rs"
 
 [[example]]
-name = "kline"
-path = "kline.rs"
+name = "spot-kline"
+path = "spot-kline.rs"
 
 [[example]]
-name = "query-order"
-path = "query-order.rs"
+name = "spot-query-order"
+path = "spot-query-order.rs"
 
 [[example]]
-name = "server-time"
-path = "server-time.rs"
+name = "spot-server-time"
+path = "spot-server-time.rs"
 
 [[example]]
-name = "stream-public"
-path = "stream-public.rs"
+name = "spot-stream-public"
+path = "spot-stream-public.rs"
 
 [[example]]
-name = "test-new-order"
-path = "test-new-order.rs"
+name = "spot-test-new-order"
+path = "spot-test-new-order.rs"
 
 [[example]]
-name = "ticker-statistics"
-path = "ticker-statistics.rs"
+name = "spot-ticker-statistics"
+path = "spot-ticker-statistics.rs"
+
+# USDⓈ-M Futures
+[[example]]
+name = "usdm-account-information"
+path = "usdm-account-information.rs"
+
+[[example]]
+name = "usdm-exchange-info"
+path = "usdm-exchange-info.rs"
+
+[[example]]
+name = "usdm-kline"
+path = "usdm-kline.rs"
+
+[[example]]
+name = "usdm-server-time"
+path = "usdm-server-time.rs"
+
+[[example]]
+name = "usdm-stream-public"
+path = "usdm-stream-public.rs"
+
+# COIN-M Futures
+[[example]]
+name = "coinm-account-information"
+path = "coinm-account-information.rs"
+
+[[example]]
+name = "coinm-exchange-info"
+path = "coinm-exchange-info.rs"
+
+[[example]]
+name = "coinm-kline"
+path = "coinm-kline.rs"
+
+[[example]]
+name = "coinm-server-time"
+path = "coinm-server-time.rs"
+
+[[example]]
+name = "coinm-stream-public"
+path = "coinm-stream-public.rs"
