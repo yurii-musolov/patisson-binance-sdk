@@ -8,8 +8,15 @@
 // Mainnet
 pub const BASE_URL_API: &str = "https://api.binance.com";
 
+/// Base URL for the margin user data WebSocket stream.
+///
+/// Margin user data flows over the spot stream host. After creating a
+/// `listenKey` via REST, connect to `<BASE_URL_STREAM>/ws/<listenKey>`.
+pub const BASE_URL_STREAM: &str = "wss://stream.binance.com:9443";
+
 // Testnet
 pub const BASE_URL_TESTNET_API: &str = "https://testnet.binance.vision";
+pub const BASE_URL_TESTNET_STREAM: &str = "wss://stream.testnet.binance.vision:9443";
 
 pub enum Path {
     // Margin account
