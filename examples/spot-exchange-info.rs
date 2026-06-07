@@ -1,16 +1,15 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example server-time
+//! cargo run --example spot-exchange-info
 //! ```
 
 use binance::spot::{
     BASE_URL_API,
-    http::{PublicClient, PublicConfig},
+    http::{GetExchangeInfoParams, PublicClient, PublicConfig},
 };
-use std::time::Instant;
 use tokio;
-use tracing::{Level, debug, info};
+use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
 #[tokio::main]
@@ -23,12 +22,9 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PublicConfig::new(BASE_URL_API);
     let client = PublicClient::new(cfg);
 
-    let start = Instant::now();
-    let response = client.get_server_time().await?;
-    let duration = start.elapsed();
-
+    let params = GetExchangeInfoParams::new().symbol("BTCUSDT");
+    let response = client.get_exchange_info(params).await?;
     info!(?response, "response");
-    debug!(?duration, "duration");
 
     Ok(())
 }

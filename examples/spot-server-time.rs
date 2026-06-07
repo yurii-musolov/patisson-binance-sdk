@@ -1,15 +1,16 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example ticker-statistics
+//! cargo run --example spot-server-time
 //! ```
 
 use binance::spot::{
     BASE_URL_API,
-    http::{GetTickerPriceChangeStatisticsParams, PublicClient, PublicConfig, SymbolOrSymbols},
+    http::{PublicClient, PublicConfig},
 };
+use std::time::Instant;
 use tokio;
-use tracing::{Level, info};
+use tracing::{Level, debug, info};
 use tracing_subscriber::FmtSubscriber;
 
 #[tokio::main]
@@ -22,11 +23,12 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PublicConfig::new(BASE_URL_API);
     let client = PublicClient::new(cfg);
 
-    let params = GetTickerPriceChangeStatisticsParams::Full(
-        SymbolOrSymbols::new().symbol("BTCUSDT"),
-    );
-    let response = client.ticker_price_change_statistics(params).await?;
+    let start = Instant::now();
+    let response = client.get_server_time().await?;
+    let duration = start.elapsed();
+
     info!(?response, "response");
+    debug!(?duration, "duration");
 
     Ok(())
 }
