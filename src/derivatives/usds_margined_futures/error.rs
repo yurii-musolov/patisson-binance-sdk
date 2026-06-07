@@ -1,5 +1,10 @@
 use serde::Deserialize;
 
+// Numeric error codes are universal across Binance products; the type lives
+// at the crate root. Re-exported here so
+// `binance::derivatives::usds_margined_futures::ErrorCode` resolves.
+pub use crate::ErrorCode;
+
 #[derive(Debug)]
 pub enum Error {
     Api(ApiError),
@@ -34,13 +39,14 @@ impl std::error::Error for Error {}
 
 /// Body shape Binance Futures returns on errors: `{"code":-XXXX,"msg":"..."}`.
 ///
-/// `code` is intentionally a plain `i64`: USDⓈ-M Futures has codes spread
-/// across the -1xxx, -2xxx, -4xxx and -5xxx ranges and a closed enum would be
-/// difficult to keep complete. Callers can match on numeric ranges or map to
-/// their own typed errors.
+/// `code` uses the shared [`crate::ErrorCode`] newtype — see its docs for
+/// the named constants (`UNAUTHORIZED`, `INVALID_TIMESTAMP`, …) and
+/// classification predicates (`is_auth()`, `is_rate_limited()`, …). USDⓈ-M
+/// Futures uses some codes in the -4xxx / -5xxx ranges that aren't
+/// classified by the shared predicates; use `code.raw()` to handle those.
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct ApiError {
-    pub code: i64,
+    pub code: ErrorCode,
     pub msg: String,
 }
 

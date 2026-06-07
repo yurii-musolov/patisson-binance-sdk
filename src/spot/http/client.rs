@@ -355,9 +355,7 @@ where
         #[cfg(debug_assertions)]
         debug!(?status, ?json, "request failed");
 
-        // Binance returns `{"code":-XXXX,"msg":"..."}` on error. Try to parse
-        // it; if the body doesn't match (or carries a code not in `ErrorCode`),
-        // fall back to surfacing the raw body so nothing is silently lost.
+        // Binance returns `{"code":-XXXX,"msg":"..."}` on error.
         let api_err = deserialize_json::<ApiError>(&json)?;
         return Err(Error::Api(api_err));
     }
