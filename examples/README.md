@@ -6,6 +6,7 @@ This directory contains examples showcasing capabilities of the
 - `spot-*` — Spot
 - `usdm-*` — USDⓈ-M Futures
 - `coinm-*` — COIN-M Futures
+- `margin-*` — Margin Trading
 
 ## Example list
 
@@ -24,6 +25,10 @@ This directory contains examples showcasing capabilities of the
 
 `coinm-account-information`, `coinm-exchange-info`, `coinm-kline`,
 `coinm-server-time`, `coinm-stream-public`
+
+### Margin
+
+`margin-account`, `margin-max-borrowable`
 
 ## Running
 

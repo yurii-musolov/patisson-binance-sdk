@@ -59,6 +59,15 @@ path = "usdm-server-time.rs"
 name = "usdm-stream-public"
 path = "usdm-stream-public.rs"
 
+# Margin
+[[example]]
+name = "margin-account"
+path = "margin-account.rs"
+
+[[example]]
+name = "margin-max-borrowable"
+path = "margin-max-borrowable.rs"
+
 # COIN-M Futures
 [[example]]
 name = "coinm-account-information"
