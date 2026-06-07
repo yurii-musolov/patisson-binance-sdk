@@ -10,7 +10,6 @@ use binance::{
         BASE_URL_API,
         http::{GetAccountInformationParams, PrivateClient, PrivateConfig},
     },
-    timestamp,
 };
 use tokio;
 use tracing::{Level, info};
@@ -31,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
     let client = PrivateClient::new(cfg);
 
-    let params = GetAccountInformationParams::new(timestamp()).omit_zero_balances(true);
+    let params = GetAccountInformationParams::new().omit_zero_balances(true);
 
     let response = client.account_information(params).await?;
     info!(?response, "response");

@@ -235,21 +235,14 @@ pub struct NewOrderRequest {
     self_trade_prevention_mode: Option<STPMode>,
     /// Max 60000.
     recv_window: Option<i64>,
-    timestamp: Timestamp,
 }
 
 impl NewOrderRequest {
-    pub fn new(
-        symbol: impl Into<String>,
-        side: OrderSide,
-        order_type: OrderType,
-        timestamp: Timestamp,
-    ) -> Self {
+    pub fn new(symbol: impl Into<String>, side: OrderSide, order_type: OrderType) -> Self {
         Self {
             symbol: symbol.into(),
             side,
             order_type,
-            timestamp,
             position_side: None,
             time_in_force: None,
             quantity: None,
@@ -363,17 +356,15 @@ pub struct QueryOrderParams {
     order_id: Option<i64>,
     orig_client_order_id: Option<String>,
     recv_window: Option<i64>,
-    timestamp: Timestamp,
 }
 
 impl QueryOrderParams {
-    pub fn new(symbol: impl Into<String>, timestamp: Timestamp) -> Self {
+    pub fn new(symbol: impl Into<String>) -> Self {
         Self {
             symbol: symbol.into(),
             order_id: None,
             orig_client_order_id: None,
             recv_window: None,
-            timestamp,
         }
     }
 
@@ -424,15 +415,11 @@ pub struct Order {
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountInformationParams {
     recv_window: Option<i64>,
-    timestamp: Timestamp,
 }
 
 impl GetAccountInformationParams {
-    pub fn new(timestamp: Timestamp) -> Self {
-        Self {
-            recv_window: None,
-            timestamp,
-        }
+    pub fn new() -> Self {
+        Self { recv_window: None }
     }
 
     pub fn recv_window(mut self, value: i64) -> Self {

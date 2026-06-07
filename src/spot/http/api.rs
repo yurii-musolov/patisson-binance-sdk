@@ -598,7 +598,6 @@ pub struct NewOrderRequest {
     self_trade_prevention_mode: Option<STPMode>,
     /// The value cannot be greater than 60000
     recv_window: Option<i64>,
-    timestamp: Timestamp,
     /// Only for test endpoint to place a new order.
     compute_commission_rates: Option<bool>,
 }
@@ -609,14 +608,12 @@ impl NewOrderRequest {
         side: OrderSide,
         order_type: OrderType,
         new_order_resp_type: OrderResponseType,
-        timestamp: Timestamp,
     ) -> Self {
         Self {
             symbol: symbol.into(),
             side,
             order_type,
             new_order_resp_type,
-            timestamp,
             time_in_force: None,
             quantity: None,
             quote_order_qty: None,
@@ -955,15 +952,13 @@ pub struct GetAccountInformationParams {
     omit_zero_balances: Option<bool>,
     /// The value cannot be greater than 60000
     recv_window: Option<i64>,
-    timestamp: Timestamp,
 }
 
 impl GetAccountInformationParams {
-    pub fn new(timestamp: Timestamp) -> Self {
+    pub fn new() -> Self {
         Self {
             omit_zero_balances: None,
             recv_window: None,
-            timestamp,
         }
     }
 
@@ -1025,17 +1020,15 @@ pub struct QueryOrderParams {
     orig_client_order_id: Option<String>,
     /// The value cannot be greater than 60000
     recv_window: Option<i64>,
-    timestamp: Timestamp,
 }
 
 impl QueryOrderParams {
-    pub fn new(symbol: impl Into<String>, timestamp: Timestamp) -> Self {
+    pub fn new(symbol: impl Into<String>) -> Self {
         Self {
             symbol: symbol.into(),
             order_id: None,
             orig_client_order_id: None,
             recv_window: None,
-            timestamp,
         }
     }
 

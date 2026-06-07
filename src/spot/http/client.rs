@@ -17,6 +17,7 @@ use crate::{
             TestConnectivity, TickerPriceChangeStatistic,
         },
     },
+    timestamp,
 };
 
 pub struct PublicClient {
@@ -272,7 +273,7 @@ impl PrivateClient {
         params: NewOrderRequest,
     ) -> Result<Response<NewOrderResponse>, Error> {
         let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, &query);
+        let query = sign_query(&self.api_secret, timestamp(), &query);
         let url = format!("{}{}", self.base_url, Path::Order);
 
         let client = reqwest::Client::builder().build()?;
@@ -290,7 +291,7 @@ impl PrivateClient {
         params: NewOrderRequest,
     ) -> Result<Response<TestCommissionRates>, Error> {
         let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, &query);
+        let query = sign_query(&self.api_secret, timestamp(), &query);
         let url = format!("{}{}", self.base_url, Path::OrderTest);
 
         let client = reqwest::Client::builder().build()?;
@@ -311,7 +312,7 @@ impl PrivateClient {
         params: GetAccountInformationParams,
     ) -> Result<Response<AccountInformation>, Error> {
         let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, &query);
+        let query = sign_query(&self.api_secret, timestamp(), &query);
         let url = format!("{}{}?{query}", self.base_url, Path::Account);
 
         let client = reqwest::Client::builder().build()?;
@@ -329,7 +330,7 @@ impl PrivateClient {
     /// For some historical orders cummulativeQuoteQty will be < 0, meaning the data is not available at this time.
     pub async fn query_order(&self, params: QueryOrderParams) -> Result<Response<Order>, Error> {
         let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, &query);
+        let query = sign_query(&self.api_secret, timestamp(), &query);
         let url = format!("{}{}?{query}", self.base_url, Path::Order);
 
         let client = reqwest::Client::builder().build()?;
