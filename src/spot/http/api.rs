@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Timestamp,
     spot::{
-        AccountType, ErrorCode, ExchangeFilter, KlineInterval, OrderResponseType, OrderSide,
-        OrderStatus, OrderType, RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce,
+        AccountType, ExchangeFilter, KlineInterval, OrderResponseType, OrderSide, OrderStatus,
+        OrderType, RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce,
         WorkingFloor,
     },
 };
@@ -19,12 +19,6 @@ pub struct Response<T> {
 #[derive(Debug, PartialEq)]
 pub struct Headers {
     pub retry_after: Option<Timestamp>,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct ResponseError {
-    pub code: ErrorCode,
-    pub msg: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
