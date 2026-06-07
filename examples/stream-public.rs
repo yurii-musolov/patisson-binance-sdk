@@ -4,12 +4,6 @@
 //! cargo run --example stream-public
 //! ```
 
-use std::time::Duration;
-
-use tokio::{self, time::sleep};
-use tracing::{Level, info};
-use tracing_subscriber::FmtSubscriber;
-
 use binance::{
     spot::{
         BASE_URL_MARKET_DATA_STREAM1, KlineInterval, Path,
@@ -17,11 +11,15 @@ use binance::{
     },
     ws::{Config, Event, Stream},
 };
+use std::time::Duration;
+use tokio::{self, time::sleep};
+use tracing::{Level, info};
+use tracing_subscriber::FmtSubscriber;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::TRACE)
+        .with_max_level(Level::DEBUG)
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
@@ -81,7 +79,8 @@ async fn main() -> anyhow::Result<()> {
 
     while let Some(event) = events.recv().await {
         info!(?event, "receive message");
-        if matches!(event, Event::Disconnected { reason: _ }) {
+        if let Event::Disconnected { reason } = event {
+            info!(?reason, "disconnected");
             break;
         }
     }

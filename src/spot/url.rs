@@ -22,6 +22,9 @@ pub const BASE_URL_MARKET_DATA_STREAM1: &str = "wss://data-stream.binance.vision
 pub const BASE_URL_MARKET_DATA_STREAM2: &str = "wss://data-stream.binance.vision:443";
 pub const BASE_URL_MARKET_DATA_STREAM3: &str = "wss://data-stream.binance.vision:9443";
 
+// Demo
+pub const BASE_URL_DEMO_API: &str = "https://demo-api.binance.com";
+
 // Testnet
 
 pub const BASE_URL_TESTNET_API: &str = "https://testnet.binance.vision";

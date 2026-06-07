@@ -437,6 +437,8 @@ pub struct NewOrderRequest {
     /// The value cannot be greater than 60000
     pub recv_window: Option<i64>,
     pub timestamp: Timestamp,
+    /// Only for test endpoint to place a new order.
+    pub compute_commission_rates: Option<bool>,
 }
 
 impl NewOrderRequest {

@@ -4,16 +4,23 @@
 //! cargo run --example kline
 //! ```
 
-use tokio;
-
 use binance::spot::{
     BASE_URL_API,
-    http::{GetKlineListParams, MarketClient},
+    http::{GetKlineListParams, PublicClient, PublicConfig},
 };
+use tokio;
+use tracing::{Level, info};
+use tracing_subscriber::FmtSubscriber;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let client = MarketClient::new(BASE_URL_API.into());
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(Level::DEBUG)
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
+    let cfg = PublicConfig::new(BASE_URL_API);
+    let client = PublicClient::new(cfg);
 
     let params = GetKlineListParams {
         symbol: String::from("BTCUSDT"),
@@ -24,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
         limit: Some(2),
     };
     let response = client.get_kline_list(params).await?;
-    println!("{response:#?}");
+    info!(?response, "response");
 
     Ok(())
 }
