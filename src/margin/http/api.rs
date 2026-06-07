@@ -404,7 +404,8 @@ mod tests {
 
     #[test]
     fn deserialize_listen_key() {
-        let json = r#"{"listenKey":"pqia91ma19a5s61cv6a81va65sdf19v8a65a1a5s61cv6a81va65sdf19v8a65a1"}"#;
+        let json =
+            r#"{"listenKey":"pqia91ma19a5s61cv6a81va65sdf19v8a65a1a5s61cv6a81va65sdf19v8a65a1"}"#;
         let parsed: ListenKey = deserialize_json(json).unwrap();
         assert_eq!(parsed.listen_key.len(), 64);
     }

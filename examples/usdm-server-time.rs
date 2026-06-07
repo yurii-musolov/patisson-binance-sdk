@@ -10,7 +10,6 @@ use binance::derivatives::usds_margined_futures::{
     BASE_URL_API,
     http::{PublicClient, PublicConfig},
 };
-use tokio;
 use tracing::{Level, debug, info};
 use tracing_subscriber::FmtSubscriber;
 

@@ -12,7 +12,7 @@ use binance::{
     ws::{Config, Event, Stream},
 };
 use std::time::Duration;
-use tokio::{self, time::sleep};
+use tokio::time::sleep;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 

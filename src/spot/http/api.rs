@@ -944,7 +944,7 @@ pub struct Discount {
     pub discount: Decimal,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountInformationParams {
     /// When set to true, emits only the non-zero balances of an account.
@@ -956,10 +956,7 @@ pub struct GetAccountInformationParams {
 
 impl GetAccountInformationParams {
     pub fn new() -> Self {
-        Self {
-            omit_zero_balances: None,
-            recv_window: None,
-        }
+        Self::default()
     }
 
     pub fn omit_zero_balances(mut self, value: bool) -> Self {

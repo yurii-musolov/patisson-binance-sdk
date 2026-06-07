@@ -9,7 +9,6 @@ categories = ["api-bindings", "cryptography::cryptocurrencies"]
 documentation = "https://docs.rs/crate/patisson-binance-sdk"
 repository = "https://github.com/yurii-musolov/patisson-binance-sdk"
 license = "MIT"
-license-file = "LICENSE"
 readme = "README.md"
 
 [lib]

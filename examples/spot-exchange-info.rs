@@ -8,7 +8,6 @@ use binance::spot::{
     BASE_URL_API,
     http::{GetExchangeInfoParams, PublicClient, PublicConfig},
 };
-use tokio;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 

@@ -5,10 +5,9 @@
 //! ```
 
 use binance::spot::{
-    BASE_URL_API,
+    BASE_URL_API, KlineInterval,
     http::{GetKlineListParams, PublicClient, PublicConfig},
 };
-use tokio;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
@@ -22,8 +21,7 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PublicConfig::new(BASE_URL_API);
     let client = PublicClient::new(cfg);
 
-    let params =
-        GetKlineListParams::new("BTCUSDT", binance::spot::KlineInterval::Minute1).limit(2);
+    let params = GetKlineListParams::new("BTCUSDT", KlineInterval::Minute1).limit(2);
     let response = client.get_kline_list(params).await?;
     info!(?response, "response");
 

@@ -224,17 +224,13 @@ pub struct ServerShutdownMsg {
 
 #[derive(PartialEq, Deserialize, Debug)]
 pub struct ErrorMessage {
-    ///
     pub error: ErrorValueMessage,
-    ///
     pub id: Option<MessageID>,
 }
 
 #[derive(PartialEq, Deserialize, Debug)]
 pub struct ErrorValueMessage {
-    ///
     pub code: i64,
-    ///
     pub msg: String,
 }
 

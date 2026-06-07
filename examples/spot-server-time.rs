@@ -9,7 +9,6 @@ use binance::spot::{
     http::{PublicClient, PublicConfig},
 };
 use std::time::Instant;
-use tokio;
 use tracing::{Level, debug, info};
 use tracing_subscriber::FmtSubscriber;
 

@@ -25,7 +25,7 @@ use binance::{
     },
     ws::{Config, Event, Stream},
 };
-use tokio::{self, time::sleep};
+use tokio::time::sleep;
 use tracing::{Level, info, warn};
 use tracing_subscriber::FmtSubscriber;
 

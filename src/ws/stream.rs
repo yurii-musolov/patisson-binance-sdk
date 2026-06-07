@@ -193,12 +193,12 @@ where
                         Message::Text(json) => {
                             match deserialize_json::<M>(&json) {
                                 Ok(msg) => {
-                                    if let Some(_) = msg.server_shutdown_event_time() {
+                                    if msg.server_shutdown_event_time().is_some() {
                                         info!("server shutdown notice received, initiating reconnect");
                                         self.emit(Event::Message(msg));
                                         read_task.abort();
                                         return self.next_reconnect_state(1, "server shutdown".into());
-                                    }else{
+                                    } else {
                                         self.emit(Event::Message(msg))
                                     }
                                 }
