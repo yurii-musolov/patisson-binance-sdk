@@ -411,7 +411,7 @@ pub struct Order {
 
 // ===== Account =====
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountInformationParams {
     recv_window: Option<i64>,
@@ -419,7 +419,7 @@ pub struct GetAccountInformationParams {
 
 impl GetAccountInformationParams {
     pub fn new() -> Self {
-        Self { recv_window: None }
+        Self::default()
     }
 
     pub fn recv_window(mut self, value: i64) -> Self {

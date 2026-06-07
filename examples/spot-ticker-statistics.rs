@@ -8,7 +8,6 @@ use binance::spot::{
     BASE_URL_API,
     http::{GetTickerPriceChangeStatisticsParams, PublicClient, PublicConfig, SymbolOrSymbols},
 };
-use tokio;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
@@ -22,9 +21,8 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PublicConfig::new(BASE_URL_API);
     let client = PublicClient::new(cfg);
 
-    let params = GetTickerPriceChangeStatisticsParams::Full(
-        SymbolOrSymbols::new().symbol("BTCUSDT"),
-    );
+    let params =
+        GetTickerPriceChangeStatisticsParams::Full(SymbolOrSymbols::new().symbol("BTCUSDT"));
     let response = client.ticker_price_change_statistics(params).await?;
     info!(?response, "response");
 

@@ -92,7 +92,7 @@ impl<'de> Deserialize<'de> for StreamName {
                 symbol: symbol.to_owned(),
             }),
             kind => {
-                if let Some(("kline", params)) = kind.split_once('_').map(|(k, p)| (k, p)) {
+                if let Some(("kline", params)) = kind.split_once('_') {
                     let interval = format!("\"{params}\"");
                     let interval = deserialize_json(&interval)
                         .map_err(|_| serde::de::Error::custom("invalid kline interval"))?;

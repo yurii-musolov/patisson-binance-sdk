@@ -10,9 +10,8 @@ use crate::{
         ApiError, Error, HEADER_RETRY_AFTER, HEADER_X_MBX_APIKEY, Path,
         http::{
             AccountStatus, CoinInfo, Deposit, DepositAddress, GetAccountStatusParams,
-            GetAllCoinsParams, GetDepositAddressParams, GetDepositHistoryParams,
-            GetTradeFeeParams, GetWithdrawHistoryParams, Headers, PrivateConfig, Response,
-            TradeFee, Withdraw,
+            GetAllCoinsParams, GetDepositAddressParams, GetDepositHistoryParams, GetTradeFeeParams,
+            GetWithdrawHistoryParams, Headers, PrivateConfig, Response, TradeFee, Withdraw,
         },
     },
 };

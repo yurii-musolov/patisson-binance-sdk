@@ -11,7 +11,6 @@ use binance::{
         http::{PrivateClient, PrivateConfig, QueryOrderParams},
     },
 };
-use tokio;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 

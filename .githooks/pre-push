@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+#
+# pre-push — broader checks before sharing commits with the remote.
+#
+# Heavier than pre-commit (runs the test suite) so it's expected to take
+# longer. Skip with `git push --no-verify` for force-pushes you're sure about.
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+echo "[pre-push] cargo fmt --check"
+cargo fmt --all -- --check
+
+echo "[pre-push] cargo clippy --all-targets -- -D warnings"
+cargo clippy --all-targets --quiet -- -D warnings
+
+echo "[pre-push] cargo test --all-targets"
+cargo test --all-targets --quiet
+
+echo "[pre-push] ok"

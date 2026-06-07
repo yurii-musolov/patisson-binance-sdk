@@ -11,7 +11,6 @@ use binance::{
         http::{GetDepositAddressParams, PrivateClient, PrivateConfig},
     },
 };
-use tokio;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 

@@ -11,7 +11,6 @@ use binance::{
         http::{GetAccountStatusParams, PrivateClient, PrivateConfig},
     },
 };
-use tokio;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 

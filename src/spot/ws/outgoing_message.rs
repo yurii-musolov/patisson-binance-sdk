@@ -62,8 +62,8 @@ impl Serialize for StreamName {
             Self::Depth { symbol } => format!("{symbol}@depth"),
             Self::Kline { symbol, interval } => format!("{symbol}@kline_{interval}"),
             Self::MiniTicker24 { symbol } => format!("{symbol}@24hrMiniTicker"),
-            Self::ServerShutdownRaw => format!("serverShutdown"),
-            Self::ServerShutdownCombined => format!("!serverShutdown"),
+            Self::ServerShutdownRaw => String::from("serverShutdown"),
+            Self::ServerShutdownCombined => String::from("!serverShutdown"),
         };
         serializer.serialize_str(&s)
     }

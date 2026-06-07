@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#
+# pre-commit — fast local checks before recording a commit.
+#
+# Skip with `git commit --no-verify` when you have a good reason (WIP, fixup,
+# emergency hotfix). The pre-push hook will still catch most things.
+
+set -euo pipefail
+
+# Run from the repo root so relative paths in cargo manifests behave.
+cd "$(git rev-parse --show-toplevel)"
+
+echo "[pre-commit] cargo fmt --check"
+cargo fmt --all -- --check
+
+echo "[pre-commit] cargo check --all-targets"
+cargo check --all-targets --quiet
+
+echo "[pre-commit] ok"

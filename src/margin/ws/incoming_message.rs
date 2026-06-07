@@ -18,6 +18,7 @@ use crate::{
 /// internally tagged by the `e` (event) field.
 #[derive(PartialEq, Deserialize, Debug)]
 #[serde(tag = "e")]
+#[allow(clippy::large_enum_variant)]
 pub enum IncomingMessage {
     #[serde(rename = "outboundAccountPosition")]
     OutboundAccountPosition(OutboundAccountPositionEvent),
@@ -300,6 +301,6 @@ mod tests {
         };
         assert_eq!(event.isolated_symbol.as_deref(), Some("ETHBTC"));
         assert_eq!(event.commission_asset.as_deref(), Some("BTC"));
-        assert_eq!(event.is_maker, true);
+        assert!(event.is_maker);
     }
 }

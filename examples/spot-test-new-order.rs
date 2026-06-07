@@ -11,10 +11,8 @@ use binance::{
         BASE_URL_API, OrderResponseType, OrderSide, OrderType,
         http::{NewOrderRequest, PrivateClient, PrivateConfig},
     },
-    timestamp,
 };
 use rust_decimal::dec;
-use tokio;
 use tracing::{Level, error, info};
 use tracing_subscriber::FmtSubscriber;
 
