@@ -1,5 +1,9 @@
 use serde::Deserialize;
 
+// Numeric error codes are universal across Binance products; the type lives
+// at the crate root. Re-exported here so `binance::margin::ErrorCode` resolves.
+pub use crate::ErrorCode;
+
 #[derive(Debug)]
 pub enum Error {
     Api(ApiError),
@@ -34,13 +38,13 @@ impl std::error::Error for Error {}
 
 /// Body shape Binance Margin returns on errors: `{"code":-XXXX,"msg":"..."}`.
 ///
-/// `code` is intentionally a plain `i64`: margin shares the spot -1xxx/-2xxx
-/// codes and adds its own /sapi/v1/margin/-specific codes (-3xxx); a closed
-/// enum would be hard to keep complete. Callers can match on the integer or
-/// map to their own typed errors.
+/// `code` uses the shared [`crate::ErrorCode`] newtype — see its docs for
+/// the named constants and classification predicates. Margin-specific codes
+/// in the -3xxx range aren't classified by the shared predicates; use
+/// `code.raw()` to handle those.
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct ApiError {
-    pub code: i64,
+    pub code: ErrorCode,
     pub msg: String,
 }
 
