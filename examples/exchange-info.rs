@@ -22,13 +22,7 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PublicConfig::new(BASE_URL_API);
     let client = PublicClient::new(cfg);
 
-    let params = GetExchangeInfoParams {
-        symbol: Some(String::from("BTCUSDT")),
-        symbols: None,
-        permissions: None,
-        show_permission_sets: None,
-        symbol_status: None,
-    };
+    let params = GetExchangeInfoParams::new().symbol("BTCUSDT");
     let response = client.get_exchange_info(params).await?;
     info!(?response, "response");
 

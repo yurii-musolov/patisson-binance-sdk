@@ -35,13 +35,7 @@ use binance::spot::{BASE_URL_API, http::{GetKlineListParams, MarketClient}};
 
 let client = GeneralClient::new(BASE_URL_API.into());
 
-let params = GetExchangeInfoParams {
-    symbol: Some(String::from("BTCUSDT")),
-    symbols: None,
-    permissions: None,
-    show_permission_sets: None,
-    symbol_status: None,
-};
+let params = GetExchangeInfoParams::new().symbol("BTCUSDT");
 let response = client.get_exchange_info(params).await?;
 println!("{response:#?}");
 ```

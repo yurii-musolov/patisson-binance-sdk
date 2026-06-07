@@ -22,14 +22,8 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PublicConfig::new(BASE_URL_API);
     let client = PublicClient::new(cfg);
 
-    let params = GetKlineListParams {
-        symbol: String::from("BTCUSDT"),
-        interval: binance::spot::KlineInterval::Minute1,
-        start_time: None,
-        end_time: None,
-        time_zone: None,
-        limit: Some(2),
-    };
+    let params =
+        GetKlineListParams::new("BTCUSDT", binance::spot::KlineInterval::Minute1).limit(2);
     let response = client.get_kline_list(params).await?;
     info!(?response, "response");
 

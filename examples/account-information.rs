@@ -31,11 +31,7 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
     let client = PrivateClient::new(cfg);
 
-    let params = GetAccountInformationParams {
-        omit_zero_balances: Some(true),
-        recv_window: None,
-        timestamp: timestamp(),
-    };
+    let params = GetAccountInformationParams::new(timestamp()).omit_zero_balances(true);
 
     let response = client.account_information(params).await?;
     info!(?response, "response");
