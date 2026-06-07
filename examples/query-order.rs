@@ -31,13 +31,7 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
     let client = PrivateClient::new(cfg);
 
-    let params = QueryOrderParams {
-        symbol: String::from("BTCUSDT"),
-        recv_window: None,
-        timestamp: timestamp(),
-        order_id: Some(123456789),
-        orig_client_order_id: None,
-    };
+    let params = QueryOrderParams::new("BTCUSDT", timestamp()).order_id(123456789);
 
     let response = client.query_order(params).await?;
     info!(?response, "response");

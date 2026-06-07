@@ -36,28 +36,59 @@ pub struct ServerTime {
     pub server_time: Timestamp,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetExchangeInfoParams {
     /// Example: curl -X GET "https://api.binance.com/api/v3/exchangeInfo?symbol=BNBBTC"
-    pub symbol: Option<String>,
+    symbol: Option<String>,
     /// Examples: curl -X GET "https://api.binance.com/api/v3/exchangeInfo?symbols=%5B%22BNBBTC%22,%22BTCUSDT%22%5D"
     /// or
     /// curl -g -X GET 'https://api.binance.com/api/v3/exchangeInfo?symbols=["BTCUSDT","BNBBTC"]'
     /// TODO: Check serialization.
-    pub symbols: Option<Vec<String>>,
+    symbols: Option<Vec<String>>,
     /// Examples: curl -X GET "https://api.binance.com/api/v3/exchangeInfo?permissions=SPOT"
     /// or
     /// curl -X GET "https://api.binance.com/api/v3/exchangeInfo?permissions=%5B%22MARGIN%22%2C%22LEVERAGED%22%5D"
     /// or
     /// curl -g -X GET 'https://api.binance.com/api/v3/exchangeInfo?permissions=["MARGIN","LEVERAGED"]'
     /// TODO: Check serialization.
-    pub permissions: Option<Vec<String>>,
+    permissions: Option<Vec<String>>,
     /// Controls whether the content of the permissionSets field is populated or not. Defaults to true
-    pub show_permission_sets: Option<bool>,
+    show_permission_sets: Option<bool>,
     /// Filters symbols that have this tradingStatus. Valid values: TRADING, HALT, BREAK
     /// Cannot be used in combination with symbols or symbol.
-    pub symbol_status: Option<SymbolStatus>,
+    symbol_status: Option<SymbolStatus>,
+}
+
+impl GetExchangeInfoParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn symbol(mut self, symbol: impl Into<String>) -> Self {
+        self.symbol = Some(symbol.into());
+        self
+    }
+
+    pub fn symbols(mut self, symbols: Vec<String>) -> Self {
+        self.symbols = Some(symbols);
+        self
+    }
+
+    pub fn permissions(mut self, permissions: Vec<String>) -> Self {
+        self.permissions = Some(permissions);
+        self
+    }
+
+    pub fn show_permission_sets(mut self, value: bool) -> Self {
+        self.show_permission_sets = Some(value);
+        self
+    }
+
+    pub fn symbol_status(mut self, value: SymbolStatus) -> Self {
+        self.symbol_status = Some(value);
+        self
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -128,10 +159,24 @@ pub struct SOR {
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetOrderBookParams {
-    pub symbol: String,
+    symbol: String,
     /// Default: 100; Maximum: 5000.
     /// If limit > 5000, only 5000 entries will be returned.
-    pub limit: Option<u64>,
+    limit: Option<u64>,
+}
+
+impl GetOrderBookParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            limit: None,
+        }
+    }
+
+    pub fn limit(mut self, limit: u64) -> Self {
+        self.limit = Some(limit);
+        self
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -157,9 +202,23 @@ impl OrderLevel {
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetRecentTradesParams {
-    pub symbol: String,
+    symbol: String,
     /// Default: 500; Maximum: 1000.
-    pub limit: Option<u64>,
+    limit: Option<u64>,
+}
+
+impl GetRecentTradesParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            limit: None,
+        }
+    }
+
+    pub fn limit(mut self, limit: u64) -> Self {
+        self.limit = Some(limit);
+        self
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -177,25 +236,77 @@ pub struct RecentTrade {
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetOlderTradesParams {
-    pub symbol: String,
+    symbol: String,
     /// Default: 500; Maximum: 1000.
-    pub limit: Option<u64>,
+    limit: Option<u64>,
     /// TradeId to fetch from. Default gets most recent trades.
-    pub from_id: Option<i64>,
+    from_id: Option<i64>,
+}
+
+impl GetOlderTradesParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            limit: None,
+            from_id: None,
+        }
+    }
+
+    pub fn limit(mut self, limit: u64) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+
+    pub fn from_id(mut self, from_id: i64) -> Self {
+        self.from_id = Some(from_id);
+        self
+    }
 }
 
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAggregateTradesParams {
-    pub symbol: String,
+    symbol: String,
     /// ID to get aggregate trades from INCLUSIVE.
-    pub from_id: Option<i64>,
+    from_id: Option<i64>,
     /// Timestamp in ms to get aggregate trades from INCLUSIVE.
-    pub start_time: Option<Timestamp>,
+    start_time: Option<Timestamp>,
     /// Timestamp in ms to get aggregate trades until INCLUSIVE.
-    pub end_time: Option<Timestamp>,
+    end_time: Option<Timestamp>,
     /// Default: 500; Maximum: 1000.
-    pub limit: Option<u64>,
+    limit: Option<u64>,
+}
+
+impl GetAggregateTradesParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            from_id: None,
+            start_time: None,
+            end_time: None,
+            limit: None,
+        }
+    }
+
+    pub fn from_id(mut self, from_id: i64) -> Self {
+        self.from_id = Some(from_id);
+        self
+    }
+
+    pub fn start_time(mut self, start_time: Timestamp) -> Self {
+        self.start_time = Some(start_time);
+        self
+    }
+
+    pub fn end_time(mut self, end_time: Timestamp) -> Self {
+        self.end_time = Some(end_time);
+        self
+    }
+
+    pub fn limit(mut self, limit: u64) -> Self {
+        self.limit = Some(limit);
+        self
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -229,13 +340,46 @@ pub struct AggregateTrade {
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetKlineListParams {
-    pub symbol: String,
-    pub interval: KlineInterval,
-    pub start_time: Option<Timestamp>,
-    pub end_time: Option<Timestamp>,
-    pub time_zone: Option<String>,
+    symbol: String,
+    interval: KlineInterval,
+    start_time: Option<Timestamp>,
+    end_time: Option<Timestamp>,
+    time_zone: Option<String>,
     /// Default: 500; Maximum: 1000.
-    pub limit: Option<u64>,
+    limit: Option<u64>,
+}
+
+impl GetKlineListParams {
+    pub fn new(symbol: impl Into<String>, interval: KlineInterval) -> Self {
+        Self {
+            symbol: symbol.into(),
+            interval,
+            start_time: None,
+            end_time: None,
+            time_zone: None,
+            limit: None,
+        }
+    }
+
+    pub fn start_time(mut self, start_time: Timestamp) -> Self {
+        self.start_time = Some(start_time);
+        self
+    }
+
+    pub fn end_time(mut self, end_time: Timestamp) -> Self {
+        self.end_time = Some(end_time);
+        self
+    }
+
+    pub fn time_zone(mut self, time_zone: impl Into<String>) -> Self {
+        self.time_zone = Some(time_zone.into());
+        self
+    }
+
+    pub fn limit(mut self, limit: u64) -> Self {
+        self.limit = Some(limit);
+        self
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -304,7 +448,15 @@ impl Kline {
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetCurrentAveragePriceParams {
-    pub symbol: String,
+    symbol: String,
+}
+
+impl GetCurrentAveragePriceParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -327,16 +479,32 @@ pub enum GetTickerPriceChangeStatisticsParams {
     Full(SymbolOrSymbols),
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Default, Serialize, PartialEq)]
 pub struct SymbolOrSymbols {
     /// Parameter symbol and symbols cannot be used in combination.
     /// If neither parameter is sent, tickers for all symbols will be returned in an array.
-    pub symbol: Option<String>,
+    symbol: Option<String>,
     /// Examples of accepted format for the symbols parameter: ["BTCUSDT","BNBUSDT"]
     /// TODO: check serialization
     /// or
     /// %5B%22BTCUSDT%22,%22BNBUSDT%22%5D
-    pub symbols: Option<Vec<String>>,
+    symbols: Option<Vec<String>>,
+}
+
+impl SymbolOrSymbols {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn symbol(mut self, symbol: impl Into<String>) -> Self {
+        self.symbol = Some(symbol.into());
+        self
+    }
+
+    pub fn symbols(mut self, symbols: Vec<String>) -> Self {
+        self.symbols = Some(symbols);
+        self
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -409,39 +577,133 @@ pub struct TickerPriceChangeStatisticMini {
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct NewOrderRequest {
-    pub symbol: String,
-    pub side: OrderSide,
+    symbol: String,
+    side: OrderSide,
     #[serde(rename = "type")]
-    pub order_type: OrderType,
-    pub time_in_force: Option<TimeInForce>,
-    pub quantity: Option<Decimal>,
-    pub quote_order_qty: Option<Decimal>,
-    pub price: Option<Decimal>,
+    order_type: OrderType,
+    time_in_force: Option<TimeInForce>,
+    quantity: Option<Decimal>,
+    quote_order_qty: Option<Decimal>,
+    price: Option<Decimal>,
     /// A unique id among open orders. Automatically generated if not sent.
     /// Orders with the same newClientOrderID can be accepted only when the previous one is filled, otherwise the order will be rejected.
-    pub new_client_order_id: Option<String>,
-    pub strategy_id: Option<i64>,
+    new_client_order_id: Option<String>,
+    strategy_id: Option<i64>,
     /// The value cannot be less than 1000000.
-    pub strategy_type: Option<i64>,
+    strategy_type: Option<i64>,
     /// Used with STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, and TAKE_PROFIT_LIMIT orders.
-    pub stop_price: Option<Decimal>,
+    stop_price: Option<Decimal>,
     /// See Trailing Stop order FAQ.
-    pub trailing_delta: Option<i64>,
+    trailing_delta: Option<i64>,
     /// Used with LIMIT, STOP_LOSS_LIMIT, and TAKE_PROFIT_LIMIT to create an iceberg order.
-    pub iceberg_qty: Option<Decimal>,
+    iceberg_qty: Option<Decimal>,
     /// Set the response JSON. ACK, RESULT, or FULL; MARKET and LIMIT order types default to FULL, all other orders default to ACK.
     /// Mandatory - because there is a problem with deserialization of untagged enum Order
-    pub new_order_resp_type: OrderResponseType,
+    new_order_resp_type: OrderResponseType,
     /// The allowed enums is dependent on what is configured on the symbol. The possible supported values are: STP Modes.
-    pub self_trade_prevention_mode: Option<STPMode>,
+    self_trade_prevention_mode: Option<STPMode>,
     /// The value cannot be greater than 60000
-    pub recv_window: Option<i64>,
-    pub timestamp: Timestamp,
+    recv_window: Option<i64>,
+    timestamp: Timestamp,
     /// Only for test endpoint to place a new order.
-    pub compute_commission_rates: Option<bool>,
+    compute_commission_rates: Option<bool>,
 }
 
 impl NewOrderRequest {
+    pub fn new(
+        symbol: impl Into<String>,
+        side: OrderSide,
+        order_type: OrderType,
+        new_order_resp_type: OrderResponseType,
+        timestamp: Timestamp,
+    ) -> Self {
+        Self {
+            symbol: symbol.into(),
+            side,
+            order_type,
+            new_order_resp_type,
+            timestamp,
+            time_in_force: None,
+            quantity: None,
+            quote_order_qty: None,
+            price: None,
+            new_client_order_id: None,
+            strategy_id: None,
+            strategy_type: None,
+            stop_price: None,
+            trailing_delta: None,
+            iceberg_qty: None,
+            self_trade_prevention_mode: None,
+            recv_window: None,
+            compute_commission_rates: None,
+        }
+    }
+
+    pub fn time_in_force(mut self, value: TimeInForce) -> Self {
+        self.time_in_force = Some(value);
+        self
+    }
+
+    pub fn quantity(mut self, value: Decimal) -> Self {
+        self.quantity = Some(value);
+        self
+    }
+
+    pub fn quote_order_qty(mut self, value: Decimal) -> Self {
+        self.quote_order_qty = Some(value);
+        self
+    }
+
+    pub fn price(mut self, value: Decimal) -> Self {
+        self.price = Some(value);
+        self
+    }
+
+    pub fn new_client_order_id(mut self, value: impl Into<String>) -> Self {
+        self.new_client_order_id = Some(value.into());
+        self
+    }
+
+    pub fn strategy_id(mut self, value: i64) -> Self {
+        self.strategy_id = Some(value);
+        self
+    }
+
+    pub fn strategy_type(mut self, value: i64) -> Self {
+        self.strategy_type = Some(value);
+        self
+    }
+
+    pub fn stop_price(mut self, value: Decimal) -> Self {
+        self.stop_price = Some(value);
+        self
+    }
+
+    pub fn trailing_delta(mut self, value: i64) -> Self {
+        self.trailing_delta = Some(value);
+        self
+    }
+
+    pub fn iceberg_qty(mut self, value: Decimal) -> Self {
+        self.iceberg_qty = Some(value);
+        self
+    }
+
+    pub fn self_trade_prevention_mode(mut self, value: STPMode) -> Self {
+        self.self_trade_prevention_mode = Some(value);
+        self
+    }
+
+    pub fn recv_window(mut self, value: i64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+
+    pub fn compute_commission_rates(mut self, value: bool) -> Self {
+        self.compute_commission_rates = Some(value);
+        self
+    }
+
     pub fn is_valid(&self) -> bool {
         match self.order_type {
             OrderType::Limit => {
@@ -696,10 +958,30 @@ pub struct Discount {
 pub struct GetAccountInformationParams {
     /// When set to true, emits only the non-zero balances of an account.
     /// Default value: false
-    pub omit_zero_balances: Option<bool>,
+    omit_zero_balances: Option<bool>,
     /// The value cannot be greater than 60000
-    pub recv_window: Option<i64>,
-    pub timestamp: Timestamp,
+    recv_window: Option<i64>,
+    timestamp: Timestamp,
+}
+
+impl GetAccountInformationParams {
+    pub fn new(timestamp: Timestamp) -> Self {
+        Self {
+            omit_zero_balances: None,
+            recv_window: None,
+            timestamp,
+        }
+    }
+
+    pub fn omit_zero_balances(mut self, value: bool) -> Self {
+        self.omit_zero_balances = Some(value);
+        self
+    }
+
+    pub fn recv_window(mut self, value: i64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -744,12 +1026,39 @@ pub struct Balance {
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryOrderParams {
-    pub symbol: String,
-    pub order_id: Option<i64>,
-    pub orig_client_order_id: Option<String>,
+    symbol: String,
+    order_id: Option<i64>,
+    orig_client_order_id: Option<String>,
     /// The value cannot be greater than 60000
-    pub recv_window: Option<i64>,
-    pub timestamp: Timestamp,
+    recv_window: Option<i64>,
+    timestamp: Timestamp,
+}
+
+impl QueryOrderParams {
+    pub fn new(symbol: impl Into<String>, timestamp: Timestamp) -> Self {
+        Self {
+            symbol: symbol.into(),
+            order_id: None,
+            orig_client_order_id: None,
+            recv_window: None,
+            timestamp,
+        }
+    }
+
+    pub fn order_id(mut self, value: i64) -> Self {
+        self.order_id = Some(value);
+        self
+    }
+
+    pub fn orig_client_order_id(mut self, value: impl Into<String>) -> Self {
+        self.orig_client_order_id = Some(value.into());
+        self
+    }
+
+    pub fn recv_window(mut self, value: i64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]

@@ -22,10 +22,9 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PublicConfig::new(BASE_URL_API);
     let client = PublicClient::new(cfg);
 
-    let params = GetTickerPriceChangeStatisticsParams::Full(SymbolOrSymbols {
-        symbol: Some(String::from("BTCUSDT")),
-        symbols: None,
-    });
+    let params = GetTickerPriceChangeStatisticsParams::Full(
+        SymbolOrSymbols::new().symbol("BTCUSDT"),
+    );
     let response = client.ticker_price_change_statistics(params).await?;
     info!(?response, "response");
 

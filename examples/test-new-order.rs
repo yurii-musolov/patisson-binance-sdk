@@ -33,26 +33,15 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
     let client = PrivateClient::new(cfg);
 
-    let params = NewOrderRequest {
-        symbol: String::from("BTCUSDT"),
-        side: OrderSide::BUY,
-        order_type: OrderType::Market,
-        time_in_force: None,
-        quantity: Some(dec!(0.0002)),
-        quote_order_qty: None,
-        price: None,
-        new_client_order_id: None,
-        strategy_id: None,
-        strategy_type: None,
-        stop_price: None,
-        trailing_delta: None,
-        iceberg_qty: None,
-        new_order_resp_type: OrderResponseType::FULL,
-        self_trade_prevention_mode: None,
-        recv_window: None,
-        timestamp: timestamp(),
-        compute_commission_rates: Some(true),
-    };
+    let params = NewOrderRequest::new(
+        "BTCUSDT",
+        OrderSide::BUY,
+        OrderType::Market,
+        OrderResponseType::FULL,
+        timestamp(),
+    )
+    .quantity(dec!(0.0002))
+    .compute_commission_rates(true);
     if !params.is_valid() {
         error!(?params, "not valid params");
         bail!("not valid params")
