@@ -10,7 +10,6 @@ use binance::{
         BASE_URL_API,
         http::{PrivateClient, PrivateConfig, QueryOrderParams},
     },
-    timestamp,
 };
 use tokio;
 use tracing::{Level, info};
@@ -31,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
     let client = PrivateClient::new(cfg);
 
-    let params = QueryOrderParams::new("BTCUSDT", timestamp()).order_id(123456789);
+    let params = QueryOrderParams::new("BTCUSDT").order_id(123456789);
 
     let response = client.query_order(params).await?;
     info!(?response, "response");

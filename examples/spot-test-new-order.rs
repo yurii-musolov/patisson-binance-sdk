@@ -38,7 +38,6 @@ async fn main() -> anyhow::Result<()> {
         OrderSide::BUY,
         OrderType::Market,
         OrderResponseType::FULL,
-        timestamp(),
     )
     .quantity(dec!(0.0002))
     .compute_commission_rates(true);
