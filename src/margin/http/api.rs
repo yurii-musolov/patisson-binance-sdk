@@ -377,3 +377,42 @@ pub struct MaxBorrowable {
     /// Account's current borrow limit for the asset.
     pub borrow_limit: Decimal,
 }
+
+// ===== User data stream =====
+
+/// Response from `POST /sapi/v1/userDataStream{,/isolated}`.
+///
+/// Use the returned `listen_key` to connect to
+/// `wss://stream.binance.com:9443/ws/<listen_key>` and consume margin user
+/// data events. Keys live for 60 minutes from creation/keepalive — call
+/// `keepalive_listen_key` every 30 minutes to extend.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ListenKey {
+    pub listen_key: String,
+}
+
+/// Returned by keepalive and close operations on the user data stream
+/// (`PUT` / `DELETE`). The body is an empty JSON object `{}`.
+#[derive(Debug, Deserialize, PartialEq, Default)]
+pub struct EmptyResponse {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::serde::deserialize_json;
+
+    #[test]
+    fn deserialize_listen_key() {
+        let json = r#"{"listenKey":"pqia91ma19a5s61cv6a81va65sdf19v8a65a1a5s61cv6a81va65sdf19v8a65a1"}"#;
+        let parsed: ListenKey = deserialize_json(json).unwrap();
+        assert_eq!(parsed.listen_key.len(), 64);
+    }
+
+    #[test]
+    fn deserialize_empty_response() {
+        let json = r#"{}"#;
+        let parsed: EmptyResponse = deserialize_json(json).unwrap();
+        assert_eq!(parsed, EmptyResponse {});
+    }
+}

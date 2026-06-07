@@ -32,6 +32,10 @@ pub enum Path {
 
     // Margin borrow / repay
     MaxBorrowable,
+
+    // User data stream lifecycle
+    UserDataStream,
+    UserDataStreamIsolated,
 }
 
 impl std::fmt::Display for Path {
@@ -43,6 +47,8 @@ impl std::fmt::Display for Path {
             Self::AllAssets => "/sapi/v1/margin/allAssets",
             Self::AllPairs => "/sapi/v1/margin/allPairs",
             Self::MaxBorrowable => "/sapi/v1/margin/maxBorrowable",
+            Self::UserDataStream => "/sapi/v1/userDataStream",
+            Self::UserDataStreamIsolated => "/sapi/v1/userDataStream/isolated",
         };
         write!(f, "{s}")
     }

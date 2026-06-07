@@ -68,6 +68,10 @@ path = "margin-account.rs"
 name = "margin-max-borrowable"
 path = "margin-max-borrowable.rs"
 
+[[example]]
+name = "margin-user-data-stream"
+path = "margin-user-data-stream.rs"
+
 # Wallet
 [[example]]
 name = "wallet-account-status"
