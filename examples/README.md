@@ -29,7 +29,7 @@ This directory contains examples showcasing capabilities of the
 
 ### Margin
 
-`margin-account`, `margin-max-borrowable`
+`margin-account`, `margin-max-borrowable`, `margin-user-data-stream`
 
 ### Wallet
 
