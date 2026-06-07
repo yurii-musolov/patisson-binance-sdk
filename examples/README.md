@@ -7,6 +7,7 @@ This directory contains examples showcasing capabilities of the
 - `usdm-*` — USDⓈ-M Futures
 - `coinm-*` — COIN-M Futures
 - `margin-*` — Margin Trading
+- `wallet-*` — Wallet (deposits, withdrawals, account status)
 
 ## Example list
 
@@ -29,6 +30,10 @@ This directory contains examples showcasing capabilities of the
 ### Margin
 
 `margin-account`, `margin-max-borrowable`
+
+### Wallet
+
+`wallet-account-status`, `wallet-deposit-address`
 
 ## Running
 
