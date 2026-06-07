@@ -68,6 +68,15 @@ path = "margin-account.rs"
 name = "margin-max-borrowable"
 path = "margin-max-borrowable.rs"
 
+# Wallet
+[[example]]
+name = "wallet-account-status"
+path = "wallet-account-status.rs"
+
+[[example]]
+name = "wallet-deposit-address"
+path = "wallet-deposit-address.rs"
+
 # COIN-M Futures
 [[example]]
 name = "coinm-account-information"

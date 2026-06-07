@@ -6,6 +6,7 @@ mod serde;
 pub mod derivatives;
 pub mod margin;
 pub mod spot;
+pub mod wallet;
 pub mod ws;
 
 pub use common::*;
