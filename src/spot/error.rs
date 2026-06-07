@@ -1,3 +1,4 @@
+use serde::Deserialize;
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 /// Error codes for Binance.
@@ -237,9 +238,9 @@ pub enum ErrorCode {
     ClientOrderIdInvalid = -2039,
 }
 
-// TODO: add ApiError (code + msg)
 #[derive(Debug)]
 pub enum Error {
+    Api(ApiError),
     Io(std::io::Error),
     Msg(String),
     Reqwest(reqwest::Error),
@@ -251,6 +252,7 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Error::Api(error) => write!(f, "API error: code: {:?}, msg: {}", error.code, error.msg),
             Error::Io(error) => write!(f, "I/O error: {error}"),
             Error::Msg(msg) => write!(f, "{msg}"),
             Error::Reqwest(error) => write!(f, "reqwest error: {error}"),
@@ -267,6 +269,18 @@ impl std::fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct ApiError {
+    pub code: ErrorCode,
+    pub msg: String,
+}
+
+impl From<ApiError> for Error {
+    fn from(err: ApiError) -> Self {
+        Error::Api(err)
+    }
+}
 
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {

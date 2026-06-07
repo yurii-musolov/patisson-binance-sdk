@@ -1,11 +1,11 @@
-use reqwest::{self, Method, RequestBuilder, StatusCode, header::HeaderMap};
+use reqwest::{self, Method, RequestBuilder, header::HeaderMap};
 use tracing::debug;
 
 use crate::{
     SensitiveString,
     crypto::sign_query,
     derivatives::usds_margined_futures::{
-        Error, HEADER_RETRY_AFTER, HEADER_X_MBX_APIKEY, Path,
+        ApiError, Error, HEADER_RETRY_AFTER, HEADER_X_MBX_APIKEY, Path,
         http::{
             AccountInformation, ExchangeInfo, GetAccountInformationParams, GetKlineListParams,
             GetOrderBookParams, Headers, Kline, NewOrderRequest, NewOrderResponse, Order,
@@ -169,14 +169,14 @@ where
     let headers = parse_headers(response.headers());
     let json = response.text().await?;
 
-    #[cfg(debug_assertions)]
-    {
-        if !matches!(
-            status,
-            StatusCode::ACCEPTED | StatusCode::CREATED | StatusCode::OK
-        ) {
-            debug!(?status, ?json, "request failed");
-        }
+    if !status.is_success() {
+        #[cfg(debug_assertions)]
+        debug!(?status, ?json, "request failed");
+
+        // Binance returns `{"code":-XXXX,"msg":"..."}` on error. Fall back to
+        // the raw body if the shape doesn't match so nothing is silently lost.
+        let api_err = deserialize_json::<ApiError>(&json)?;
+        return Err(Error::Api(api_err));
     }
 
     let result = deserialize_json(&json)?;

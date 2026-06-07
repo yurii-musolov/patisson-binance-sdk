@@ -1,9 +1,12 @@
+use reqwest::{self, Method, RequestBuilder, header::HeaderMap};
+use tracing::debug;
+
 use crate::{
     SensitiveString,
     crypto::sign_query,
     serde::{deserialize_json, serialize_query},
     spot::{
-        Error, HEADER_RETRY_AFTER, HEADER_X_MBX_APIKEY, Path,
+        ApiError, Error, HEADER_RETRY_AFTER, HEADER_X_MBX_APIKEY, Path,
         http::{
             AccountInformation, AggregateTrade, CurrentAveragePrice, ExchangeInfo,
             GetAccountInformationParams, GetAggregateTradesParams, GetCurrentAveragePriceParams,
@@ -15,8 +18,6 @@ use crate::{
         },
     },
 };
-use reqwest::{self, Method, RequestBuilder, StatusCode, header::HeaderMap};
-use tracing::debug;
 
 pub struct PublicClient {
     base_url: String,
@@ -43,8 +44,7 @@ impl PublicClient {
             .request(Method::GET, url)
             .headers(self.headers.clone());
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 
     pub async fn get_server_time(&self) -> Result<Response<ServerTime>, Error> {
@@ -55,8 +55,7 @@ impl PublicClient {
             .request(Method::GET, url)
             .headers(self.headers.clone());
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 
     pub async fn get_exchange_info(
@@ -71,8 +70,7 @@ impl PublicClient {
             .headers(self.headers.clone())
             .query(&params);
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 }
 
@@ -90,8 +88,7 @@ impl PublicClient {
             .headers(self.headers.clone())
             .query(&params);
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 
     /// Get recent trades.
@@ -107,8 +104,7 @@ impl PublicClient {
             .headers(self.headers.clone())
             .query(&params);
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 
     /// Get older trades.
@@ -124,8 +120,7 @@ impl PublicClient {
             .headers(self.headers.clone())
             .query(&params);
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 
     /// Compressed/Aggregate trades list.
@@ -144,8 +139,7 @@ impl PublicClient {
             .headers(self.headers.clone())
             .query(&params);
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 
     /// Kline/candlestick bars for a symbol. Klines are uniquely identified by their open time.
@@ -169,8 +163,7 @@ impl PublicClient {
             .headers(self.headers.clone())
             .query(&params);
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 
     /// UIKlines
@@ -197,8 +190,7 @@ impl PublicClient {
             .headers(self.headers.clone())
             .query(&params);
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 
     /// Current average price for a symbol.
@@ -214,8 +206,7 @@ impl PublicClient {
             .headers(self.headers.clone())
             .query(&params);
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 
     /// 24 hour rolling window price change statistics. Careful when accessing this with no symbol.
@@ -231,8 +222,7 @@ impl PublicClient {
             .headers(self.headers.clone())
             .query(&params);
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 }
 
@@ -291,8 +281,7 @@ impl PrivateClient {
             .headers(self.headers.clone())
             .body(query);
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 
     /// Test new order creation and signature/recvWindow long. Creates and validates a new order but does not send it into the matching engine.
@@ -310,8 +299,7 @@ impl PrivateClient {
             .headers(self.headers.clone())
             .body(query);
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 }
 
@@ -331,8 +319,7 @@ impl PrivateClient {
             .request(Method::GET, url)
             .headers(self.headers.clone());
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 
     /// Check an order's status.
@@ -350,8 +337,7 @@ impl PrivateClient {
             .request(Method::GET, url)
             .headers(self.headers.clone());
 
-        let response = send(request).await?;
-        Ok(response)
+        send(request).await
     }
 }
 
@@ -364,23 +350,19 @@ where
     let headers = parse_headers(response.headers());
     let json = response.text().await?;
 
-    #[cfg(debug_assertions)]
-    {
-        if !matches!(
-            status,
-            StatusCode::ACCEPTED | StatusCode::CREATED | StatusCode::OK
-        ) {
-            debug!(?status, ?json, "request failed");
-        }
+    if !status.is_success() {
+        #[cfg(debug_assertions)]
+        debug!(?status, ?json, "request failed");
+
+        // Binance returns `{"code":-XXXX,"msg":"..."}` on error. Try to parse
+        // it; if the body doesn't match (or carries a code not in `ErrorCode`),
+        // fall back to surfacing the raw body so nothing is silently lost.
+        let api_err = deserialize_json::<ApiError>(&json)?;
+        return Err(Error::Api(api_err));
     }
 
-    // TODO: handle ApiError (code + msg)
-    // response json="{\"code\":-1102,\"msg\":\"Param 'origClientOrderId' or 'orderId' must be sent, but both were empty/null!\"}"
-    // Error: serde_path_to_error error: path: ., msg: missing field `symbol` at line 1 column 101
-
     let result = deserialize_json(&json)?;
-    let response = Response { result, headers };
-    Ok(response)
+    Ok(Response { result, headers })
 }
 
 /// Parse response headers: Retry-After
