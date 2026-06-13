@@ -1,5 +1,4 @@
 use reqwest::{self, Method, RequestBuilder, header::HeaderMap};
-use tracing::debug;
 
 use crate::{
     SensitiveString,
@@ -172,7 +171,7 @@ where
 
     if !status.is_success() {
         #[cfg(debug_assertions)]
-        debug!(?status, ?json, "request failed");
+        tracing::debug!(?status, ?json, "request failed");
 
         // Binance returns `{"code":-XXXX,"msg":"..."}` on error. Fall back to
         // the raw body if the shape doesn't match so nothing is silently lost.
