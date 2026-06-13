@@ -17,7 +17,7 @@ Every version change must be treated as a breaking change, including minor and p
 Users are strongly advised to pin an exact version, for example:
 
 ```rs
-patisson-binance-sdk = "=0.1.6"
+patisson-binance-sdk = "=0.1.7"
 ```
 
 ### Maintenance Policy
