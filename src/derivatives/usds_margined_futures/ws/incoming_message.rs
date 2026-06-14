@@ -5,6 +5,7 @@ use crate::{
     Timestamp,
     derivatives::usds_margined_futures::{
         KlineInterval, OrderSide,
+        http::OrderLevel,
         ws::{MessageID, StreamName},
     },
     ws::ReceivedMessage,
@@ -186,10 +187,14 @@ pub struct DepthUpdateMsg {
     pub first_update_id: i64,
     #[serde(rename = "u")]
     pub final_update_id: i64,
+    /// Final update id in the previous stream event (i.e. `u` of the prior
+    /// event). Used to verify the diff-stream chain has no gaps.
+    #[serde(rename = "pu")]
+    pub previous_final_update_id: i64,
     /// Bids (price + qty pairs).
     #[serde(rename = "b")]
-    pub bids: Vec<[Decimal; 2]>,
+    pub bids: Vec<OrderLevel>,
     /// Asks (price + qty pairs).
     #[serde(rename = "a")]
-    pub asks: Vec<[Decimal; 2]>,
+    pub asks: Vec<OrderLevel>,
 }
