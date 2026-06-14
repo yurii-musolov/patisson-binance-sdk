@@ -30,6 +30,9 @@ pub enum Path {
     // WebSocket
     WebSocketApi,
     Stream,
+    Public,
+    Market,
+    Private,
 }
 
 impl std::fmt::Display for Path {
@@ -45,6 +48,9 @@ impl std::fmt::Display for Path {
             Self::AccountV3 => "/fapi/v3/account",
             Self::WebSocketApi => "/ws-fapi/v1",
             Self::Stream => "/stream",
+            Self::Public => "/public",
+            Self::Market => "/market",
+            Self::Private => "/private",
         };
         write!(f, "{s}")
     }
