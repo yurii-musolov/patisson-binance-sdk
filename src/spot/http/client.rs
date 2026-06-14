@@ -80,7 +80,7 @@ impl PublicClient {
         &self,
         params: GetOrderBookParams,
     ) -> Result<Response<OrderBook>, Error> {
-        let url = format!("{}{}", self.base_url, Path::ExchangeInfo);
+        let url = format!("{}{}", self.base_url, Path::Depth);
 
         let client = reqwest::Client::builder().build()?;
         let request = client
