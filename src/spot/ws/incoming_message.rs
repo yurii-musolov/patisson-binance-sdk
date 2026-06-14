@@ -5,6 +5,7 @@ use crate::{
     Timestamp,
     spot::{
         KlineInterval,
+        http::OrderLevel,
         ws::{MessageID, StreamName},
     },
     ws::ReceivedMessage,
@@ -60,6 +61,8 @@ pub enum StreamMessage {
     Kline(KlineMsg),
     #[serde(rename = "24hrMiniTicker")]
     MiniTicker24(MiniTicker24Msg),
+    #[serde(rename = "depthUpdate")]
+    DepthUpdate(DepthUpdateMsg),
     #[serde(rename = "serverShutdown")]
     ServerShutdown(ServerShutdownMsg),
 }
@@ -213,6 +216,28 @@ pub struct MiniTicker24Msg {
     /// Total traded quote asset volume
     #[serde(rename = "q")]
     pub total_quote_asset_volume: Decimal,
+}
+
+#[derive(PartialEq, Deserialize, Debug)]
+pub struct DepthUpdateMsg {
+    /// Event time
+    #[serde(rename = "E")]
+    pub event_time: Timestamp,
+    /// Symbol
+    #[serde(rename = "s")]
+    pub symbol: String,
+    /// First update ID in event
+    #[serde(rename = "U")]
+    pub first_update_id: i64,
+    /// Final update ID in event
+    #[serde(rename = "u")]
+    pub final_update_id: i64,
+    /// Bids to be updated (price + qty pairs).
+    #[serde(rename = "b")]
+    pub bids: Vec<OrderLevel>,
+    /// Asks to be updated (price + qty pairs).
+    #[serde(rename = "a")]
+    pub asks: Vec<OrderLevel>,
 }
 
 #[derive(PartialEq, Deserialize, Debug)]

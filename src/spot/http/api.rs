@@ -173,7 +173,7 @@ impl GetOrderBookParams {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OrderBook {
     pub last_update_id: i64,
@@ -181,7 +181,7 @@ pub struct OrderBook {
     pub asks: Vec<OrderLevel>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct OrderLevel(Decimal, Decimal);
 
 impl OrderLevel {
@@ -189,7 +189,7 @@ impl OrderLevel {
         self.0
     }
     pub fn qty(&self) -> Decimal {
-        self.0
+        self.1
     }
 }
 
