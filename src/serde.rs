@@ -8,7 +8,12 @@ where
 {
     let deserializer = &mut serde_json::Deserializer::from_str(json);
 
-    serde_path_to_error::deserialize(deserializer)
+    serde_path_to_error::deserialize(deserializer).map_err(|err| {
+        #[cfg(debug_assertions)]
+        tracing::debug!(json);
+
+        err
+    })
 }
 
 #[inline]
