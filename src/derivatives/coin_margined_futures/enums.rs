@@ -44,6 +44,17 @@ pub enum TimeInForce {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub enum UnderlyingType {
+    #[serde(rename = "COIN")]
+    COIN,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub enum PermissionSets {
+    GRID,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum OrderStatus {
     New,
@@ -85,6 +96,7 @@ pub enum ContractType {
     NextQuarter,
     NextQuarterDelivering,
     CurrentQuarterDelivering,
+    #[serde(rename = "PERPETUAL DELIVERING")]
     PerpetualDelivering,
 }
 
