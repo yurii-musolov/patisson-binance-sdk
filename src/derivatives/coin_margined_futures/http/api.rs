@@ -5,7 +5,8 @@ use crate::{
     Timestamp,
     derivatives::coin_margined_futures::{
         ContractType, KlineInterval, OrderResponseType, OrderSide, OrderStatus, OrderType,
-        PositionSide, RateLimitInterval, RateLimiter, SymbolStatus, TimeInForce, WorkingType,
+        PermissionSets, PositionSide, RateLimitInterval, RateLimiter, SymbolStatus, TimeInForce,
+        UnderlyingType, WorkingType,
     },
 };
 
@@ -56,20 +57,86 @@ pub struct SymbolInfo {
     pub pair: String,
     pub contract_type: ContractType,
     /// Contract size in base asset (e.g. 100 for BTCUSD perpetual).
-    pub contract_size: Decimal,
+    pub contract_size: i64,
     pub delivery_date: Timestamp,
     pub onboard_date: Timestamp,
     pub contract_status: SymbolStatus,
     pub base_asset: String,
     pub quote_asset: String,
     pub margin_asset: String,
-    pub price_precision: u8,
-    pub quantity_precision: u8,
-    pub base_asset_precision: u8,
-    pub quote_precision: u8,
-    pub equal_qty_precision: u8,
+    pub price_precision: i8,
+    pub quantity_precision: i8,
+    pub base_asset_precision: i8,
+    pub quote_precision: i8,
+    pub equal_qty_precision: i8,
+    pub max_move_order_limit: i32,
+    pub maint_margin_percent: Decimal,
+    pub required_margin_percent: Decimal,
+    pub underlying_type: UnderlyingType,
+    pub underlying_sub_type: Vec<String>, //  `PoW`, `Layer-1`, `Layer-2`, `Infrastructure`, `Payment`, `Storage`, `Meme`, `DeFi`, `Gaming`, `NFT`, ...
+    pub trigger_protect: Decimal,
+    pub liquidation_fee: Decimal,
+    pub market_take_bound: Decimal,
+    pub filters: Vec<SymbolFilter>,
     pub order_types: Vec<OrderType>,
     pub time_in_force: Vec<TimeInForce>,
+    pub permission_sets: Vec<PermissionSets>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(tag = "filterType")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum SymbolFilter {
+    PriceFilter(SymbolFilterPriceFilter),
+    LotSize(SymbolFilterLotSize),
+    MarketLotSize(SymbolFilterMarketLotSize),
+    MaxNumOrders(SymbolFilterMaxNumOrders),
+    MaxNumAlgoOrders(SymbolFilterMaxNumAlgoOrders),
+    PercentPrice(SymbolFilterPercentPrice),
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolFilterPriceFilter {
+    pub min_price: Decimal,
+    pub max_price: Decimal,
+    pub tick_size: Decimal,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolFilterLotSize {
+    pub max_qty: Decimal,
+    pub step_size: Decimal,
+    pub min_qty: Decimal,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolFilterMarketLotSize {
+    pub step_size: Decimal,
+    pub max_qty: Decimal,
+    pub min_qty: Decimal,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolFilterMaxNumOrders {
+    pub limit: i32,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolFilterMaxNumAlgoOrders {
+    pub limit: i32,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolFilterPercentPrice {
+    pub multiplier_decimal: Decimal,
+    pub multiplier_up: Decimal,
+    pub multiplier_down: Decimal,
 }
 
 // ===== Market Data =====
@@ -473,4 +540,212 @@ pub struct AccountPosition {
     pub entry_price: Decimal,
     pub max_qty: Decimal,
     pub update_time: Timestamp,
+}
+
+#[cfg(test)]
+mod tests {
+
+    use rust_decimal::dec;
+
+    use crate::{derivatives::coin_margined_futures::PermissionSets, serde::deserialize_json};
+
+    use super::*;
+
+    #[test]
+    fn deserialize_exchange_info() {
+        let json = r#"{
+            "timezone": "UTC",
+            "serverTime": 1781510419499,
+            "rateLimits": [
+                {
+                "rateLimitType": "REQUEST_WEIGHT",
+                "interval": "MINUTE",
+                "intervalNum": 1,
+                "limit": 2400
+                },
+                {
+                "rateLimitType": "ORDERS",
+                "interval": "MINUTE",
+                "intervalNum": 1,
+                "limit": 1200
+                }
+            ],
+            "exchangeFilters": [],
+            "symbols": [
+                {
+                    "symbol": "BTCUSD_PERP",
+                    "pair": "BTCUSD",
+                    "contractType": "PERPETUAL",
+                    "deliveryDate": 4133404800000,
+                    "onboardDate": 1597042800000,
+                    "contractStatus": "TRADING",
+                    "contractSize": 100,
+                    "maintMarginPercent": "2.5000",
+                    "requiredMarginPercent": "5.0000",
+                    "baseAsset": "BTC",
+                    "quoteAsset": "USD",
+                    "marginAsset": "BTC",
+                    "pricePrecision": 1,
+                    "quantityPrecision": 0,
+                    "baseAssetPrecision": 8,
+                    "quotePrecision": 8,
+                    "underlyingType": "COIN",
+                    "underlyingSubType": [
+                        "PoW"
+                    ],
+                    "triggerProtect": "0.0500",
+                    "liquidationFee": "0.015000",
+                    "marketTakeBound": "0.05",
+                    "equalQtyPrecision": 4,
+                    "maxMoveOrderLimit": 10000,
+                    "filters": [
+                        {
+                        "minPrice": "1000",
+                        "filterType": "PRICE_FILTER",
+                        "maxPrice": "4520958",
+                        "tickSize": "0.1"
+                        },
+                        {
+                        "filterType": "LOT_SIZE",
+                        "maxQty": "1000000",
+                        "stepSize": "1",
+                        "minQty": "1"
+                        },
+                        {
+                        "stepSize": "1",
+                        "filterType": "MARKET_LOT_SIZE",
+                        "maxQty": "60000",
+                        "minQty": "1"
+                        },
+                        {
+                        "filterType": "MAX_NUM_ORDERS",
+                        "limit": 200
+                        },
+                        {
+                        "limit": 20,
+                        "filterType": "MAX_NUM_ALGO_ORDERS"
+                        },
+                        {
+                        "multiplierDecimal": "4",
+                        "multiplierUp": "1.0500",
+                        "filterType": "PERCENT_PRICE",
+                        "multiplierDown": "0.9500"
+                        }
+                    ],
+                    "orderTypes": [
+                        "LIMIT",
+                        "MARKET",
+                        "STOP",
+                        "STOP_MARKET",
+                        "TAKE_PROFIT",
+                        "TAKE_PROFIT_MARKET",
+                        "TRAILING_STOP_MARKET"
+                    ],
+                    "timeInForce": [
+                        "GTC",
+                        "IOC",
+                        "FOK",
+                        "GTX"
+                    ],
+                    "permissionSets": [
+                        "GRID"
+                    ]
+                }
+            ]
+        }"#;
+
+        let rate_limits = vec![
+            RateLimit {
+                rate_limit_type: RateLimiter::RequestWeight,
+                interval: RateLimitInterval::Minute,
+                interval_num: 1,
+                limit: 2400,
+            },
+            RateLimit {
+                rate_limit_type: RateLimiter::Orders,
+                interval: RateLimitInterval::Minute,
+                interval_num: 1,
+                limit: 1200,
+            },
+        ];
+        let filters = vec![
+            SymbolFilter::PriceFilter(SymbolFilterPriceFilter {
+                min_price: dec!(1000),
+                max_price: dec!(4520958),
+                tick_size: dec!(0.1),
+            }),
+            SymbolFilter::LotSize(SymbolFilterLotSize {
+                max_qty: dec!(1000000),
+                step_size: dec!(1),
+                min_qty: dec!(1),
+            }),
+            SymbolFilter::MarketLotSize(SymbolFilterMarketLotSize {
+                step_size: dec!(1),
+                max_qty: dec!(60000),
+                min_qty: dec!(1),
+            }),
+            SymbolFilter::MaxNumOrders(SymbolFilterMaxNumOrders { limit: 200 }),
+            SymbolFilter::MaxNumAlgoOrders(SymbolFilterMaxNumAlgoOrders { limit: 20 }),
+            SymbolFilter::PercentPrice(SymbolFilterPercentPrice {
+                multiplier_decimal: dec!(4),
+                multiplier_up: dec!(1.0500),
+                multiplier_down: dec!(0.9500),
+            }),
+        ];
+        let order_types = vec![
+            OrderType::Limit,
+            OrderType::Market,
+            OrderType::Stop,
+            OrderType::StopMarket,
+            OrderType::TakeProfit,
+            OrderType::TakeProfitMarket,
+            OrderType::TrailingStopMarket,
+        ];
+        let time_in_force = vec![
+            TimeInForce::GTC,
+            TimeInForce::IOC,
+            TimeInForce::FOK,
+            TimeInForce::GTX,
+        ];
+        let permission_sets = vec![PermissionSets::GRID];
+        let symbol = SymbolInfo {
+            symbol: "BTCUSD_PERP".to_string(),
+            pair: "BTCUSD".to_string(),
+            contract_type: ContractType::Perpetual,
+            contract_size: 100,
+            delivery_date: 4133404800000,
+            onboard_date: 1597042800000,
+            contract_status: SymbolStatus::Trading,
+            base_asset: "BTC".to_string(),
+            quote_asset: "USD".to_string(),
+            margin_asset: "BTC".to_string(),
+            price_precision: 1,
+            quantity_precision: 0,
+            base_asset_precision: 8,
+            quote_precision: 8,
+            equal_qty_precision: 4,
+            max_move_order_limit: 10000,
+            maint_margin_percent: dec!(2.5000),
+            required_margin_percent: dec!(5.0000),
+            underlying_type: UnderlyingType::COIN,
+            underlying_sub_type: vec!["PoW".to_string()],
+            trigger_protect: dec!(0.0500),
+            liquidation_fee: dec!(0.015000),
+            market_take_bound: dec!(0.05),
+            filters,
+            order_types,
+            time_in_force,
+            permission_sets,
+        };
+        let expected = ExchangeInfo {
+            timezone: "UTC".into(),
+            server_time: 1781510419499,
+            rate_limits,
+            symbols: vec![symbol],
+        };
+
+        let message = deserialize_json(json).unwrap();
+
+        assert_eq!(expected, message);
+    }
 }
