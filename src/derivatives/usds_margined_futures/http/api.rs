@@ -5,8 +5,8 @@ use crate::{
     Timestamp,
     derivatives::usds_margined_futures::{
         ContractType, KlineInterval, OrderResponseType, OrderSide, OrderStatus, OrderType,
-        PositionSide, RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce,
-        WorkingType,
+        PositionSide, PriceMatch, RateLimitInterval, RateLimiter, STPMode, SymbolStatus,
+        TimeInForce, WorkingType,
     },
 };
 
@@ -232,9 +232,14 @@ pub struct NewOrderRequest {
     working_type: Option<WorkingType>,
     price_protect: Option<bool>,
     new_order_resp_type: Option<OrderResponseType>,
+    /// Order cancellation deadline in epoch-ms. Required when `time_in_force = GTD`.
+    good_till_date: Option<Timestamp>,
+    /// Computed order price mode (e.g. OPPONENT, QUEUE). Mutually exclusive
+    /// with `price`.
+    price_match: Option<PriceMatch>,
     self_trade_prevention_mode: Option<STPMode>,
     /// Max 60000.
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl NewOrderRequest {
@@ -256,6 +261,8 @@ impl NewOrderRequest {
             working_type: None,
             price_protect: None,
             new_order_resp_type: None,
+            good_till_date: None,
+            price_match: None,
             self_trade_prevention_mode: None,
             recv_window: None,
         }
@@ -313,11 +320,19 @@ impl NewOrderRequest {
         self.new_order_resp_type = Some(value);
         self
     }
+    pub fn good_till_date(mut self, value: Timestamp) -> Self {
+        self.good_till_date = Some(value);
+        self
+    }
+    pub fn price_match(mut self, value: PriceMatch) -> Self {
+        self.price_match = Some(value);
+        self
+    }
     pub fn self_trade_prevention_mode(mut self, value: STPMode) -> Self {
         self.self_trade_prevention_mode = Some(value);
         self
     }
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -347,6 +362,11 @@ pub struct NewOrderResponse {
     pub price_protect: bool,
     pub orig_type: OrderType,
     pub update_time: Timestamp,
+    /// Present when `time_in_force = GTD`.
+    pub good_till_date: Option<Timestamp>,
+    /// Present when `price_match` was set (non-`NONE`).
+    pub price_match: Option<PriceMatch>,
+    pub self_trade_prevention_mode: Option<STPMode>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -355,7 +375,7 @@ pub struct QueryOrderParams {
     symbol: String,
     order_id: Option<i64>,
     orig_client_order_id: Option<String>,
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl QueryOrderParams {
@@ -376,7 +396,7 @@ impl QueryOrderParams {
         self.orig_client_order_id = Some(value.into());
         self
     }
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -414,7 +434,7 @@ pub struct Order {
 #[derive(Debug, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountInformationParams {
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl GetAccountInformationParams {
@@ -422,7 +442,7 @@ impl GetAccountInformationParams {
         Self::default()
     }
 
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }

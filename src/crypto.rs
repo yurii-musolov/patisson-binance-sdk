@@ -52,9 +52,13 @@ pub fn hmac_sha256(key: impl AsRef<[u8]>, message: impl AsRef<[u8]>) -> String {
 }
 
 pub fn sign_query(api_secret: &SensitiveString, timestamp: Timestamp, query: &str) -> String {
-    let query = format!("{}&timestamp={}", query, timestamp);
+    let query = if query.is_empty() {
+        format!("timestamp={timestamp}")
+    } else {
+        format!("{query}&timestamp={timestamp}")
+    };
     let signature = hmac_sha256(api_secret.expose(), &query);
-    format!("{}&signature={}", query, signature)
+    format!("{query}&signature={signature}")
 }
 
 /// Return milliseconds.
@@ -79,5 +83,15 @@ mod tests {
         let signed_query = sign_query(&api_secret, timestamp, query);
 
         assert_eq!(expected, signed_query);
+    }
+
+    #[test]
+    fn test_sign_empty_query_has_no_leading_amp() {
+        let api_secret = SensitiveString("secret".to_string());
+        let signed = sign_query(&api_secret, 123, "");
+        assert!(
+            signed.starts_with("timestamp=123&signature="),
+            "got {signed}"
+        );
     }
 }

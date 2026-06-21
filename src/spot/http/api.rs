@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Timestamp,
+    serde::serialize_option_as_json,
     spot::{
         AccountType, ExchangeFilter, KlineInterval, OrderResponseType, OrderSide, OrderStatus,
         OrderType, RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce,
@@ -33,19 +34,16 @@ pub struct ServerTime {
 #[derive(Debug, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetExchangeInfoParams {
-    /// Example: curl -X GET "https://api.binance.com/api/v3/exchangeInfo?symbol=BNBBTC"
+    /// Single symbol: `?symbol=BNBBTC`. Cannot be combined with `symbols`.
     symbol: Option<String>,
-    /// Examples: curl -X GET "https://api.binance.com/api/v3/exchangeInfo?symbols=%5B%22BNBBTC%22,%22BTCUSDT%22%5D"
-    /// or
-    /// curl -g -X GET 'https://api.binance.com/api/v3/exchangeInfo?symbols=["BTCUSDT","BNBBTC"]'
-    /// TODO: Check serialization.
+    /// Multiple symbols, sent as a JSON-array literal:
+    /// `?symbols=["BTCUSDT","BNBBTC"]` (URL-encoded). Cannot be combined with `symbol`.
+    #[serde(serialize_with = "serialize_option_as_json")]
     symbols: Option<Vec<String>>,
-    /// Examples: curl -X GET "https://api.binance.com/api/v3/exchangeInfo?permissions=SPOT"
-    /// or
-    /// curl -X GET "https://api.binance.com/api/v3/exchangeInfo?permissions=%5B%22MARGIN%22%2C%22LEVERAGED%22%5D"
-    /// or
-    /// curl -g -X GET 'https://api.binance.com/api/v3/exchangeInfo?permissions=["MARGIN","LEVERAGED"]'
-    /// TODO: Check serialization.
+    /// Permission filter, sent as a JSON-array literal:
+    /// `?permissions=["MARGIN","LEVERAGED"]` (URL-encoded). A single
+    /// permission may also be sent as a one-element vec.
+    #[serde(serialize_with = "serialize_option_as_json")]
     permissions: Option<Vec<String>>,
     /// Controls whether the content of the permissionSets field is populated or not. Defaults to true
     show_permission_sets: Option<bool>,
@@ -136,10 +134,73 @@ pub struct SymbolInfo {
     pub allowed_self_trade_prevention_modes: Vec<STPMode>,
 }
 
+/// Per-symbol trading filters from `/api/v3/exchangeInfo`.
+///
+/// Reference: <https://developers.binance.com/docs/binance-spot-api-docs/filters>
 #[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct Filter {
-    // TODO:
+#[serde(tag = "filterType")]
+pub enum Filter {
+    #[serde(rename = "PRICE_FILTER", rename_all = "camelCase")]
+    PriceFilter {
+        min_price: Decimal,
+        max_price: Decimal,
+        tick_size: Decimal,
+    },
+    #[serde(rename = "PERCENT_PRICE_BY_SIDE", rename_all = "camelCase")]
+    PercentPriceBySide {
+        bid_multiplier_up: Decimal,
+        bid_multiplier_down: Decimal,
+        ask_multiplier_up: Decimal,
+        ask_multiplier_down: Decimal,
+        avg_price_mins: u64,
+    },
+    #[serde(rename = "LOT_SIZE", rename_all = "camelCase")]
+    LotSize {
+        min_qty: Decimal,
+        max_qty: Decimal,
+        step_size: Decimal,
+    },
+    #[serde(rename = "MIN_NOTIONAL", rename_all = "camelCase")]
+    MinNotional {
+        min_notional: Decimal,
+        apply_to_market: bool,
+        avg_price_mins: u64,
+    },
+    #[serde(rename = "NOTIONAL", rename_all = "camelCase")]
+    Notional {
+        min_notional: Decimal,
+        apply_min_to_market: bool,
+        max_notional: Decimal,
+        apply_max_to_market: bool,
+        avg_price_mins: u64,
+    },
+    #[serde(rename = "ICEBERG_PARTS", rename_all = "camelCase")]
+    IcebergParts { limit: u64 },
+    #[serde(rename = "MARKET_LOT_SIZE", rename_all = "camelCase")]
+    MarketLotSize {
+        min_qty: Decimal,
+        max_qty: Decimal,
+        step_size: Decimal,
+    },
+    #[serde(rename = "MAX_NUM_ORDERS", rename_all = "camelCase")]
+    MaxNumOrders { max_num_orders: u64 },
+    #[serde(rename = "MAX_NUM_ALGO_ORDERS", rename_all = "camelCase")]
+    MaxNumAlgoOrders { max_num_algo_orders: u64 },
+    #[serde(rename = "MAX_NUM_ICEBERG_ORDERS", rename_all = "camelCase")]
+    MaxNumIcebergOrders { max_num_iceberg_orders: u64 },
+    #[serde(rename = "MAX_POSITION", rename_all = "camelCase")]
+    MaxPosition { max_position: Decimal },
+    #[serde(rename = "TRAILING_DELTA", rename_all = "camelCase")]
+    TrailingDelta {
+        min_trailing_above_delta: u64,
+        max_trailing_above_delta: u64,
+        min_trailing_below_delta: u64,
+        max_trailing_below_delta: u64,
+    },
+    /// Catch-all for filter types not yet modelled. Lets new Binance filter
+    /// types deserialize without breaking existing callers.
+    #[serde(other)]
+    Unknown,
 }
 
 /// Smart Order Routing (SOR).
@@ -597,7 +658,7 @@ pub struct NewOrderRequest {
     /// The allowed enums is dependent on what is configured on the symbol. The possible supported values are: STP Modes.
     self_trade_prevention_mode: Option<STPMode>,
     /// The value cannot be greater than 60000
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
     /// Only for test endpoint to place a new order.
     compute_commission_rates: Option<bool>,
 }
@@ -685,7 +746,7 @@ impl NewOrderRequest {
         self
     }
 
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -951,7 +1012,7 @@ pub struct GetAccountInformationParams {
     /// Default value: false
     omit_zero_balances: Option<bool>,
     /// The value cannot be greater than 60000
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl GetAccountInformationParams {
@@ -964,7 +1025,7 @@ impl GetAccountInformationParams {
         self
     }
 
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -1016,7 +1077,7 @@ pub struct QueryOrderParams {
     order_id: Option<i64>,
     orig_client_order_id: Option<String>,
     /// The value cannot be greater than 60000
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl QueryOrderParams {
@@ -1039,7 +1100,7 @@ impl QueryOrderParams {
         self
     }
 
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }

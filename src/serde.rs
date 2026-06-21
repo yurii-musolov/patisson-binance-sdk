@@ -30,6 +30,24 @@ where
     serde_urlencoded::to_string(msg)
 }
 
+/// Serializer for use with `#[serde(serialize_with = ...)]` on fields that
+/// Binance expects as a JSON-array literal in a URL query — e.g.
+/// `symbols=["BTC","ETH"]` rather than the repeated `symbols=BTC&symbols=ETH`
+/// that `serde_urlencoded` would emit for `Vec<T>`.
+pub fn serialize_option_as_json<S, T>(value: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+    T: serde::Serialize,
+{
+    match value {
+        Some(v) => {
+            let json = serde_json::to_string(v).map_err(serde::ser::Error::custom)?;
+            serializer.serialize_some(&json)
+        }
+        None => serializer.serialize_none(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use rust_decimal::dec;
@@ -37,6 +55,40 @@ mod tests {
     use crate::spot::ws::*;
 
     use super::*;
+
+    #[test]
+    fn test_deserialize_filter_variants() {
+        use crate::spot::http::Filter;
+        let json = r#"[
+            {"filterType":"PRICE_FILTER","minPrice":"0.01","maxPrice":"1000000.00","tickSize":"0.01"},
+            {"filterType":"LOT_SIZE","minQty":"0.00001","maxQty":"9000.0","stepSize":"0.00001"},
+            {"filterType":"MAX_NUM_ORDERS","maxNumOrders":200},
+            {"filterType":"TOTALLY_NEW_FILTER","foo":"bar"}
+        ]"#;
+        let filters: Vec<Filter> = deserialize_json(json).unwrap();
+        assert!(matches!(filters[0], Filter::PriceFilter { .. }));
+        assert!(matches!(filters[1], Filter::LotSize { .. }));
+        assert!(matches!(filters[2], Filter::MaxNumOrders { .. }));
+        assert!(matches!(filters[3], Filter::Unknown));
+    }
+
+    #[test]
+    fn test_serialize_option_as_json_for_query_arrays() {
+        #[derive(Serialize)]
+        struct Q {
+            #[serde(serialize_with = "serialize_option_as_json")]
+            symbols: Option<Vec<String>>,
+        }
+        let q = Q {
+            symbols: Some(vec!["BTCUSDT".into(), "BNBBTC".into()]),
+        };
+        let encoded = serialize_query(&q).unwrap();
+        // URL-encoded form of: symbols=["BTCUSDT","BNBBTC"]
+        assert_eq!(encoded, "symbols=%5B%22BTCUSDT%22%2C%22BNBBTC%22%5D");
+
+        let empty = Q { symbols: None };
+        assert_eq!(serialize_query(&empty).unwrap(), "");
+    }
 
     #[test]
     fn test_deserialize_incoming_message_combined_stream_event_trade() {
@@ -49,7 +101,7 @@ mod tests {
             price: dec!(107407.88000000),
             qty: dec!(0.00024000),
             trade_time: 1751132780368,
-            is_buyer: true,
+            is_buyer_maker: true,
         };
         let event = CombinedStreamMessage {
             stream: StreamName::Trade {

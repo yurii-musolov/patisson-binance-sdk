@@ -22,7 +22,7 @@ pub struct Headers {
 #[derive(Debug, Serialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAllCoinsParams {
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl GetAllCoinsParams {
@@ -30,7 +30,7 @@ impl GetAllCoinsParams {
         Self::default()
     }
 
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -83,9 +83,9 @@ pub struct CoinNetwork {
 pub struct GetDepositAddressParams {
     coin: String,
     network: Option<String>,
-    /// Optional sub-account email; admin/master use only.
+    /// Optional pre-fill amount for the deposit address QR.
     amount: Option<Decimal>,
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl GetDepositAddressParams {
@@ -108,7 +108,7 @@ impl GetDepositAddressParams {
         self
     }
 
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -136,7 +136,7 @@ pub struct GetDepositHistoryParams {
     /// Default 1000, max 1000.
     limit: Option<u32>,
     offset: Option<u32>,
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl GetDepositHistoryParams {
@@ -168,7 +168,7 @@ impl GetDepositHistoryParams {
         self.offset = Some(value);
         self
     }
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -177,6 +177,8 @@ impl GetDepositHistoryParams {
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Deposit {
+    /// Binance-internal deposit id.
+    pub id: String,
     pub amount: Decimal,
     pub coin: String,
     pub network: String,
@@ -206,7 +208,7 @@ pub struct GetWithdrawHistoryParams {
     /// Default 1000, max 1000.
     limit: Option<u32>,
     offset: Option<u32>,
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl GetWithdrawHistoryParams {
@@ -242,7 +244,7 @@ impl GetWithdrawHistoryParams {
         self.offset = Some(value);
         self
     }
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -274,7 +276,7 @@ pub struct Withdraw {
 #[derive(Debug, Serialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountStatusParams {
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl GetAccountStatusParams {
@@ -282,7 +284,7 @@ impl GetAccountStatusParams {
         Self::default()
     }
 
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -300,7 +302,7 @@ pub struct AccountStatus {
 #[serde(rename_all = "camelCase")]
 pub struct GetTradeFeeParams {
     symbol: Option<String>,
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl GetTradeFeeParams {
@@ -313,7 +315,7 @@ impl GetTradeFeeParams {
         self
     }
 
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
