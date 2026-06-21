@@ -304,7 +304,7 @@ pub struct NewOrderRequest {
     price_protect: Option<bool>,
     new_order_resp_type: Option<OrderResponseType>,
     /// Max 60000.
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl NewOrderRequest {
@@ -382,7 +382,7 @@ impl NewOrderRequest {
         self.new_order_resp_type = Some(value);
         self
     }
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -421,7 +421,7 @@ pub struct QueryOrderParams {
     symbol: String,
     order_id: Option<i64>,
     orig_client_order_id: Option<String>,
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl QueryOrderParams {
@@ -442,7 +442,7 @@ impl QueryOrderParams {
         self.orig_client_order_id = Some(value.into());
         self
     }
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -481,7 +481,7 @@ pub struct Order {
 #[derive(Debug, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountInformationParams {
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl GetAccountInformationParams {
@@ -489,7 +489,7 @@ impl GetAccountInformationParams {
         Self::default()
     }
 
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }

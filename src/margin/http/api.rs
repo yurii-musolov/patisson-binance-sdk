@@ -26,7 +26,7 @@ pub struct Headers {
 #[serde(rename_all = "camelCase")]
 pub struct GetAllMarginAssetsParams {
     asset: Option<String>,
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl GetAllMarginAssetsParams {
@@ -39,7 +39,7 @@ impl GetAllMarginAssetsParams {
         self
     }
 
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -61,7 +61,7 @@ pub struct MarginAsset {
 #[derive(Debug, Serialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GetMarginAccountParams {
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl GetMarginAccountParams {
@@ -69,7 +69,7 @@ impl GetMarginAccountParams {
         Self::default()
     }
 
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -129,7 +129,7 @@ pub struct NewOrderRequest {
     time_in_force: Option<TimeInForce>,
     self_trade_prevention_mode: Option<STPMode>,
     /// Max 60000.
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl NewOrderRequest {
@@ -197,7 +197,7 @@ impl NewOrderRequest {
         self.self_trade_prevention_mode = Some(value);
         self
     }
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -284,7 +284,7 @@ pub struct QueryOrderParams {
     is_isolated: Option<IsIsolated>,
     order_id: Option<i64>,
     orig_client_order_id: Option<String>,
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl QueryOrderParams {
@@ -310,7 +310,7 @@ impl QueryOrderParams {
         self.orig_client_order_id = Some(value.into());
         self
     }
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }
@@ -348,7 +348,7 @@ pub struct GetMaxBorrowableParams {
     asset: String,
     /// Required for isolated margin: the symbol whose isolated account to query.
     isolated_symbol: Option<String>,
-    recv_window: Option<i64>,
+    recv_window: Option<u64>,
 }
 
 impl GetMaxBorrowableParams {
@@ -364,7 +364,7 @@ impl GetMaxBorrowableParams {
         self.isolated_symbol = Some(value.into());
         self
     }
-    pub fn recv_window(mut self, value: i64) -> Self {
+    pub fn recv_window(mut self, value: u64) -> Self {
         self.recv_window = Some(value);
         self
     }

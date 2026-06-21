@@ -96,7 +96,7 @@ pub struct AggTradeMsg {
     pub trade_time: Timestamp,
     /// Is the buyer the market maker?
     #[serde(rename = "m")]
-    pub is_buyer: bool,
+    pub is_buyer_maker: bool,
 }
 
 /// The Trade Streams push raw trade information; each trade has a unique buyer and seller.
@@ -108,7 +108,7 @@ pub struct TradeMsg {
     /// Symbol
     #[serde(rename = "s")]
     pub symbol: String,
-    /// Aggregate trade ID
+    /// Trade ID
     #[serde(rename = "t")]
     pub trade_id: i64,
     /// Price
@@ -122,7 +122,7 @@ pub struct TradeMsg {
     pub trade_time: Timestamp,
     /// Is the buyer the market maker?
     #[serde(rename = "m")]
-    pub is_buyer: bool,
+    pub is_buyer_maker: bool,
 }
 
 /// The Kline/Candlestick Stream push updates to the current klines/candlestick every second in UTC+0 timezone
@@ -309,7 +309,7 @@ mod tests {
             first_trade_id: 100,
             last_trade_id: 105,
             trade_time: 1672515782136,
-            is_buyer: true,
+            is_buyer_maker: true,
         };
 
         let current = deserialize_json(json).unwrap();
@@ -337,7 +337,7 @@ mod tests {
             price: dec!(0.001),
             qty: dec!(100),
             trade_time: 1672515782136,
-            is_buyer: true,
+            is_buyer_maker: true,
         };
 
         let current = deserialize_json(json).unwrap();

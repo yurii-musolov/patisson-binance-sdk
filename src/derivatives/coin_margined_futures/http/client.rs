@@ -127,7 +127,7 @@ impl PrivateClient {
         let request = client
             .request(Method::POST, url)
             .headers(self.headers.clone())
-            .body(query);
+            .body(query); // Binance API accepts POST params in both query and body.
         send(request).await
     }
 

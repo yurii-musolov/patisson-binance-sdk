@@ -45,6 +45,42 @@ pub enum TimeInForce {
     GTD,
 }
 
+/// Order price match modes for USDⓈ-M Futures (`priceMatch` field).
+///
+/// When set on a LIMIT order, Binance will compute the actual price from
+/// the current order book instead of taking the `price` field. Mutually
+/// exclusive with `price`.
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
+pub enum PriceMatch {
+    /// No price match — use the `price` field.
+    #[serde(rename = "NONE")]
+    None,
+    /// Best opposite-side price.
+    #[serde(rename = "OPPONENT")]
+    Opponent,
+    /// 5th opposite-side level.
+    #[serde(rename = "OPPONENT_5")]
+    Opponent5,
+    /// 10th opposite-side level.
+    #[serde(rename = "OPPONENT_10")]
+    Opponent10,
+    /// 20th opposite-side level.
+    #[serde(rename = "OPPONENT_20")]
+    Opponent20,
+    /// Best same-side price.
+    #[serde(rename = "QUEUE")]
+    Queue,
+    /// 5th same-side level.
+    #[serde(rename = "QUEUE_5")]
+    Queue5,
+    /// 10th same-side level.
+    #[serde(rename = "QUEUE_10")]
+    Queue10,
+    /// 20th same-side level.
+    #[serde(rename = "QUEUE_20")]
+    Queue20,
+}
+
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum OrderStatus {
