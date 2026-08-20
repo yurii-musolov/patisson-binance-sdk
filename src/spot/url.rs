@@ -128,10 +128,6 @@ impl std::fmt::Display for Path {
     }
 }
 
-// TODO:
-// X-MBX-USED-WEIGHT-(intervalNum)(intervalLetter)
-// X-MBX-ORDER-COUNT-**
-pub const HEADER_RETRY_AFTER: &str = "Retry-After";
 pub const HEADER_X_MBX_APIKEY: &str = "X-MBX-APIKEY";
 pub const HEADER_X_MBX_TIME_UNIT: &str = "X-MBX-TIME-UNIT";
 pub const HEADER_VALUE_MICROSECOND: &str = "MICROSECOND";

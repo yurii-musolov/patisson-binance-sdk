@@ -10,15 +10,12 @@ use crate::{
     },
 };
 
+pub use crate::http::ParsedHeaders as Headers;
+
 #[derive(Debug, PartialEq)]
 pub struct Response<T> {
     pub result: T,
     pub headers: Headers,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Headers {
-    pub retry_after: Option<Timestamp>,
 }
 
 // ===== General =====
@@ -75,7 +72,7 @@ pub struct SymbolInfo {
 pub struct GetOrderBookParams {
     symbol: String,
     /// Default 500. Valid: 5, 10, 20, 50, 100, 500, 1000.
-    limit: Option<u64>,
+    pub(super) limit: Option<u64>,
 }
 
 impl GetOrderBookParams {
@@ -217,7 +214,7 @@ pub struct NewOrderRequest {
     symbol: String,
     side: OrderSide,
     #[serde(rename = "type")]
-    order_type: OrderType,
+    r#type: OrderType,
     position_side: Option<PositionSide>,
     time_in_force: Option<TimeInForce>,
     quantity: Option<Decimal>,
@@ -247,7 +244,7 @@ impl NewOrderRequest {
         Self {
             symbol: symbol.into(),
             side,
-            order_type,
+            r#type: order_type,
             position_side: None,
             time_in_force: None,
             quantity: None,
@@ -346,7 +343,7 @@ pub struct NewOrderResponse {
     pub client_order_id: String,
     pub status: OrderStatus,
     #[serde(rename = "type")]
-    pub order_type: OrderType,
+    pub r#type: OrderType,
     pub side: OrderSide,
     pub position_side: PositionSide,
     pub price: Decimal,
@@ -416,7 +413,7 @@ pub struct Order {
     pub cum_quote: Decimal,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub order_type: OrderType,
+    pub r#type: OrderType,
     pub side: OrderSide,
     pub position_side: PositionSide,
     pub stop_price: Decimal,

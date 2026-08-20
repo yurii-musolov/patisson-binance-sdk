@@ -11,15 +11,12 @@ use crate::{
     },
 };
 
+pub use crate::http::ParsedHeaders as Headers;
+
 #[derive(Debug, PartialEq)]
 pub struct Response<T> {
     pub result: T,
     pub headers: Headers,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Headers {
-    pub retry_after: Option<Timestamp>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -217,7 +214,7 @@ pub struct GetOrderBookParams {
     symbol: String,
     /// Default: 100; Maximum: 5000.
     /// If limit > 5000, only 5000 entries will be returned.
-    limit: Option<u64>,
+    pub(super) limit: Option<u64>,
 }
 
 impl GetOrderBookParams {
@@ -635,7 +632,7 @@ pub struct NewOrderRequest {
     symbol: String,
     side: OrderSide,
     #[serde(rename = "type")]
-    order_type: OrderType,
+    r#type: OrderType,
     time_in_force: Option<TimeInForce>,
     quantity: Option<Decimal>,
     quote_order_qty: Option<Decimal>,
@@ -673,7 +670,7 @@ impl NewOrderRequest {
         Self {
             symbol: symbol.into(),
             side,
-            order_type,
+            r#type: order_type,
             new_order_resp_type,
             time_in_force: None,
             quantity: None,
@@ -757,7 +754,7 @@ impl NewOrderRequest {
     }
 
     pub fn is_valid(&self) -> bool {
-        match self.order_type {
+        match self.r#type {
             OrderType::Limit => {
                 self.time_in_force.is_some() && self.quantity.is_some() && self.price.is_some()
             }
@@ -868,7 +865,7 @@ pub struct NewOrderResponseResult {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub order_type: OrderType,
+    pub r#type: OrderType,
     pub side: OrderSide,
     pub working_time: Timestamp,
     pub self_trade_prevention_mode: STPMode,
@@ -921,7 +918,7 @@ pub struct NewOrderResponseFull {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub order_type: OrderType,
+    pub r#type: OrderType,
     pub side: OrderSide,
     pub working_time: Timestamp,
     pub self_trade_prevention_mode: STPMode,
@@ -1121,7 +1118,7 @@ pub struct Order {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub order_type: OrderType,
+    pub r#type: OrderType,
     pub side: OrderSide,
     /// Price when the algorithmic order will be triggered
     /// Appears for STOP_LOSS. TAKE_PROFIT, STOP_LOSS_LIMIT and TAKE_PROFIT_LIMIT orders.
@@ -1362,7 +1359,7 @@ mod tests {
             cummulative_quote_qty: dec!(10.00000000),
             status: OrderStatus::Filled,
             time_in_force: TimeInForce::GTC,
-            order_type: OrderType::Market,
+            r#type: OrderType::Market,
             side: OrderSide::SELL,
             working_time: 1507725176595,
             self_trade_prevention_mode: STPMode::None,
@@ -1454,7 +1451,7 @@ mod tests {
             cummulative_quote_qty: dec!(10.00000000),
             status: OrderStatus::Filled,
             time_in_force: TimeInForce::GTC,
-            order_type: OrderType::Market,
+            r#type: OrderType::Market,
             side: OrderSide::SELL,
             working_time: 1507725176595,
             self_trade_prevention_mode: STPMode::None,
@@ -1678,7 +1675,7 @@ mod tests {
             cummulative_quote_qty: dec!(0.0),
             status: OrderStatus::New,
             time_in_force: TimeInForce::GTC,
-            order_type: OrderType::Limit,
+            r#type: OrderType::Limit,
             side: OrderSide::BUY,
             stop_price: Some(dec!(0.0)),
             iceberg_qty: Some(dec!(0.0)),
