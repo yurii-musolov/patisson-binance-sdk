@@ -25,13 +25,24 @@ pub enum Path {
 
     // Margin trading
     Order,
+    OpenOrders,
+    AllOrders,
+    MyTrades,
+    ForceLiquidationRec,
 
     // Margin metadata
     AllAssets,
     AllPairs,
+    IsolatedAllPairs,
+    PriceIndex,
 
     // Margin borrow / repay
     MaxBorrowable,
+    BorrowRepay,
+    InterestRateHistory,
+
+    // Margin transfer
+    MaxTransferable,
 
     // User data stream lifecycle
     UserDataStream,
@@ -44,9 +55,18 @@ impl std::fmt::Display for Path {
             Self::Account => "/sapi/v1/margin/account",
             Self::IsolatedAccount => "/sapi/v1/margin/isolated/account",
             Self::Order => "/sapi/v1/margin/order",
+            Self::OpenOrders => "/sapi/v1/margin/openOrders",
+            Self::AllOrders => "/sapi/v1/margin/allOrders",
+            Self::MyTrades => "/sapi/v1/margin/myTrades",
+            Self::ForceLiquidationRec => "/sapi/v1/margin/forceLiquidationRec",
             Self::AllAssets => "/sapi/v1/margin/allAssets",
             Self::AllPairs => "/sapi/v1/margin/allPairs",
+            Self::IsolatedAllPairs => "/sapi/v1/margin/isolated/pair",
+            Self::PriceIndex => "/sapi/v1/margin/priceIndex",
             Self::MaxBorrowable => "/sapi/v1/margin/maxBorrowable",
+            Self::BorrowRepay => "/sapi/v1/margin/borrow-repay",
+            Self::InterestRateHistory => "/sapi/v1/margin/interestRateHistory",
+            Self::MaxTransferable => "/sapi/v1/margin/maxTransferable",
             Self::UserDataStream => "/sapi/v1/userDataStream",
             Self::UserDataStreamIsolated => "/sapi/v1/userDataStream/isolated",
         };

@@ -1,14 +1,14 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example margin-account
+//! cargo run --example spot-all-orders
 //! ```
 
 use binance::{
     SensitiveString,
-    margin::{
+    spot::{
         BASE_URL_API,
-        http::{GetMarginAccountParams, PrivateClient, PrivateConfig},
+        http::{GetAllOrdersParams, PrivateClient, PrivateConfig},
     },
 };
 use tracing::{Level, info};
@@ -29,8 +29,9 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
     let client = PrivateClient::new(cfg);
 
-    let params = GetMarginAccountParams::new();
-    let response = client.margin_account(params).await?;
+    let params = GetAllOrdersParams::new("BTCUSDT").limit(10);
+
+    let response = client.get_all_orders(params).await?;
     info!(?response, "response");
 
     Ok(())

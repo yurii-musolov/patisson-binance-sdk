@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Timestamp,
     margin::{
-        IsIsolated, MarginLevelStatus, OrderResponseType, OrderSide, OrderStatus, OrderType,
-        STPMode, SideEffectType, TimeInForce,
+        BorrowRepayType, IsIsolated, MarginLevelStatus, OrderResponseType, OrderSide, OrderStatus,
+        OrderType, STPMode, SideEffectType, TimeInForce,
     },
 };
 
@@ -373,6 +373,691 @@ pub struct MaxBorrowable {
     pub amount: Decimal,
     /// Account's current borrow limit for the asset.
     pub borrow_limit: Decimal,
+}
+
+// ===== Cancel order =====
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelOrderParams {
+    symbol: String,
+    is_isolated: Option<IsIsolated>,
+    order_id: Option<i64>,
+    orig_client_order_id: Option<String>,
+    new_client_order_id: Option<String>,
+    recv_window: Option<u64>,
+}
+
+impl CancelOrderParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            is_isolated: None,
+            order_id: None,
+            orig_client_order_id: None,
+            new_client_order_id: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn is_isolated(mut self, value: IsIsolated) -> Self {
+        self.is_isolated = Some(value);
+        self
+    }
+    pub fn order_id(mut self, value: i64) -> Self {
+        self.order_id = Some(value);
+        self
+    }
+    pub fn orig_client_order_id(mut self, value: impl Into<String>) -> Self {
+        self.orig_client_order_id = Some(value.into());
+        self
+    }
+    pub fn new_client_order_id(mut self, value: impl Into<String>) -> Self {
+        self.new_client_order_id = Some(value.into());
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CanceledOrder {
+    pub symbol: String,
+    pub is_isolated: bool,
+    pub order_id: i64,
+    pub orig_client_order_id: String,
+    pub client_order_id: String,
+    pub price: Decimal,
+    pub orig_qty: Decimal,
+    pub executed_qty: Decimal,
+    pub cummulative_quote_qty: Decimal,
+    pub status: OrderStatus,
+    pub time_in_force: TimeInForce,
+    #[serde(rename = "type")]
+    pub r#type: OrderType,
+    pub side: OrderSide,
+}
+
+// ===== Cancel all open orders on a symbol =====
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelAllOpenOrdersParams {
+    symbol: String,
+    is_isolated: Option<IsIsolated>,
+    recv_window: Option<u64>,
+}
+
+impl CancelAllOpenOrdersParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            is_isolated: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn is_isolated(mut self, value: IsIsolated) -> Self {
+        self.is_isolated = Some(value);
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+// ===== Current open orders =====
+
+#[derive(Debug, Serialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct GetOpenOrdersParams {
+    symbol: Option<String>,
+    is_isolated: Option<IsIsolated>,
+    recv_window: Option<u64>,
+}
+
+impl GetOpenOrdersParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn symbol(mut self, value: impl Into<String>) -> Self {
+        self.symbol = Some(value.into());
+        self
+    }
+    pub fn is_isolated(mut self, value: IsIsolated) -> Self {
+        self.is_isolated = Some(value);
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+// ===== All orders =====
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAllOrdersParams {
+    symbol: String,
+    is_isolated: Option<IsIsolated>,
+    order_id: Option<i64>,
+    start_time: Option<Timestamp>,
+    end_time: Option<Timestamp>,
+    limit: Option<u64>,
+    recv_window: Option<u64>,
+}
+
+impl GetAllOrdersParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            is_isolated: None,
+            order_id: None,
+            start_time: None,
+            end_time: None,
+            limit: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn is_isolated(mut self, value: IsIsolated) -> Self {
+        self.is_isolated = Some(value);
+        self
+    }
+    pub fn order_id(mut self, value: i64) -> Self {
+        self.order_id = Some(value);
+        self
+    }
+    pub fn start_time(mut self, value: Timestamp) -> Self {
+        self.start_time = Some(value);
+        self
+    }
+    pub fn end_time(mut self, value: Timestamp) -> Self {
+        self.end_time = Some(value);
+        self
+    }
+    pub fn limit(mut self, value: u64) -> Self {
+        self.limit = Some(value);
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+// ===== Account trade list =====
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAccountTradeListParams {
+    symbol: String,
+    is_isolated: Option<IsIsolated>,
+    order_id: Option<i64>,
+    start_time: Option<Timestamp>,
+    end_time: Option<Timestamp>,
+    from_id: Option<i64>,
+    limit: Option<u64>,
+    recv_window: Option<u64>,
+}
+
+impl GetAccountTradeListParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            is_isolated: None,
+            order_id: None,
+            start_time: None,
+            end_time: None,
+            from_id: None,
+            limit: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn is_isolated(mut self, value: IsIsolated) -> Self {
+        self.is_isolated = Some(value);
+        self
+    }
+    pub fn order_id(mut self, value: i64) -> Self {
+        self.order_id = Some(value);
+        self
+    }
+    pub fn start_time(mut self, value: Timestamp) -> Self {
+        self.start_time = Some(value);
+        self
+    }
+    pub fn end_time(mut self, value: Timestamp) -> Self {
+        self.end_time = Some(value);
+        self
+    }
+    pub fn from_id(mut self, value: i64) -> Self {
+        self.from_id = Some(value);
+        self
+    }
+    pub fn limit(mut self, value: u64) -> Self {
+        self.limit = Some(value);
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Trade {
+    pub commission: Decimal,
+    pub commission_asset: String,
+    pub id: i64,
+    pub is_best_match: bool,
+    pub is_buyer: bool,
+    pub is_maker: bool,
+    pub order_id: i64,
+    pub price: Decimal,
+    pub qty: Decimal,
+    pub symbol: String,
+    pub is_isolated: bool,
+    pub time: Timestamp,
+}
+
+// ===== Borrow / repay execution =====
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BorrowRepayParams {
+    asset: String,
+    is_isolated: IsIsolated,
+    amount: Decimal,
+    #[serde(rename = "type")]
+    r#type: BorrowRepayType,
+    /// Required for isolated margin: the symbol whose isolated account to act on.
+    symbol: Option<String>,
+    recv_window: Option<u64>,
+}
+
+impl BorrowRepayParams {
+    pub fn new(
+        asset: impl Into<String>,
+        is_isolated: IsIsolated,
+        amount: Decimal,
+        r#type: BorrowRepayType,
+    ) -> Self {
+        Self {
+            asset: asset.into(),
+            is_isolated,
+            amount,
+            r#type,
+            symbol: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn symbol(mut self, value: impl Into<String>) -> Self {
+        self.symbol = Some(value.into());
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct BorrowRepayResult {
+    pub tran_id: i64,
+}
+
+// ===== Borrow / repay records =====
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum BorrowRepayStatus {
+    Confirmed,
+    Pending,
+    Failed,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetBorrowRepayRecordsParams {
+    #[serde(rename = "type")]
+    r#type: BorrowRepayType,
+    asset: Option<String>,
+    isolated_symbol: Option<String>,
+    tx_id: Option<i64>,
+    start_time: Option<Timestamp>,
+    end_time: Option<Timestamp>,
+    current: Option<u64>,
+    size: Option<u64>,
+    archived: Option<bool>,
+    recv_window: Option<u64>,
+}
+
+impl GetBorrowRepayRecordsParams {
+    pub fn new(r#type: BorrowRepayType) -> Self {
+        Self {
+            r#type,
+            asset: None,
+            isolated_symbol: None,
+            tx_id: None,
+            start_time: None,
+            end_time: None,
+            current: None,
+            size: None,
+            archived: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn asset(mut self, value: impl Into<String>) -> Self {
+        self.asset = Some(value.into());
+        self
+    }
+    pub fn isolated_symbol(mut self, value: impl Into<String>) -> Self {
+        self.isolated_symbol = Some(value.into());
+        self
+    }
+    pub fn tx_id(mut self, value: i64) -> Self {
+        self.tx_id = Some(value);
+        self
+    }
+    pub fn start_time(mut self, value: Timestamp) -> Self {
+        self.start_time = Some(value);
+        self
+    }
+    pub fn end_time(mut self, value: Timestamp) -> Self {
+        self.end_time = Some(value);
+        self
+    }
+    pub fn current(mut self, value: u64) -> Self {
+        self.current = Some(value);
+        self
+    }
+    pub fn size(mut self, value: u64) -> Self {
+        self.size = Some(value);
+        self
+    }
+    pub fn archived(mut self, value: bool) -> Self {
+        self.archived = Some(value);
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BorrowRepayRecords {
+    pub rows: Vec<BorrowRepayRecord>,
+    pub total: i64,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BorrowRepayRecord {
+    #[serde(rename = "type")]
+    pub r#type: BorrowRepayType,
+    pub isolated_symbol: Option<String>,
+    pub amount: Decimal,
+    pub asset: String,
+    pub interest: Decimal,
+    pub principal: Decimal,
+    pub status: BorrowRepayStatus,
+    pub timestamp: Timestamp,
+    pub tx_id: i64,
+}
+
+// ===== Isolated margin account info =====
+
+#[derive(Debug, Serialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct GetIsolatedMarginAccountParams {
+    /// Comma-separated list of symbols, max 5. Without it, all isolated
+    /// symbols with non-zero assets/liabilities/borrow history are returned.
+    symbols: Option<String>,
+    recv_window: Option<u64>,
+}
+
+impl GetIsolatedMarginAccountParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn symbols(mut self, value: impl Into<String>) -> Self {
+        self.symbols = Some(value.into());
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct IsolatedMarginAccount {
+    pub assets: Vec<IsolatedMarginAsset>,
+    pub total_asset_of_btc: Decimal,
+    pub total_liability_of_btc: Decimal,
+    pub total_net_asset_of_btc: Decimal,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct IsolatedMarginAsset {
+    pub base_asset: IsolatedMarginAssetDetail,
+    pub quote_asset: IsolatedMarginAssetDetail,
+    pub symbol: String,
+    pub isolated_created: bool,
+    pub enabled: bool,
+    pub margin_level: Decimal,
+    pub margin_level_status: MarginLevelStatus,
+    pub margin_ratio: Decimal,
+    pub index_price: Decimal,
+    pub liquidate_price: Decimal,
+    pub liquidate_rate: Decimal,
+    pub trade_enabled: bool,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct IsolatedMarginAssetDetail {
+    pub asset: String,
+    pub borrow_enabled: bool,
+    pub borrowed: Decimal,
+    pub free: Decimal,
+    pub interest: Decimal,
+    pub locked: Decimal,
+    pub net_asset: Decimal,
+    pub net_asset_of_btc: Decimal,
+    pub repay_enabled: bool,
+    pub total_asset: Decimal,
+}
+
+// ===== Isolated margin symbols =====
+
+#[derive(Debug, Serialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAllIsolatedMarginSymbolsParams {
+    symbol: Option<String>,
+    recv_window: Option<u64>,
+}
+
+impl GetAllIsolatedMarginSymbolsParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn symbol(mut self, value: impl Into<String>) -> Self {
+        self.symbol = Some(value.into());
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct IsolatedMarginSymbol {
+    pub base: String,
+    pub quote: String,
+    pub symbol: String,
+    pub is_margin_trade: bool,
+    pub is_buy_allowed: bool,
+    pub is_sell_allowed: bool,
+}
+
+// ===== Margin interest rate history =====
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetMarginInterestRateHistoryParams {
+    asset: String,
+    vip_level: Option<i64>,
+    start_time: Option<Timestamp>,
+    end_time: Option<Timestamp>,
+    limit: Option<u64>,
+    recv_window: Option<u64>,
+}
+
+impl GetMarginInterestRateHistoryParams {
+    pub fn new(asset: impl Into<String>) -> Self {
+        Self {
+            asset: asset.into(),
+            vip_level: None,
+            start_time: None,
+            end_time: None,
+            limit: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn vip_level(mut self, value: i64) -> Self {
+        self.vip_level = Some(value);
+        self
+    }
+    pub fn start_time(mut self, value: Timestamp) -> Self {
+        self.start_time = Some(value);
+        self
+    }
+    pub fn end_time(mut self, value: Timestamp) -> Self {
+        self.end_time = Some(value);
+        self
+    }
+    pub fn limit(mut self, value: u64) -> Self {
+        self.limit = Some(value);
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct InterestRateRecord {
+    pub asset: String,
+    pub daily_interest_rate: Decimal,
+    pub timestamp: Timestamp,
+    pub vip_level: i64,
+}
+
+// ===== Margin price index =====
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetPriceIndexParams {
+    symbol: String,
+}
+
+impl GetPriceIndexParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PriceIndex {
+    pub calc_time: Timestamp,
+    pub price: Decimal,
+    pub symbol: String,
+}
+
+// ===== Max transfer-out amount =====
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetMaxTransferOutAmountParams {
+    asset: String,
+    isolated_symbol: Option<String>,
+    recv_window: Option<u64>,
+}
+
+impl GetMaxTransferOutAmountParams {
+    pub fn new(asset: impl Into<String>) -> Self {
+        Self {
+            asset: asset.into(),
+            isolated_symbol: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn isolated_symbol(mut self, value: impl Into<String>) -> Self {
+        self.isolated_symbol = Some(value.into());
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MaxTransferable {
+    pub amount: Decimal,
+}
+
+// ===== Force liquidation record =====
+
+#[derive(Debug, Serialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct GetForceLiquidationRecordParams {
+    start_time: Option<Timestamp>,
+    end_time: Option<Timestamp>,
+    isolated_symbol: Option<String>,
+    current: Option<u64>,
+    size: Option<u64>,
+    recv_window: Option<u64>,
+}
+
+impl GetForceLiquidationRecordParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn start_time(mut self, value: Timestamp) -> Self {
+        self.start_time = Some(value);
+        self
+    }
+    pub fn end_time(mut self, value: Timestamp) -> Self {
+        self.end_time = Some(value);
+        self
+    }
+    pub fn isolated_symbol(mut self, value: impl Into<String>) -> Self {
+        self.isolated_symbol = Some(value.into());
+        self
+    }
+    pub fn current(mut self, value: u64) -> Self {
+        self.current = Some(value);
+        self
+    }
+    pub fn size(mut self, value: u64) -> Self {
+        self.size = Some(value);
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ForceLiquidationRecords {
+    pub rows: Vec<ForceLiquidationRecord>,
+    pub total: i64,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ForceLiquidationRecord {
+    pub avg_price: Decimal,
+    pub executed_qty: Decimal,
+    pub order_id: i64,
+    pub price: Decimal,
+    pub qty: Decimal,
+    pub side: OrderSide,
+    pub symbol: String,
+    pub time_in_force: TimeInForce,
+    pub is_isolated: bool,
+    pub updated_time: Timestamp,
 }
 
 // ===== User data stream =====

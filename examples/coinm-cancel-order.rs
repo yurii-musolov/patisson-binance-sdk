@@ -1,14 +1,14 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example margin-account
+//! cargo run --example coinm-cancel-order
 //! ```
 
 use binance::{
     SensitiveString,
-    margin::{
+    derivatives::coin_margined_futures::{
         BASE_URL_API,
-        http::{GetMarginAccountParams, PrivateClient, PrivateConfig},
+        http::{CancelOrderParams, PrivateClient, PrivateConfig},
     },
 };
 use tracing::{Level, info};
@@ -29,8 +29,9 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
     let client = PrivateClient::new(cfg);
 
-    let params = GetMarginAccountParams::new();
-    let response = client.margin_account(params).await?;
+    let params = CancelOrderParams::new("BTCUSD_PERP").order_id(123456789);
+
+    let response = client.cancel_order(params).await?;
     info!(?response, "response");
 
     Ok(())

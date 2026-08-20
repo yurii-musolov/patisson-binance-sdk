@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Timestamp,
     derivatives::usds_margined_futures::{
-        ContractType, KlineInterval, OrderResponseType, OrderSide, OrderStatus, OrderType,
-        PositionSide, PriceMatch, RateLimitInterval, RateLimiter, STPMode, SymbolStatus,
+        ContractType, KlineInterval, MarginType, OrderResponseType, OrderSide, OrderStatus,
+        OrderType, PositionSide, PriceMatch, RateLimitInterval, RateLimiter, STPMode, SymbolStatus,
         TimeInForce, WorkingType,
     },
 };
@@ -424,6 +424,385 @@ pub struct Order {
     pub close_position: bool,
     pub time: Timestamp,
     pub update_time: Timestamp,
+    /// Present on list-style responses (open/all orders, cancel); absent from
+    /// the single order-status response.
+    #[serde(default)]
+    pub pair: Option<String>,
+    #[serde(default)]
+    pub cum_base: Option<Decimal>,
+    /// Only present for `TRAILING_STOP_MARKET` orders.
+    #[serde(default)]
+    pub activate_price: Option<Decimal>,
+    /// Callback rate. Only present for `TRAILING_STOP_MARKET` orders.
+    #[serde(default)]
+    pub price_rate: Option<Decimal>,
+    #[serde(default)]
+    pub price_match: Option<PriceMatch>,
+    #[serde(default)]
+    pub self_trade_prevention_mode: Option<STPMode>,
+    /// Present when `time_in_force = GTD`.
+    #[serde(default)]
+    pub good_till_date: Option<Timestamp>,
+}
+
+// ===== Trading (order management) =====
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelOrderParams {
+    symbol: String,
+    order_id: Option<i64>,
+    orig_client_order_id: Option<String>,
+    recv_window: Option<u64>,
+}
+
+impl CancelOrderParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            order_id: None,
+            orig_client_order_id: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn order_id(mut self, value: i64) -> Self {
+        self.order_id = Some(value);
+        self
+    }
+    pub fn orig_client_order_id(mut self, value: impl Into<String>) -> Self {
+        self.orig_client_order_id = Some(value.into());
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelAllOpenOrdersParams {
+    symbol: String,
+    recv_window: Option<u64>,
+}
+
+impl CancelAllOpenOrdersParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            recv_window: None,
+        }
+    }
+
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+/// Body shape Binance returns for actions with no natural payload: cancel
+/// all open orders, change margin type, change position mode.
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct ActionResult {
+    pub code: i64,
+    pub msg: String,
+}
+
+#[derive(Debug, Default, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetOpenOrdersParams {
+    pub(super) symbol: Option<String>,
+    recv_window: Option<u64>,
+}
+
+impl GetOpenOrdersParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn symbol(mut self, value: impl Into<String>) -> Self {
+        self.symbol = Some(value.into());
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAllOrdersParams {
+    symbol: String,
+    order_id: Option<i64>,
+    start_time: Option<Timestamp>,
+    end_time: Option<Timestamp>,
+    /// Default 500; Maximum 1000.
+    limit: Option<u64>,
+    recv_window: Option<u64>,
+}
+
+impl GetAllOrdersParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            order_id: None,
+            start_time: None,
+            end_time: None,
+            limit: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn order_id(mut self, value: i64) -> Self {
+        self.order_id = Some(value);
+        self
+    }
+    pub fn start_time(mut self, value: Timestamp) -> Self {
+        self.start_time = Some(value);
+        self
+    }
+    pub fn end_time(mut self, value: Timestamp) -> Self {
+        self.end_time = Some(value);
+        self
+    }
+    pub fn limit(mut self, value: u64) -> Self {
+        self.limit = Some(value);
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAccountTradeListParams {
+    symbol: String,
+    order_id: Option<i64>,
+    start_time: Option<Timestamp>,
+    end_time: Option<Timestamp>,
+    from_id: Option<i64>,
+    /// Default 500; Maximum 1000.
+    limit: Option<u64>,
+    recv_window: Option<u64>,
+}
+
+impl GetAccountTradeListParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            order_id: None,
+            start_time: None,
+            end_time: None,
+            from_id: None,
+            limit: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn order_id(mut self, value: i64) -> Self {
+        self.order_id = Some(value);
+        self
+    }
+    pub fn start_time(mut self, value: Timestamp) -> Self {
+        self.start_time = Some(value);
+        self
+    }
+    pub fn end_time(mut self, value: Timestamp) -> Self {
+        self.end_time = Some(value);
+        self
+    }
+    pub fn from_id(mut self, value: i64) -> Self {
+        self.from_id = Some(value);
+        self
+    }
+    pub fn limit(mut self, value: u64) -> Self {
+        self.limit = Some(value);
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountTrade {
+    pub symbol: String,
+    pub id: i64,
+    pub order_id: i64,
+    pub side: OrderSide,
+    pub price: Decimal,
+    pub qty: Decimal,
+    pub quote_qty: Decimal,
+    #[serde(default)]
+    pub realized_pnl: Option<Decimal>,
+    #[serde(default)]
+    pub margin_asset: Option<String>,
+    pub commission: Decimal,
+    pub commission_asset: String,
+    pub time: Timestamp,
+    pub position_side: PositionSide,
+    pub buyer: bool,
+    pub maker: bool,
+}
+
+// ===== Trading (leverage / margin type / position mode) =====
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangeInitialLeverageParams {
+    symbol: String,
+    /// Target initial leverage: 1 to 125.
+    leverage: u8,
+    recv_window: Option<u64>,
+}
+
+impl ChangeInitialLeverageParams {
+    pub fn new(symbol: impl Into<String>, leverage: u8) -> Self {
+        Self {
+            symbol: symbol.into(),
+            leverage,
+            recv_window: None,
+        }
+    }
+
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Leverage {
+    pub leverage: u8,
+    pub max_notional_value: Decimal,
+    pub symbol: String,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangeMarginTypeParams {
+    symbol: String,
+    margin_type: MarginType,
+    recv_window: Option<u64>,
+}
+
+impl ChangeMarginTypeParams {
+    pub fn new(symbol: impl Into<String>, margin_type: MarginType) -> Self {
+        Self {
+            symbol: symbol.into(),
+            margin_type,
+            recv_window: None,
+        }
+    }
+
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangePositionModeParams {
+    dual_side_position: bool,
+    recv_window: Option<u64>,
+}
+
+impl ChangePositionModeParams {
+    /// `true` = Hedge Mode (LONG/SHORT); `false` = One-way Mode (BOTH).
+    pub fn new(dual_side_position: bool) -> Self {
+        Self {
+            dual_side_position,
+            recv_window: None,
+        }
+    }
+
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Default, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetCurrentPositionModeParams {
+    recv_window: Option<u64>,
+}
+
+impl GetCurrentPositionModeParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PositionMode {
+    pub dual_side_position: bool,
+}
+
+#[derive(Debug, Default, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetPositionInformationParams {
+    symbol: Option<String>,
+    recv_window: Option<u64>,
+}
+
+impl GetPositionInformationParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn symbol(mut self, value: impl Into<String>) -> Self {
+        self.symbol = Some(value.into());
+        self
+    }
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Position {
+    pub symbol: String,
+    pub position_side: PositionSide,
+    pub position_amt: Decimal,
+    pub entry_price: Decimal,
+    #[serde(default)]
+    pub break_even_price: Option<Decimal>,
+    pub mark_price: Decimal,
+    pub un_realized_profit: Decimal,
+    pub liquidation_price: Decimal,
+    pub isolated_margin: Decimal,
+    pub notional: Decimal,
+    pub margin_asset: String,
+    pub isolated_wallet: Decimal,
+    pub initial_margin: Decimal,
+    pub maint_margin: Decimal,
+    pub position_initial_margin: Decimal,
+    pub open_order_initial_margin: Decimal,
+    pub adl: u8,
+    #[serde(default)]
+    pub bid_notional: Option<Decimal>,
+    #[serde(default)]
+    pub ask_notional: Option<Decimal>,
+    pub update_time: Timestamp,
+    pub leverage: Decimal,
+    pub isolated: bool,
 }
 
 // ===== Account =====
@@ -497,4 +876,129 @@ pub struct AccountPosition {
     pub position_side: PositionSide,
     pub position_amt: Decimal,
     pub update_time: Timestamp,
+}
+
+#[derive(Debug, Default, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAccountBalanceParams {
+    recv_window: Option<u64>,
+}
+
+impl GetAccountBalanceParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountBalance {
+    pub account_alias: String,
+    pub asset: String,
+    pub balance: Decimal,
+    pub cross_wallet_balance: Decimal,
+    pub cross_un_pnl: Decimal,
+    pub available_balance: Decimal,
+    pub max_withdraw_amount: Decimal,
+    pub margin_available: bool,
+    pub update_time: Timestamp,
+}
+
+// ===== User data stream =====
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ListenKey {
+    pub listen_key: String,
+}
+
+/// Returned by keepalive and close operations on the user data stream
+/// (`PUT` / `DELETE`). The body is an empty JSON object `{}`.
+#[derive(Debug, Deserialize, PartialEq, Default)]
+pub struct EmptyResponse {}
+
+// ===== Market Data (tickers / mark price) =====
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetSymbolPriceTickerParams {
+    symbol: String,
+}
+
+impl GetSymbolPriceTickerParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolPriceTicker {
+    pub symbol: String,
+    pub price: Decimal,
+    pub time: Timestamp,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetSymbolOrderBookTickerParams {
+    symbol: String,
+}
+
+impl GetSymbolOrderBookTickerParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolOrderBookTicker {
+    pub symbol: String,
+    pub bid_price: Decimal,
+    pub bid_qty: Decimal,
+    pub ask_price: Decimal,
+    pub ask_qty: Decimal,
+    pub time: Timestamp,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetMarkPriceParams {
+    symbol: String,
+}
+
+impl GetMarkPriceParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+        }
+    }
+}
+
+/// Mark price, index price and funding rate for a perpetual symbol.
+/// `estimated_settle_price` and `interest_rate` are only present near
+/// delivery for `CURRENT_QUARTER` / `NEXT_QUARTER` contracts.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkPrice {
+    pub symbol: String,
+    pub mark_price: Decimal,
+    pub index_price: Decimal,
+    #[serde(default)]
+    pub estimated_settle_price: Option<Decimal>,
+    pub last_funding_rate: Decimal,
+    #[serde(default)]
+    pub interest_rate: Option<Decimal>,
+    pub next_funding_time: Timestamp,
+    pub time: Timestamp,
 }

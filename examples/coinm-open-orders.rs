@@ -1,14 +1,14 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example margin-account
+//! cargo run --example coinm-open-orders
 //! ```
 
 use binance::{
     SensitiveString,
-    margin::{
+    derivatives::coin_margined_futures::{
         BASE_URL_API,
-        http::{GetMarginAccountParams, PrivateClient, PrivateConfig},
+        http::{GetOpenOrdersParams, PrivateClient, PrivateConfig},
     },
 };
 use tracing::{Level, info};
@@ -29,8 +29,9 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
     let client = PrivateClient::new(cfg);
 
-    let params = GetMarginAccountParams::new();
-    let response = client.margin_account(params).await?;
+    let params = GetOpenOrdersParams::new().symbol("BTCUSD_PERP");
+
+    let response = client.get_open_orders(params).await?;
     info!(?response, "response");
 
     Ok(())
