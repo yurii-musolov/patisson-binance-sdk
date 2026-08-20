@@ -18,12 +18,27 @@ pub enum Path {
     // Market Data
     Depth,
     KLines,
+    TickerPrice,
+    TickerBookTicker,
+    PremiumIndex,
 
     // Trading
     Order,
+    OpenOrders,
+    AllOpenOrders,
+    AllOrders,
+    UserTrades,
+    PositionRisk,
+    Leverage,
+    MarginType,
+    PositionSideDual,
 
     // Account
     Account,
+    Balance,
+
+    // User data stream lifecycle
+    ListenKey,
 
     // WebSocket
     WebSocketApi,
@@ -38,8 +53,21 @@ impl std::fmt::Display for Path {
             Self::ExchangeInfo => "/dapi/v1/exchangeInfo",
             Self::Depth => "/dapi/v1/depth",
             Self::KLines => "/dapi/v1/klines",
+            Self::TickerPrice => "/dapi/v1/ticker/price",
+            Self::TickerBookTicker => "/dapi/v1/ticker/bookTicker",
+            Self::PremiumIndex => "/dapi/v1/premiumIndex",
             Self::Order => "/dapi/v1/order",
+            Self::OpenOrders => "/dapi/v1/openOrders",
+            Self::AllOpenOrders => "/dapi/v1/allOpenOrders",
+            Self::AllOrders => "/dapi/v1/allOrders",
+            Self::UserTrades => "/dapi/v1/userTrades",
+            Self::PositionRisk => "/dapi/v1/positionRisk",
+            Self::Leverage => "/dapi/v1/leverage",
+            Self::MarginType => "/dapi/v1/marginType",
+            Self::PositionSideDual => "/dapi/v1/positionSide/dual",
             Self::Account => "/dapi/v1/account",
+            Self::Balance => "/dapi/v1/balance",
+            Self::ListenKey => "/dapi/v1/listenKey",
             Self::WebSocketApi => "/ws-dapi/v1",
             Self::Stream => "/stream",
         };

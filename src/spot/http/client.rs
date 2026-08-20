@@ -9,12 +9,17 @@ use crate::{
     spot::{
         ApiError, Error, HEADER_X_MBX_APIKEY, Path,
         http::{
-            AccountInformation, AggregateTrade, CurrentAveragePrice, ExchangeInfo,
-            GetAccountInformationParams, GetAggregateTradesParams, GetCurrentAveragePriceParams,
-            GetExchangeInfoParams, GetKlineListParams, GetOlderTradesParams, GetOrderBookParams,
-            GetRecentTradesParams, GetTickerPriceChangeStatisticsParams, Kline, NewOrderRequest,
-            NewOrderResponse, Order, OrderBook, PrivateConfig, PublicConfig, QueryOrderParams,
-            RecentTrade, Response, ServerTime, TestCommissionRates, TestConnectivity,
+            AccountCommission, AccountInformation, AccountTrade, AggregateTrade,
+            CancelOpenOrdersParams, CancelOrderParams, CanceledOrder, CurrentAveragePrice,
+            EmptyResponse, ExchangeInfo, GetAccountCommissionParams, GetAccountInformationParams,
+            GetAccountTradeListParams, GetAggregateTradesParams, GetAllOrdersParams,
+            GetCurrentAveragePriceParams, GetExchangeInfoParams, GetKlineListParams,
+            GetOlderTradesParams, GetOpenOrdersParams, GetOrderBookParams, GetOrderRateLimitParams,
+            GetRecentTradesParams, GetSymbolOrderBookTickerParams, GetSymbolPriceTickerParams,
+            GetTickerPriceChangeStatisticsParams, GetTickerTradingDayParams, Kline, ListenKey,
+            NewOrderRequest, NewOrderResponse, Order, OrderBook, OrderRateLimit, PrivateConfig,
+            PublicConfig, QueryOrderParams, RecentTrade, Response, ServerTime,
+            SymbolOrderBookTickers, SymbolPriceTickers, TestCommissionRates, TestConnectivity,
             TickerPriceChangeStatistic,
         },
     },
@@ -38,6 +43,20 @@ const COST_ACCOUNT: Cost = Cost::weight(20);
 const COST_QUERY_ORDER: Cost = Cost::weight(4);
 const COST_NEW_ORDER: Cost = Cost::weight_and_orders(1, 1);
 const COST_TEST_ORDER: Cost = Cost::weight(1);
+const COST_CANCEL_ORDER: Cost = Cost::weight(1);
+const COST_CANCEL_OPEN_ORDERS: Cost = Cost::weight(1);
+const COST_OPEN_ORDERS_SYMBOL: Cost = Cost::weight(6);
+const COST_OPEN_ORDERS_ALL: Cost = Cost::weight(80);
+const COST_ALL_ORDERS: Cost = Cost::weight(20);
+const COST_MY_TRADES: Cost = Cost::weight(20);
+const COST_TICKER_PRICE_SINGLE: Cost = Cost::weight(2);
+const COST_TICKER_PRICE_ALL: Cost = Cost::weight(4);
+const COST_TICKER_BOOK_SINGLE: Cost = Cost::weight(2);
+const COST_TICKER_BOOK_ALL: Cost = Cost::weight(4);
+const COST_TICKER_TRADING_DAY_SINGLE: Cost = Cost::weight(4);
+const COST_ACCOUNT_COMMISSION: Cost = Cost::weight(20);
+const COST_ORDER_RATE_LIMIT: Cost = Cost::weight(40);
+const COST_LISTEN_KEY: Cost = Cost::weight(2);
 
 /// Depth-endpoint weight scales with the requested level count.
 fn cost_depth(limit: Option<u64>) -> Cost {
@@ -202,6 +221,57 @@ impl PublicClient {
             .query(&params);
         decode(self.http.send_raw(req, COST_TICKER_24H_SINGLE).await)
     }
+
+    /// Trading Day Ticker. Price change statistics for a trading day, same
+    /// shape as [`Self::ticker_price_change_statistics`].
+    pub async fn ticker_trading_day(
+        &self,
+        params: GetTickerTradingDayParams,
+    ) -> Result<Response<TickerPriceChangeStatistic>, Error> {
+        let req = self
+            .http
+            .request(Method::GET, Path::TickerTradingDay)
+            .query(&params);
+        decode(
+            self.http
+                .send_raw(req, COST_TICKER_TRADING_DAY_SINGLE)
+                .await,
+        )
+    }
+
+    /// Latest price for a symbol or symbols.
+    pub async fn get_symbol_price_ticker(
+        &self,
+        params: GetSymbolPriceTickerParams,
+    ) -> Result<Response<SymbolPriceTickers>, Error> {
+        let cost = if params.symbol.is_some() {
+            COST_TICKER_PRICE_SINGLE
+        } else {
+            COST_TICKER_PRICE_ALL
+        };
+        let req = self
+            .http
+            .request(Method::GET, Path::TickerPrice)
+            .query(&params);
+        decode(self.http.send_raw(req, cost).await)
+    }
+
+    /// Best price/qty on the order book for a symbol or symbols.
+    pub async fn get_symbol_order_book_ticker(
+        &self,
+        params: GetSymbolOrderBookTickerParams,
+    ) -> Result<Response<SymbolOrderBookTickers>, Error> {
+        let cost = if params.symbol.is_some() {
+            COST_TICKER_BOOK_SINGLE
+        } else {
+            COST_TICKER_BOOK_ALL
+        };
+        let req = self
+            .http
+            .request(Method::GET, Path::TickerBook)
+            .query(&params);
+        decode(self.http.send_raw(req, cost).await)
+    }
 }
 
 pub struct PrivateClient {
@@ -270,6 +340,34 @@ impl PrivateClient {
             .request(Method::POST, format!("{}?{query}", Path::OrderTest));
         decode(self.http.send_raw(req, COST_TEST_ORDER).await)
     }
+
+    /// Cancel an active order.
+    /// Either orderId or origClientOrderId must be sent.
+    pub async fn cancel_order(
+        &self,
+        params: CancelOrderParams,
+    ) -> Result<Response<CanceledOrder>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::DELETE, format!("{}?{query}", Path::Order));
+        decode(self.http.send_raw(req, COST_CANCEL_ORDER).await)
+    }
+
+    /// Cancels all active orders on a symbol. This includes orders that are
+    /// part of an order list.
+    pub async fn cancel_open_orders(
+        &self,
+        params: CancelOpenOrdersParams,
+    ) -> Result<Response<Vec<CanceledOrder>>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::DELETE, format!("{}?{query}", Path::OpenOrders));
+        decode(self.http.send_raw(req, COST_CANCEL_OPEN_ORDERS).await)
+    }
 }
 
 // Account
@@ -299,6 +397,119 @@ impl PrivateClient {
             .http
             .request(Method::GET, format!("{}?{query}", Path::Order));
         decode(self.http.send_raw(req, COST_QUERY_ORDER).await)
+    }
+
+    /// Get all open orders on a symbol, or all symbols if `symbol` is
+    /// omitted (much heavier — weight scales with the symbol count).
+    pub async fn get_open_orders(
+        &self,
+        params: GetOpenOrdersParams,
+    ) -> Result<Response<Vec<Order>>, Error> {
+        let cost = if params.symbol.is_some() {
+            COST_OPEN_ORDERS_SYMBOL
+        } else {
+            COST_OPEN_ORDERS_ALL
+        };
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::OpenOrders));
+        decode(self.http.send_raw(req, cost).await)
+    }
+
+    /// Get all account orders: active, canceled, filled or expired.
+    pub async fn get_all_orders(
+        &self,
+        params: GetAllOrdersParams,
+    ) -> Result<Response<Vec<Order>>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::AllOrders));
+        decode(self.http.send_raw(req, COST_ALL_ORDERS).await)
+    }
+
+    /// Get trades for a specific account and symbol.
+    pub async fn get_account_trade_list(
+        &self,
+        params: GetAccountTradeListParams,
+    ) -> Result<Response<Vec<AccountTrade>>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::MyTrades));
+        decode(self.http.send_raw(req, COST_MY_TRADES).await)
+    }
+
+    /// Get current account commission rates for a symbol.
+    pub async fn get_account_commission(
+        &self,
+        params: GetAccountCommissionParams,
+    ) -> Result<Response<AccountCommission>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::AccountCommission));
+        decode(self.http.send_raw(req, COST_ACCOUNT_COMMISSION).await)
+    }
+
+    /// Displays the user's current order count usage for all intervals.
+    pub async fn get_order_rate_limit(
+        &self,
+        params: GetOrderRateLimitParams,
+    ) -> Result<Response<Vec<OrderRateLimit>>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::RateLimitOrder));
+        decode(self.http.send_raw(req, COST_ORDER_RATE_LIMIT).await)
+    }
+}
+
+// User data stream lifecycle. Unlike trading/account endpoints, listenKey
+// operations are authenticated by API key alone (`X-MBX-APIKEY` header) —
+// they do NOT take `timestamp` / `signature`, so these methods skip
+// `sign_query` entirely.
+impl PrivateClient {
+    /// Create a new listenKey for the spot user data stream.
+    ///
+    /// Returns a key that can be used to connect to
+    /// `wss://stream.binance.com:9443/ws/<listenKey>`. The key expires after
+    /// 60 minutes — extend via [`Self::keepalive_listen_key`] every 30 min.
+    pub async fn create_listen_key(&self) -> Result<Response<ListenKey>, Error> {
+        let req = self.http.request(Method::POST, Path::UserDataStream);
+        decode(self.http.send_raw(req, COST_LISTEN_KEY).await)
+    }
+
+    /// Extend a listenKey's lifetime by 60 minutes. Idempotent; safe to call
+    /// on a schedule (recommended every 30 min).
+    pub async fn keepalive_listen_key(
+        &self,
+        listen_key: &str,
+    ) -> Result<Response<EmptyResponse>, Error> {
+        let req = self
+            .http
+            .request(Method::PUT, Path::UserDataStream)
+            .query(&[("listenKey", listen_key)]);
+        decode(self.http.send_raw(req, COST_LISTEN_KEY).await)
+    }
+
+    /// Close a listenKey. The WebSocket connection associated with the key
+    /// will be dropped by the server.
+    pub async fn close_listen_key(
+        &self,
+        listen_key: &str,
+    ) -> Result<Response<EmptyResponse>, Error> {
+        let req = self
+            .http
+            .request(Method::DELETE, Path::UserDataStream)
+            .query(&[("listenKey", listen_key)]);
+        decode(self.http.send_raw(req, COST_LISTEN_KEY).await)
     }
 }
 

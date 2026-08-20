@@ -1,16 +1,17 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example margin-account
+//! cargo run --example wallet-withdraw
 //! ```
 
 use binance::{
     SensitiveString,
-    margin::{
+    wallet::{
         BASE_URL_API,
-        http::{GetMarginAccountParams, PrivateClient, PrivateConfig},
+        http::{PrivateClient, PrivateConfig, WithdrawRequest},
     },
 };
+use rust_decimal::dec;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
@@ -29,8 +30,12 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
     let client = PrivateClient::new(cfg);
 
-    let params = GetMarginAccountParams::new();
-    let response = client.margin_account(params).await?;
+    // This is a real, irreversible withdrawal once submitted. Double-check
+    // `coin` / `network` / `address` / `amount` before running against mainnet.
+    let params =
+        WithdrawRequest::new("USDT", "TXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", dec!(1)).network("TRX");
+
+    let response = client.withdraw(params).await?;
     info!(?response, "response");
 
     Ok(())

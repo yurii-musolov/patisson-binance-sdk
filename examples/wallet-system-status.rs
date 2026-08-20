@@ -1,14 +1,14 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example margin-account
+//! cargo run --example wallet-system-status
 //! ```
 
 use binance::{
     SensitiveString,
-    margin::{
+    wallet::{
         BASE_URL_API,
-        http::{GetMarginAccountParams, PrivateClient, PrivateConfig},
+        http::{PrivateClient, PrivateConfig},
     },
 };
 use tracing::{Level, info};
@@ -21,16 +21,15 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let api_key = std::env::var("API_KEY").expect("environment variable API_KEY is required");
-    let api_key = SensitiveString::from(api_key);
-    let api_secret =
-        std::env::var("API_SECRET").expect("environment variable API_SECRET is required");
-    let api_secret = SensitiveString::from(api_secret);
+    // `system_status` is a public endpoint (no signature required), but the
+    // wallet module only exposes `PrivateClient` — any non-empty key/secret
+    // works here since they're not actually checked by Binance for this call.
+    let api_key = SensitiveString::from("unused");
+    let api_secret = SensitiveString::from("unused");
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
     let client = PrivateClient::new(cfg);
 
-    let params = GetMarginAccountParams::new();
-    let response = client.margin_account(params).await?;
+    let response = client.system_status().await?;
     info!(?response, "response");
 
     Ok(())

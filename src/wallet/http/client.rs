@@ -10,9 +10,14 @@ use crate::{
     wallet::{
         ApiError, Error, HEADER_X_MBX_APIKEY, Path,
         http::{
-            AccountStatus, CoinInfo, Deposit, DepositAddress, GetAccountStatusParams,
-            GetAllCoinsParams, GetDepositAddressParams, GetDepositHistoryParams, GetTradeFeeParams,
-            GetWithdrawHistoryParams, PrivateConfig, Response, TradeFee, Withdraw,
+            AccountApiTradingStatus, AccountStatus, AssetDividendRecord, CoinInfo, Deposit,
+            DepositAddress, Empty, FastWithdrawSwitchParams, GetAccountApiTradingStatusParams,
+            GetAccountStatusParams, GetAllCoinsParams, GetAssetDividendRecordParams,
+            GetDepositAddressParams, GetDepositHistoryParams, GetTradeFeeParams,
+            GetUniversalTransferHistoryParams, GetUserAssetParams, GetUserWalletBalanceParams,
+            GetWithdrawHistoryParams, PrivateConfig, Response, SystemStatusResult, TradeFee,
+            UniversalTransferHistory, UniversalTransferResult, UserAsset,
+            UserUniversalTransferRequest, WalletBalance, Withdraw, WithdrawRequest, WithdrawResult,
         },
     },
 };
@@ -23,9 +28,18 @@ use crate::{
 const COST_ALL_COINS: Cost = Cost::weight(10);
 const COST_DEPOSIT_ADDRESS: Cost = Cost::weight(10);
 const COST_DEPOSIT_HISTORY: Cost = Cost::weight(1);
+const COST_WITHDRAW: Cost = Cost::weight(600);
 const COST_WITHDRAW_HISTORY: Cost = Cost::weight(18_000);
 const COST_ACCOUNT_STATUS: Cost = Cost::weight(1);
 const COST_TRADE_FEE: Cost = Cost::weight(1);
+const COST_ASSET_DIVIDEND_RECORD: Cost = Cost::weight(10);
+const COST_WALLET_BALANCE: Cost = Cost::weight(60);
+const COST_UNIVERSAL_TRANSFER: Cost = Cost::weight(900);
+const COST_UNIVERSAL_TRANSFER_HISTORY: Cost = Cost::weight(1);
+const COST_USER_ASSET: Cost = Cost::weight(5);
+const COST_ACCOUNT_API_TRADING_STATUS: Cost = Cost::weight(1);
+const COST_SYSTEM_STATUS: Cost = Cost::weight(1);
+const COST_FAST_WITHDRAW_SWITCH: Cost = Cost::weight(1);
 
 /// Client for the authenticated `/sapi/v1/{capital,account,asset}/*` surface.
 ///
@@ -148,6 +162,159 @@ impl PrivateClient {
             .http
             .request(Method::GET, format!("{}?{query}", Path::AssetTradeFee));
         decode(self.http.send_raw(req, COST_TRADE_FEE).await)
+    }
+
+    /// Asset dividend records (e.g. staking / airdrop distributions).
+    pub async fn get_asset_dividend_record(
+        &self,
+        params: GetAssetDividendRecordParams,
+    ) -> Result<Response<AssetDividendRecord>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self.http.request(
+            Method::GET,
+            format!("{}?{query}", Path::AssetDividendRecord),
+        );
+        decode(self.http.send_raw(req, COST_ASSET_DIVIDEND_RECORD).await)
+    }
+
+    /// Per-wallet balances (Spot, Funding, Cross Margin, …), each converted
+    /// to BTC.
+    pub async fn query_user_wallet_balance(
+        &self,
+        params: GetUserWalletBalanceParams,
+    ) -> Result<Response<Vec<WalletBalance>>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::AssetWalletBalance));
+        decode(self.http.send_raw(req, COST_WALLET_BALANCE).await)
+    }
+
+    /// Move `asset` between two account types (e.g. `MAIN_UMFUTURE`,
+    /// `MAIN_MARGIN`, …). See [`crate::wallet::UniversalTransferType`].
+    pub async fn user_universal_transfer(
+        &self,
+        params: UserUniversalTransferRequest,
+    ) -> Result<Response<UniversalTransferResult>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::POST, format!("{}?{query}", Path::AssetTransfer));
+        decode(self.http.send_raw(req, COST_UNIVERSAL_TRANSFER).await)
+    }
+
+    /// History of universal transfers previously submitted via
+    /// [`Self::user_universal_transfer`].
+    pub async fn query_user_universal_transfer_history(
+        &self,
+        params: GetUniversalTransferHistoryParams,
+    ) -> Result<Response<UniversalTransferHistory>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::AssetTransfer));
+        decode(
+            self.http
+                .send_raw(req, COST_UNIVERSAL_TRANSFER_HISTORY)
+                .await,
+        )
+    }
+
+    /// User assets, optionally filtered to a single `asset` and optionally
+    /// including a BTC valuation. Binance serves this endpoint over `POST`
+    /// despite being a read.
+    pub async fn user_asset(
+        &self,
+        params: GetUserAssetParams,
+    ) -> Result<Response<Vec<UserAsset>>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::POST, format!("{}?{query}", Path::AssetUserAsset));
+        decode(self.http.send_raw(req, COST_USER_ASSET).await)
+    }
+}
+
+// Account
+impl PrivateClient {
+    /// Whether API trading is currently locked, and the counters that would
+    /// trigger a lock.
+    pub async fn account_api_trading_status(
+        &self,
+        params: GetAccountApiTradingStatusParams,
+    ) -> Result<Response<AccountApiTradingStatus>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self.http.request(
+            Method::GET,
+            format!("{}?{query}", Path::AccountApiTradingStatus),
+        );
+        decode(
+            self.http
+                .send_raw(req, COST_ACCOUNT_API_TRADING_STATUS)
+                .await,
+        )
+    }
+
+    pub async fn enable_fast_withdraw_switch(
+        &self,
+        params: FastWithdrawSwitchParams,
+    ) -> Result<Response<Empty>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self.http.request(
+            Method::POST,
+            format!("{}?{query}", Path::AccountEnableFastWithdrawSwitch),
+        );
+        decode(self.http.send_raw(req, COST_FAST_WITHDRAW_SWITCH).await)
+    }
+
+    pub async fn disable_fast_withdraw_switch(
+        &self,
+        params: FastWithdrawSwitchParams,
+    ) -> Result<Response<Empty>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self.http.request(
+            Method::POST,
+            format!("{}?{query}", Path::AccountDisableFastWithdrawSwitch),
+        );
+        decode(self.http.send_raw(req, COST_FAST_WITHDRAW_SWITCH).await)
+    }
+}
+
+// Withdraw
+impl PrivateClient {
+    /// Submit a withdrawal. Irreversible once accepted — double-check
+    /// `coin`, `network`, `address` and `amount` before calling this.
+    pub async fn withdraw(
+        &self,
+        params: WithdrawRequest,
+    ) -> Result<Response<WithdrawResult>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self.http.request(
+            Method::POST,
+            format!("{}?{query}", Path::CapitalWithdrawApply),
+        );
+        decode(self.http.send_raw(req, COST_WITHDRAW).await)
+    }
+}
+
+// System
+impl PrivateClient {
+    /// System status (`0` = normal, `1` = maintenance). Public — Binance
+    /// doesn't require a signature — but wallet has no dedicated
+    /// `PublicClient`, so it's exposed here for convenience; the request is
+    /// sent unsigned.
+    pub async fn system_status(&self) -> Result<Response<SystemStatusResult>, Error> {
+        let req = self.http.request(Method::GET, Path::SystemStatus);
+        decode(self.http.send_raw(req, COST_SYSTEM_STATUS).await)
     }
 }
 

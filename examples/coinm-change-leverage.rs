@@ -1,14 +1,14 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example margin-account
+//! cargo run --example coinm-change-leverage
 //! ```
 
 use binance::{
     SensitiveString,
-    margin::{
+    derivatives::coin_margined_futures::{
         BASE_URL_API,
-        http::{GetMarginAccountParams, PrivateClient, PrivateConfig},
+        http::{ChangeInitialLeverageParams, PrivateClient, PrivateConfig},
     },
 };
 use tracing::{Level, info};
@@ -29,8 +29,9 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
     let client = PrivateClient::new(cfg);
 
-    let params = GetMarginAccountParams::new();
-    let response = client.margin_account(params).await?;
+    let params = ChangeInitialLeverageParams::new("BTCUSD_PERP", 20);
+
+    let response = client.change_initial_leverage(params).await?;
     info!(?response, "response");
 
     Ok(())

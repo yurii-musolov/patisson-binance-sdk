@@ -71,6 +71,14 @@ pub enum STPMode {
     Decrement,
 }
 
+/// Direction of a borrow/repay execution against the margin account.
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum BorrowRepayType {
+    Borrow,
+    Repay,
+}
+
 /// Whether a margin operation targets the isolated or cross-margin account.
 ///
 /// Serialised as the string `"TRUE"` / `"FALSE"` that Binance expects.

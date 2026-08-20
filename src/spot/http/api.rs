@@ -1134,6 +1134,439 @@ pub struct Order {
     pub self_trade_prevention_mode: STPMode,
 }
 
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelOrderParams {
+    symbol: String,
+    order_id: Option<i64>,
+    orig_client_order_id: Option<String>,
+    new_client_order_id: Option<String>,
+    /// The value cannot be greater than 60000
+    recv_window: Option<u64>,
+}
+
+impl CancelOrderParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            order_id: None,
+            orig_client_order_id: None,
+            new_client_order_id: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn order_id(mut self, value: i64) -> Self {
+        self.order_id = Some(value);
+        self
+    }
+
+    pub fn orig_client_order_id(mut self, value: impl Into<String>) -> Self {
+        self.orig_client_order_id = Some(value.into());
+        self
+    }
+
+    pub fn new_client_order_id(mut self, value: impl Into<String>) -> Self {
+        self.new_client_order_id = Some(value.into());
+        self
+    }
+
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+/// Response of `DELETE /api/v3/order`. Shaped like [`Order`] but carries the
+/// original client order id and the cancel's own `transactTime` instead of
+/// the order's placement/update timestamps.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CanceledOrder {
+    pub symbol: String,
+    pub orig_client_order_id: String,
+    pub order_id: i64,
+    /// This field will always have a value of -1 if not an order list.
+    pub order_list_id: i64,
+    pub client_order_id: String,
+    pub transact_time: Timestamp,
+    pub price: Decimal,
+    pub orig_qty: Decimal,
+    pub executed_qty: Decimal,
+    pub cummulative_quote_qty: Decimal,
+    pub status: OrderStatus,
+    pub time_in_force: TimeInForce,
+    #[serde(rename = "type")]
+    pub r#type: OrderType,
+    pub side: OrderSide,
+    pub stop_price: Option<Decimal>,
+    pub trailing_delta: Option<i64>,
+    pub iceberg_qty: Option<Decimal>,
+    pub self_trade_prevention_mode: Option<STPMode>,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelOpenOrdersParams {
+    symbol: String,
+    /// The value cannot be greater than 60000
+    recv_window: Option<u64>,
+}
+
+impl CancelOpenOrdersParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            recv_window: None,
+        }
+    }
+
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Default, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetOpenOrdersParams {
+    /// If omitted, open orders for all symbols are returned — much heavier;
+    /// see `COST_OPEN_ORDERS_ALL` at the call site.
+    pub(super) symbol: Option<String>,
+    /// The value cannot be greater than 60000
+    recv_window: Option<u64>,
+}
+
+impl GetOpenOrdersParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn symbol(mut self, symbol: impl Into<String>) -> Self {
+        self.symbol = Some(symbol.into());
+        self
+    }
+
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAllOrdersParams {
+    symbol: String,
+    order_id: Option<i64>,
+    start_time: Option<Timestamp>,
+    end_time: Option<Timestamp>,
+    /// Default: 500; Maximum: 1000.
+    limit: Option<u64>,
+    /// The value cannot be greater than 60000
+    recv_window: Option<u64>,
+}
+
+impl GetAllOrdersParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            order_id: None,
+            start_time: None,
+            end_time: None,
+            limit: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn order_id(mut self, value: i64) -> Self {
+        self.order_id = Some(value);
+        self
+    }
+
+    pub fn start_time(mut self, value: Timestamp) -> Self {
+        self.start_time = Some(value);
+        self
+    }
+
+    pub fn end_time(mut self, value: Timestamp) -> Self {
+        self.end_time = Some(value);
+        self
+    }
+
+    pub fn limit(mut self, value: u64) -> Self {
+        self.limit = Some(value);
+        self
+    }
+
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAccountTradeListParams {
+    symbol: String,
+    order_id: Option<i64>,
+    start_time: Option<Timestamp>,
+    end_time: Option<Timestamp>,
+    /// TradeId to fetch from. Default gets most recent trades.
+    from_id: Option<i64>,
+    /// Default: 500; Maximum: 1000.
+    limit: Option<u64>,
+    /// The value cannot be greater than 60000
+    recv_window: Option<u64>,
+}
+
+impl GetAccountTradeListParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+            order_id: None,
+            start_time: None,
+            end_time: None,
+            from_id: None,
+            limit: None,
+            recv_window: None,
+        }
+    }
+
+    pub fn order_id(mut self, value: i64) -> Self {
+        self.order_id = Some(value);
+        self
+    }
+
+    pub fn start_time(mut self, value: Timestamp) -> Self {
+        self.start_time = Some(value);
+        self
+    }
+
+    pub fn end_time(mut self, value: Timestamp) -> Self {
+        self.end_time = Some(value);
+        self
+    }
+
+    pub fn from_id(mut self, value: i64) -> Self {
+        self.from_id = Some(value);
+        self
+    }
+
+    pub fn limit(mut self, value: u64) -> Self {
+        self.limit = Some(value);
+        self
+    }
+
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountTrade {
+    pub symbol: String,
+    pub id: i64,
+    pub order_id: i64,
+    /// This field will always have a value of -1 if not an order list.
+    pub order_list_id: i64,
+    pub price: Decimal,
+    pub qty: Decimal,
+    pub quote_qty: Decimal,
+    pub commission: Decimal,
+    pub commission_asset: String,
+    pub time: Timestamp,
+    pub is_buyer: bool,
+    pub is_maker: bool,
+    pub is_best_match: bool,
+}
+
+#[derive(Debug, Default, Serialize, PartialEq)]
+pub struct GetSymbolPriceTickerParams {
+    /// Parameter symbol and symbols cannot be used in combination.
+    /// If neither parameter is sent, prices for all symbols will be returned in an array.
+    pub(super) symbol: Option<String>,
+    #[serde(serialize_with = "serialize_option_as_json")]
+    symbols: Option<Vec<String>>,
+}
+
+impl GetSymbolPriceTickerParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn symbol(mut self, symbol: impl Into<String>) -> Self {
+        self.symbol = Some(symbol.into());
+        self
+    }
+
+    pub fn symbols(mut self, symbols: Vec<String>) -> Self {
+        self.symbols = Some(symbols);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolPriceTicker {
+    pub symbol: String,
+    pub price: Decimal,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum SymbolPriceTickers {
+    One(SymbolPriceTicker),
+    Many(Vec<SymbolPriceTicker>),
+}
+
+#[derive(Debug, Default, Serialize, PartialEq)]
+pub struct GetSymbolOrderBookTickerParams {
+    /// Parameter symbol and symbols cannot be used in combination.
+    /// If neither parameter is sent, book tickers for all symbols will be returned in an array.
+    pub(super) symbol: Option<String>,
+    #[serde(serialize_with = "serialize_option_as_json")]
+    symbols: Option<Vec<String>>,
+}
+
+impl GetSymbolOrderBookTickerParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn symbol(mut self, symbol: impl Into<String>) -> Self {
+        self.symbol = Some(symbol.into());
+        self
+    }
+
+    pub fn symbols(mut self, symbols: Vec<String>) -> Self {
+        self.symbols = Some(symbols);
+        self
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolOrderBookTicker {
+    pub symbol: String,
+    pub bid_price: Decimal,
+    pub bid_qty: Decimal,
+    pub ask_price: Decimal,
+    pub ask_qty: Decimal,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum SymbolOrderBookTickers {
+    One(SymbolOrderBookTicker),
+    Many(Vec<SymbolOrderBookTicker>),
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetAccountCommissionParams {
+    symbol: String,
+}
+
+impl GetAccountCommissionParams {
+    pub fn new(symbol: impl Into<String>) -> Self {
+        Self {
+            symbol: symbol.into(),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountCommission {
+    pub symbol: String,
+    pub standard_commission: CommissionRates,
+    pub tax_commission: CommissionRates,
+    pub discount: Discount,
+}
+
+/// Response of `POST /api/v3/userDataStream`.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ListenKey {
+    pub listen_key: String,
+}
+
+/// Response of `PUT`/`DELETE /api/v3/userDataStream` — Binance returns `{}`.
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct EmptyResponse {}
+
+/// Supported values: FULL or MINI. If none provided, the default is FULL.
+#[derive(Debug, Serialize, PartialEq)]
+#[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum GetTickerTradingDayParams {
+    Mini(TickerTradingDaySymbols),
+    Full(TickerTradingDaySymbols),
+}
+
+#[derive(Debug, Default, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TickerTradingDaySymbols {
+    /// Parameter symbol and symbols cannot be used in combination.
+    symbol: Option<String>,
+    #[serde(serialize_with = "serialize_option_as_json")]
+    symbols: Option<Vec<String>>,
+    /// Default: 0 (UTC). Same format as `GetKlineListParams::time_zone`.
+    time_zone: Option<String>,
+}
+
+impl TickerTradingDaySymbols {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn symbol(mut self, symbol: impl Into<String>) -> Self {
+        self.symbol = Some(symbol.into());
+        self
+    }
+
+    pub fn symbols(mut self, symbols: Vec<String>) -> Self {
+        self.symbols = Some(symbols);
+        self
+    }
+
+    pub fn time_zone(mut self, time_zone: impl Into<String>) -> Self {
+        self.time_zone = Some(time_zone.into());
+        self
+    }
+}
+
+#[derive(Debug, Default, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GetOrderRateLimitParams {
+    /// The value cannot be greater than 60000
+    recv_window: Option<u64>,
+}
+
+impl GetOrderRateLimitParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn recv_window(mut self, value: u64) -> Self {
+        self.recv_window = Some(value);
+        self
+    }
+}
+
+/// Element of `GET /api/v3/rateLimit/order` — same shape as [`RateLimit`]
+/// plus the caller's current `count` against that window.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderRateLimit {
+    pub rate_limit_type: RateLimiter,
+    pub interval: RateLimitInterval,
+    pub interval_num: u64,
+    pub limit: u64,
+    pub count: u64,
+}
+
 #[cfg(test)]
 mod tests {
     use rust_decimal::dec;
@@ -1688,6 +2121,236 @@ mod tests {
         };
 
         let current = deserialize_json(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_canceled_order() {
+        let json = r#"{
+            "symbol": "LTCBTC",
+            "origClientOrderId": "myOrder1",
+            "orderId": 4,
+            "orderListId": -1,
+            "clientOrderId": "cancelMyOrder1",
+            "transactTime": 1684804350068,
+            "price": "2.00000000",
+            "origQty": "1.00000000",
+            "executedQty": "0.00000000",
+            "cummulativeQuoteQty": "0.00000000",
+            "status": "CANCELED",
+            "timeInForce": "GTC",
+            "type": "LIMIT",
+            "side": "BUY",
+            "selfTradePreventionMode": "NONE"
+        }"#;
+        let expected = CanceledOrder {
+            symbol: String::from("LTCBTC"),
+            orig_client_order_id: String::from("myOrder1"),
+            order_id: 4,
+            order_list_id: -1,
+            client_order_id: String::from("cancelMyOrder1"),
+            transact_time: 1684804350068,
+            price: dec!(2.00000000),
+            orig_qty: dec!(1.00000000),
+            executed_qty: dec!(0.00000000),
+            cummulative_quote_qty: dec!(0.00000000),
+            status: OrderStatus::Canceled,
+            time_in_force: TimeInForce::GTC,
+            r#type: OrderType::Limit,
+            side: OrderSide::BUY,
+            stop_price: None,
+            trailing_delta: None,
+            iceberg_qty: None,
+            self_trade_prevention_mode: Some(STPMode::None),
+        };
+
+        let current = deserialize_json(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_account_trade() {
+        let json = r#"[
+            {
+                "symbol": "BNBBTC",
+                "id": 28457,
+                "orderId": 100234,
+                "orderListId": -1,
+                "price": "4.00000100",
+                "qty": "12.00000000",
+                "quoteQty": "48.000012",
+                "commission": "10.10000000",
+                "commissionAsset": "BNB",
+                "time": 1499865549590,
+                "isBuyer": true,
+                "isMaker": false,
+                "isBestMatch": true
+            }
+        ]"#;
+        let expected = vec![AccountTrade {
+            symbol: String::from("BNBBTC"),
+            id: 28457,
+            order_id: 100234,
+            order_list_id: -1,
+            price: dec!(4.00000100),
+            qty: dec!(12.00000000),
+            quote_qty: dec!(48.000012),
+            commission: dec!(10.10000000),
+            commission_asset: String::from("BNB"),
+            time: 1499865549590,
+            is_buyer: true,
+            is_maker: false,
+            is_best_match: true,
+        }];
+
+        let current: Vec<AccountTrade> = deserialize_json(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_symbol_price_ticker_one_and_many() {
+        let json = r#"{"symbol":"LTCBTC","price":"4.00000200"}"#;
+        let expected = SymbolPriceTickers::One(SymbolPriceTicker {
+            symbol: String::from("LTCBTC"),
+            price: dec!(4.00000200),
+        });
+        let current = deserialize_json(json).unwrap();
+        assert_eq!(expected, current);
+
+        let json = r#"[{"symbol":"LTCBTC","price":"4.00000200"},{"symbol":"ETHBTC","price":"0.07946600"}]"#;
+        let expected = SymbolPriceTickers::Many(vec![
+            SymbolPriceTicker {
+                symbol: String::from("LTCBTC"),
+                price: dec!(4.00000200),
+            },
+            SymbolPriceTicker {
+                symbol: String::from("ETHBTC"),
+                price: dec!(0.07946600),
+            },
+        ]);
+        let current = deserialize_json(json).unwrap();
+        assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_symbol_order_book_ticker() {
+        let json = r#"{
+            "symbol": "LTCBTC",
+            "bidPrice": "4.00000000",
+            "bidQty": "431.00000000",
+            "askPrice": "4.00000200",
+            "askQty": "9.00000000"
+        }"#;
+        let expected = SymbolOrderBookTickers::One(SymbolOrderBookTicker {
+            symbol: String::from("LTCBTC"),
+            bid_price: dec!(4.00000000),
+            bid_qty: dec!(431.00000000),
+            ask_price: dec!(4.00000200),
+            ask_qty: dec!(9.00000000),
+        });
+
+        let current = deserialize_json(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_account_commission() {
+        let json = r#"{
+            "symbol": "BTCUSDT",
+            "standardCommission": {
+                "maker": "0.00000010",
+                "taker": "0.00000020",
+                "buyer": "0.00000000",
+                "seller": "0.00000000"
+            },
+            "taxCommission": {
+                "maker": "0.00000000",
+                "taker": "0.00000000",
+                "buyer": "0.00000000",
+                "seller": "0.00000000"
+            },
+            "discount": {
+                "enabledForAccount": true,
+                "enabledForSymbol": true,
+                "discountAsset": "BNB",
+                "discount": "0.25000000"
+            }
+        }"#;
+        let expected = AccountCommission {
+            symbol: String::from("BTCUSDT"),
+            standard_commission: CommissionRates {
+                maker: dec!(0.00000010),
+                taker: dec!(0.00000020),
+                buyer: dec!(0.00000000),
+                seller: dec!(0.00000000),
+            },
+            tax_commission: CommissionRates {
+                maker: dec!(0.00000000),
+                taker: dec!(0.00000000),
+                buyer: dec!(0.00000000),
+                seller: dec!(0.00000000),
+            },
+            discount: Discount {
+                enabled_for_account: true,
+                enabled_for_symbol: true,
+                discount_asset: String::from("BNB"),
+                discount: dec!(0.25000000),
+            },
+        };
+
+        let current = deserialize_json(json).unwrap();
+
+        assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_listen_key() {
+        let json =
+            r#"{"listenKey":"pqia91ma19a5s61cv6a81va65sdf19v8a65a1a5s61cv6a81va65sdf19v8a65a1"}"#;
+        let parsed: ListenKey = deserialize_json(json).unwrap();
+        assert_eq!(parsed.listen_key.len(), 64);
+    }
+
+    #[test]
+    fn deserialize_response_order_rate_limit() {
+        let json = r#"[
+            {
+                "rateLimitType": "ORDERS",
+                "interval": "SECOND",
+                "intervalNum": 10,
+                "limit": 50,
+                "count": 0
+            },
+            {
+                "rateLimitType": "ORDERS",
+                "interval": "DAY",
+                "intervalNum": 1,
+                "limit": 160000,
+                "count": 0
+            }
+        ]"#;
+        let expected = vec![
+            OrderRateLimit {
+                rate_limit_type: RateLimiter::Orders,
+                interval: RateLimitInterval::Second,
+                interval_num: 10,
+                limit: 50,
+                count: 0,
+            },
+            OrderRateLimit {
+                rate_limit_type: RateLimiter::Orders,
+                interval: RateLimitInterval::Day,
+                interval_num: 1,
+                limit: 160000,
+                count: 0,
+            },
+        ];
+
+        let current: Vec<OrderRateLimit> = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
     }

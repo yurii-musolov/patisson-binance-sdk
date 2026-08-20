@@ -1,16 +1,17 @@
 //! Run with
 //!
 //! ```not_rust
-//! cargo run --example margin-account
+//! cargo run --example margin-borrow-repay
 //! ```
 
 use binance::{
     SensitiveString,
     margin::{
-        BASE_URL_API,
-        http::{GetMarginAccountParams, PrivateClient, PrivateConfig},
+        BASE_URL_API, BorrowRepayType, IsIsolated,
+        http::{BorrowRepayParams, PrivateClient, PrivateConfig},
     },
 };
+use rust_decimal::dec;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
@@ -29,8 +30,15 @@ async fn main() -> anyhow::Result<()> {
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
     let client = PrivateClient::new(cfg);
 
-    let params = GetMarginAccountParams::new();
-    let response = client.margin_account(params).await?;
+    // Cross-margin: omit `.symbol(...)`. For isolated margin, set it to route
+    // the borrow/repay to that symbol's isolated account.
+    let params = BorrowRepayParams::new(
+        "USDT",
+        IsIsolated::False,
+        dec!(100),
+        BorrowRepayType::Borrow,
+    );
+    let response = client.borrow_repay(params).await?;
     info!(?response, "response");
 
     Ok(())

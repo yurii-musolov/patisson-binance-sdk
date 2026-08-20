@@ -60,6 +60,7 @@ pub enum Path {
     Order,
     OrderTest,
     OpenOrders,
+    AllOrders,
     OrderCancelReplace,
     OrderAmendKeepPriority,
     OrderListOCO,
@@ -71,7 +72,12 @@ pub enum Path {
 
     // Account endpoints
     Account,
+    AccountCommission,
+    MyTrades,
     RateLimitOrder,
+
+    // User data stream lifecycle
+    UserDataStream,
 
     // Websocket endpoints
     WebSocketApiV3,
@@ -105,6 +111,7 @@ impl std::fmt::Display for Path {
             Self::Order => "/api/v3/order",
             Self::OrderTest => "/api/v3/order/test",
             Self::OpenOrders => "/api/v3/openOrders",
+            Self::AllOrders => "/api/v3/allOrders",
             Self::OrderCancelReplace => "/api/v3/order/cancelReplace",
             Self::OrderAmendKeepPriority => "/api/v3/order/amend/keepPriority",
             Self::OrderListOCO => "/api/v3/orderList/oco",
@@ -116,7 +123,12 @@ impl std::fmt::Display for Path {
 
             // Account endpoints
             Self::Account => "/api/v3/account",
+            Self::AccountCommission => "/api/v3/account/commission",
+            Self::MyTrades => "/api/v3/myTrades",
             Self::RateLimitOrder => "/api/v3/rateLimit/order",
+
+            // User data stream lifecycle
+            Self::UserDataStream => "/api/v3/userDataStream",
 
             // Websocket endpoints
             Self::WebSocketApiV3 => "/ws-api/v3",

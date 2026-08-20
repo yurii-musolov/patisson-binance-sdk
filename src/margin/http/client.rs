@@ -7,9 +7,16 @@ use crate::{
     margin::{
         ApiError, Error, HEADER_X_MBX_APIKEY, Path,
         http::{
-            EmptyResponse, GetAllMarginAssetsParams, GetMarginAccountParams,
-            GetMaxBorrowableParams, ListenKey, MarginAccount, MarginAsset, MaxBorrowable,
-            NewOrderRequest, NewOrderResponse, Order, PrivateConfig, QueryOrderParams, Response,
+            BorrowRepayParams, BorrowRepayRecords, BorrowRepayResult, CancelAllOpenOrdersParams,
+            CancelOrderParams, CanceledOrder, EmptyResponse, ForceLiquidationRecords,
+            GetAccountTradeListParams, GetAllIsolatedMarginSymbolsParams, GetAllMarginAssetsParams,
+            GetAllOrdersParams, GetBorrowRepayRecordsParams, GetForceLiquidationRecordParams,
+            GetIsolatedMarginAccountParams, GetMarginAccountParams,
+            GetMarginInterestRateHistoryParams, GetMaxBorrowableParams,
+            GetMaxTransferOutAmountParams, GetOpenOrdersParams, GetPriceIndexParams,
+            InterestRateRecord, IsolatedMarginAccount, IsolatedMarginSymbol, ListenKey,
+            MarginAccount, MarginAsset, MaxBorrowable, MaxTransferable, NewOrderRequest,
+            NewOrderResponse, Order, PriceIndex, PrivateConfig, QueryOrderParams, Response, Trade,
         },
     },
     rate_limit::Cost,
@@ -26,6 +33,21 @@ const COST_NEW_ORDER: Cost = Cost::weight_and_orders(6, 1);
 const COST_QUERY_ORDER: Cost = Cost::weight(10);
 const COST_MAX_BORROWABLE: Cost = Cost::weight(50);
 const COST_LISTEN_KEY: Cost = Cost::weight(1);
+const COST_CANCEL_ORDER: Cost = Cost::weight(1);
+const COST_CANCEL_ALL_OPEN_ORDERS: Cost = Cost::weight(1);
+const COST_OPEN_ORDERS: Cost = Cost::weight(10);
+const COST_ALL_ORDERS: Cost = Cost::weight(10);
+const COST_MY_TRADES: Cost = Cost::weight(10);
+/// Borrow/repay execution is one of the heaviest Margin endpoints on
+/// Binance's documented weight table.
+const COST_BORROW_REPAY: Cost = Cost::weight(3000);
+const COST_BORROW_REPAY_RECORDS: Cost = Cost::weight(10);
+const COST_ISOLATED_ACCOUNT: Cost = Cost::weight(10);
+const COST_ISOLATED_SYMBOLS: Cost = Cost::weight(10);
+const COST_INTEREST_RATE_HISTORY: Cost = Cost::weight(10);
+const COST_PRICE_INDEX: Cost = Cost::weight(10);
+const COST_MAX_TRANSFERABLE: Cost = Cost::weight(50);
+const COST_FORCE_LIQUIDATION_REC: Cost = Cost::weight(10);
 
 /// Client for the authenticated `/sapi/v1/margin/*` surface.
 ///
@@ -120,6 +142,89 @@ impl PrivateClient {
             .request(Method::GET, format!("{}?{query}", Path::Order));
         decode(self.http.send_raw(req, COST_QUERY_ORDER).await)
     }
+
+    /// Cancel an active margin order.
+    pub async fn cancel_order(
+        &self,
+        params: CancelOrderParams,
+    ) -> Result<Response<CanceledOrder>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::DELETE, format!("{}?{query}", Path::Order));
+        decode(self.http.send_raw(req, COST_CANCEL_ORDER).await)
+    }
+
+    /// Cancel all active orders on a symbol, including OCO orders.
+    pub async fn cancel_all_open_orders(
+        &self,
+        params: CancelAllOpenOrdersParams,
+    ) -> Result<Response<Vec<CanceledOrder>>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::DELETE, format!("{}?{query}", Path::OpenOrders));
+        decode(self.http.send_raw(req, COST_CANCEL_ALL_OPEN_ORDERS).await)
+    }
+
+    /// Get all open orders. Careful when accessing this with no symbol —
+    /// the request weight scales with the number of symbols currently trading.
+    pub async fn get_open_orders(
+        &self,
+        params: GetOpenOrdersParams,
+    ) -> Result<Response<Vec<Order>>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::OpenOrders));
+        decode(self.http.send_raw(req, COST_OPEN_ORDERS).await)
+    }
+
+    /// Get all orders on a symbol: active, canceled, or filled.
+    pub async fn get_all_orders(
+        &self,
+        params: GetAllOrdersParams,
+    ) -> Result<Response<Vec<Order>>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::AllOrders));
+        decode(self.http.send_raw(req, COST_ALL_ORDERS).await)
+    }
+
+    /// Get trades for a specific margin account and symbol.
+    pub async fn get_account_trade_list(
+        &self,
+        params: GetAccountTradeListParams,
+    ) -> Result<Response<Vec<Trade>>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::MyTrades));
+        decode(self.http.send_raw(req, COST_MY_TRADES).await)
+    }
+}
+
+// Margin risk / liquidation
+impl PrivateClient {
+    /// Get force-liquidation records for the margin account.
+    pub async fn get_force_liquidation_record(
+        &self,
+        params: GetForceLiquidationRecordParams,
+    ) -> Result<Response<ForceLiquidationRecords>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self.http.request(
+            Method::GET,
+            format!("{}?{query}", Path::ForceLiquidationRec),
+        );
+        decode(self.http.send_raw(req, COST_FORCE_LIQUIDATION_REC).await)
+    }
 }
 
 // Margin borrow / repay
@@ -138,6 +243,113 @@ impl PrivateClient {
             .http
             .request(Method::GET, format!("{}?{query}", Path::MaxBorrowable));
         decode(self.http.send_raw(req, COST_MAX_BORROWABLE).await)
+    }
+
+    /// Execute a borrow or repay against the cross- or isolated-margin
+    /// account. This is the action endpoint — [`Self::max_borrowable`] only
+    /// queries the limit.
+    pub async fn borrow_repay(
+        &self,
+        params: BorrowRepayParams,
+    ) -> Result<Response<BorrowRepayResult>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::POST, format!("{}?{query}", Path::BorrowRepay));
+        decode(self.http.send_raw(req, COST_BORROW_REPAY).await)
+    }
+
+    /// Query past borrow/repay records for the margin account.
+    pub async fn get_borrow_repay_records(
+        &self,
+        params: GetBorrowRepayRecordsParams,
+    ) -> Result<Response<BorrowRepayRecords>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::BorrowRepay));
+        decode(self.http.send_raw(req, COST_BORROW_REPAY_RECORDS).await)
+    }
+
+    /// Query the daily interest rate history charged for an asset.
+    pub async fn get_margin_interest_rate_history(
+        &self,
+        params: GetMarginInterestRateHistoryParams,
+    ) -> Result<Response<Vec<InterestRateRecord>>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self.http.request(
+            Method::GET,
+            format!("{}?{query}", Path::InterestRateHistory),
+        );
+        decode(self.http.send_raw(req, COST_INTEREST_RATE_HISTORY).await)
+    }
+
+    /// Query the maximum amount transferable out of the margin account for
+    /// an asset.
+    pub async fn get_max_transfer_out_amount(
+        &self,
+        params: GetMaxTransferOutAmountParams,
+    ) -> Result<Response<MaxTransferable>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::MaxTransferable));
+        decode(self.http.send_raw(req, COST_MAX_TRANSFERABLE).await)
+    }
+}
+
+// Isolated margin account
+impl PrivateClient {
+    /// Get the caller's isolated-margin account snapshot. Without `symbols`,
+    /// every isolated pair with non-zero assets/liabilities/borrow history
+    /// is returned.
+    pub async fn get_isolated_margin_account(
+        &self,
+        params: GetIsolatedMarginAccountParams,
+    ) -> Result<Response<IsolatedMarginAccount>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::IsolatedAccount));
+        decode(self.http.send_raw(req, COST_ISOLATED_ACCOUNT).await)
+    }
+}
+
+// Margin metadata
+impl PrivateClient {
+    /// Get all isolated-margin symbols supported by the exchange (or a
+    /// single symbol's eligibility, if `symbol` is set).
+    pub async fn get_all_isolated_margin_symbols(
+        &self,
+        params: GetAllIsolatedMarginSymbolsParams,
+    ) -> Result<Response<Vec<IsolatedMarginSymbol>>, Error> {
+        let query = serialize_query(&params)?;
+        let query = sign_query(&self.api_secret, timestamp(), &query);
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::IsolatedAllPairs));
+        decode(self.http.send_raw(req, COST_ISOLATED_SYMBOLS).await)
+    }
+
+    /// Get the current price index for an isolated-margin symbol — used to
+    /// calculate margin level.
+    ///
+    /// Market-data endpoint: authenticated by `X-MBX-APIKEY` header only, no
+    /// `timestamp`/`signature` (mirrors the listen-key lifecycle calls below).
+    pub async fn get_price_index(
+        &self,
+        params: GetPriceIndexParams,
+    ) -> Result<Response<PriceIndex>, Error> {
+        let query = serialize_query(&params)?;
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::PriceIndex));
+        decode(self.http.send_raw(req, COST_PRICE_INDEX).await)
     }
 }
 
