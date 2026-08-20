@@ -1,62 +1,77 @@
-use reqwest::{self, Method, RequestBuilder, header::HeaderMap};
+use reqwest::{Method, header::HeaderMap};
 
 use crate::{
     SensitiveString,
     crypto::sign_query,
     derivatives::coin_margined_futures::{
-        ApiError, Error, HEADER_RETRY_AFTER, HEADER_X_MBX_APIKEY, Path,
+        ApiError, Error, HEADER_X_MBX_APIKEY, Path,
         http::{
             AccountInformation, ExchangeInfo, GetAccountInformationParams, GetKlineListParams,
-            GetOrderBookParams, Headers, Kline, NewOrderRequest, NewOrderResponse, Order,
-            OrderBook, PrivateConfig, PublicConfig, QueryOrderParams, Response, ServerTime,
-            TestConnectivity,
+            GetOrderBookParams, Kline, NewOrderRequest, NewOrderResponse, Order, OrderBook,
+            PrivateConfig, PublicConfig, QueryOrderParams, Response, ServerTime, TestConnectivity,
         },
     },
+    http::{HttpClient, RawResponse, SendError},
+    rate_limit::Cost,
     serde::{deserialize_json, serialize_query},
     timestamp,
 };
 
+// Per-endpoint weights (Binance COIN-M Futures REST docs). These charge
+// against the /dapi REQUEST_WEIGHT bucket per IP, separate from spot and USDⓈ-M.
+const COST_PING: Cost = Cost::weight(1);
+const COST_TIME: Cost = Cost::weight(1);
+const COST_EXCHANGE_INFO: Cost = Cost::weight(1);
+const COST_KLINES: Cost = Cost::weight(5);
+const COST_ACCOUNT: Cost = Cost::weight(5);
+const COST_NEW_ORDER: Cost = Cost::weight_and_orders(1, 1);
+const COST_QUERY_ORDER: Cost = Cost::weight(1);
+
+/// Depth-endpoint weight scales with the requested level count.
+/// Per /dapi/v1/depth docs: 5/10/20=2, 50=5, 100=10, 500=20, 1000=50.
+fn cost_depth(limit: Option<u64>) -> Cost {
+    let limit = limit.unwrap_or(500);
+    let weight = match limit {
+        0..=20 => 2,
+        21..=50 => 5,
+        51..=100 => 10,
+        101..=500 => 20,
+        _ => 50,
+    };
+    Cost::weight(weight)
+}
+
 pub struct PublicClient {
-    base_url: String,
-    headers: HeaderMap,
+    http: HttpClient,
 }
 
 impl PublicClient {
     pub fn new(cfg: PublicConfig) -> Self {
-        Self {
-            base_url: cfg.base_url,
-            headers: cfg.headers.unwrap_or_default(),
-        }
+        let http = HttpClient::new(
+            cfg.base_url,
+            cfg.headers.unwrap_or_default(),
+            cfg.rate_limiter,
+        )
+        .expect("reqwest client builder failed");
+        Self { http }
     }
 }
 
 // General
 impl PublicClient {
     pub async fn test_connectivity(&self) -> Result<Response<TestConnectivity>, Error> {
-        let url = format!("{}{}", self.base_url, Path::Ping);
-        let client = reqwest::Client::builder().build()?;
-        let request = client
-            .request(Method::GET, url)
-            .headers(self.headers.clone());
-        send(request).await
+        let req = self.http.request(Method::GET, Path::Ping);
+        decode(self.http.send_raw(req, COST_PING).await)
     }
 
     pub async fn get_server_time(&self) -> Result<Response<ServerTime>, Error> {
-        let url = format!("{}{}", self.base_url, Path::Time);
-        let client = reqwest::Client::builder().build()?;
-        let request = client
-            .request(Method::GET, url)
-            .headers(self.headers.clone());
-        send(request).await
+        let req = self.http.request(Method::GET, Path::Time);
+        decode(self.http.send_raw(req, COST_TIME).await)
     }
 
     pub async fn get_exchange_info(&self) -> Result<Response<ExchangeInfo>, Error> {
-        let url = format!("{}{}", self.base_url, Path::ExchangeInfo);
-        let client = reqwest::Client::builder().build()?;
-        let request = client
-            .request(Method::GET, url)
-            .headers(self.headers.clone());
-        send(request).await
+        let req = self.http.request(Method::GET, Path::ExchangeInfo);
+        decode(self.http.send_raw(req, COST_EXCHANGE_INFO).await)
     }
 }
 
@@ -66,52 +81,45 @@ impl PublicClient {
         &self,
         params: GetOrderBookParams,
     ) -> Result<Response<OrderBook>, Error> {
-        let url = format!("{}{}", self.base_url, Path::Depth);
-        let client = reqwest::Client::builder().build()?;
-        let request = client
-            .request(Method::GET, url)
-            .headers(self.headers.clone())
-            .query(&params);
-        send(request).await
+        let cost = cost_depth(params.limit);
+        let req = self.http.request(Method::GET, Path::Depth).query(&params);
+        decode(self.http.send_raw(req, cost).await)
     }
 
     pub async fn get_kline_list(
         &self,
         params: GetKlineListParams,
     ) -> Result<Response<Vec<Kline>>, Error> {
-        let url = format!("{}{}", self.base_url, Path::KLines);
-        let client = reqwest::Client::builder().build()?;
-        let request = client
-            .request(Method::GET, url)
-            .headers(self.headers.clone())
-            .query(&params);
-        send(request).await
+        let req = self.http.request(Method::GET, Path::KLines).query(&params);
+        decode(self.http.send_raw(req, COST_KLINES).await)
     }
 }
 
 pub struct PrivateClient {
-    base_url: String,
-    headers: HeaderMap,
+    http: HttpClient,
     api_secret: SensitiveString,
 }
 
 impl PrivateClient {
     pub fn new(cfg: PrivateConfig) -> Self {
-        let headers = {
-            let mut headers = HeaderMap::new();
-            let api_key = cfg.api_key.expose().parse().unwrap();
-            headers.append(HEADER_X_MBX_APIKEY, api_key);
-            if let Some(extra) = cfg.headers {
-                headers.extend(extra);
-            }
-            headers
-        };
+        let headers = build_private_headers(&cfg);
+        let http = HttpClient::new(cfg.base_url, headers, cfg.rate_limiter)
+            .expect("reqwest client builder failed");
         Self {
-            base_url: cfg.base_url,
-            headers,
+            http,
             api_secret: cfg.api_secret,
         }
     }
+}
+
+fn build_private_headers(cfg: &PrivateConfig) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    let api_key = cfg.api_key.expose().parse().unwrap();
+    headers.append(HEADER_X_MBX_APIKEY, api_key);
+    if let Some(extra) = &cfg.headers {
+        headers.extend(extra.clone());
+    }
+    headers
 }
 
 // Trading
@@ -122,24 +130,19 @@ impl PrivateClient {
     ) -> Result<Response<NewOrderResponse>, Error> {
         let query = serialize_query(&params)?;
         let query = sign_query(&self.api_secret, timestamp(), &query);
-        let url = format!("{}{}", self.base_url, Path::Order);
-        let client = reqwest::Client::builder().build()?;
-        let request = client
-            .request(Method::POST, url)
-            .headers(self.headers.clone())
-            .body(query); // Binance API accepts POST params in both query and body.
-        send(request).await
+        let req = self
+            .http
+            .request(Method::POST, format!("{}?{query}", Path::Order));
+        decode(self.http.send_raw(req, COST_NEW_ORDER).await)
     }
 
     pub async fn query_order(&self, params: QueryOrderParams) -> Result<Response<Order>, Error> {
         let query = serialize_query(&params)?;
         let query = sign_query(&self.api_secret, timestamp(), &query);
-        let url = format!("{}{}?{query}", self.base_url, Path::Order);
-        let client = reqwest::Client::builder().build()?;
-        let request = client
-            .request(Method::GET, url)
-            .headers(self.headers.clone());
-        send(request).await
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::Order));
+        decode(self.http.send_raw(req, COST_QUERY_ORDER).await)
     }
 }
 
@@ -151,41 +154,28 @@ impl PrivateClient {
     ) -> Result<Response<AccountInformation>, Error> {
         let query = serialize_query(&params)?;
         let query = sign_query(&self.api_secret, timestamp(), &query);
-        let url = format!("{}{}?{query}", self.base_url, Path::Account);
-        let client = reqwest::Client::builder().build()?;
-        let request = client
-            .request(Method::GET, url)
-            .headers(self.headers.clone());
-        send(request).await
+        let req = self
+            .http
+            .request(Method::GET, format!("{}?{query}", Path::Account));
+        decode(self.http.send_raw(req, COST_ACCOUNT).await)
     }
 }
 
-async fn send<T>(request: RequestBuilder) -> Result<Response<T>, Error>
+fn decode<T>(raw: Result<RawResponse, SendError>) -> Result<Response<T>, Error>
 where
     T: serde::de::DeserializeOwned,
 {
-    let response = request.send().await?;
-    let status = response.status();
-    let headers = parse_headers(response.headers());
-    let json = response.text().await?;
-
-    if !status.is_success() {
+    let raw = raw?;
+    if !raw.status.is_success() {
         #[cfg(debug_assertions)]
-        tracing::debug!(?status, ?json, "request failed");
+        tracing::debug!(status = ?raw.status, body = ?raw.body, "request failed");
 
-        // Binance returns `{"code":-XXXX,"msg":"..."}` on error. Fall back to
-        // the raw body if the shape doesn't match so nothing is silently lost.
-        let api_err = deserialize_json::<ApiError>(&json)?;
+        let api_err = deserialize_json::<ApiError>(&raw.body)?;
         return Err(Error::Api(api_err));
     }
-
-    let result = deserialize_json(&json)?;
-    Ok(Response { result, headers })
-}
-
-fn parse_headers(headers: &HeaderMap) -> Headers {
-    let retry_after = headers
-        .get(HEADER_RETRY_AFTER)
-        .and_then(|h| h.to_str().unwrap_or_default().parse().ok());
-    Headers { retry_after }
+    let result = deserialize_json(&raw.body)?;
+    Ok(Response {
+        result,
+        headers: raw.headers,
+    })
 }

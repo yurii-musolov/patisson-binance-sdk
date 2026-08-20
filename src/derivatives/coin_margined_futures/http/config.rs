@@ -1,11 +1,14 @@
+use std::sync::Arc;
+
 use reqwest::header::HeaderMap;
 
-use crate::SensitiveString;
+use crate::{SensitiveString, rate_limit::RateLimiter};
 
 #[derive(Debug, Clone)]
 pub struct PublicConfig {
     pub base_url: String,
     pub headers: Option<HeaderMap>,
+    pub rate_limiter: Option<Arc<RateLimiter>>,
 }
 
 impl PublicConfig {
@@ -13,6 +16,7 @@ impl PublicConfig {
         Self {
             base_url: base_url.into(),
             headers: None,
+            rate_limiter: None,
         }
     }
 
@@ -24,6 +28,16 @@ impl PublicConfig {
         }
         self
     }
+
+    /// Attach an optional client-side rate limiter. COIN-M Futures has its
+    /// own per-IP REQUEST_WEIGHT bucket on `/dapi/*` (separate from spot and
+    /// USDⓈ-M), so you typically want one `Arc<RateLimiter>` shared between
+    /// this client's public and private halves but a different one from the
+    /// other products.
+    pub fn rate_limiter(mut self, rate_limiter: Arc<RateLimiter>) -> Self {
+        self.rate_limiter = Some(rate_limiter);
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -32,6 +46,7 @@ pub struct PrivateConfig {
     pub api_key: SensitiveString,
     pub api_secret: SensitiveString,
     pub headers: Option<HeaderMap>,
+    pub rate_limiter: Option<Arc<RateLimiter>>,
 }
 
 impl PrivateConfig {
@@ -45,6 +60,7 @@ impl PrivateConfig {
             api_key,
             api_secret,
             headers: None,
+            rate_limiter: None,
         }
     }
 
@@ -54,6 +70,11 @@ impl PrivateConfig {
                 .get_or_insert_with(HeaderMap::new)
                 .extend(headers);
         }
+        self
+    }
+
+    pub fn rate_limiter(mut self, rate_limiter: Arc<RateLimiter>) -> Self {
+        self.rate_limiter = Some(rate_limiter);
         self
     }
 }

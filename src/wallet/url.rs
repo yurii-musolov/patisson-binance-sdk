@@ -46,5 +46,4 @@ impl std::fmt::Display for Path {
     }
 }
 
-pub const HEADER_RETRY_AFTER: &str = "Retry-After";
 pub const HEADER_X_MBX_APIKEY: &str = "X-MBX-APIKEY";

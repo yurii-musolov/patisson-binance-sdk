@@ -1,4 +1,8 @@
+use std::time::Duration;
+
 use serde::Deserialize;
+
+use crate::{http::SendError, rate_limit::RateLimitSource};
 
 // Numeric error codes are universal across Binance products; the type lives
 // at the crate root. Re-exported here so `binance::wallet::ErrorCode` resolves.
@@ -10,6 +14,13 @@ pub enum Error {
     Io(std::io::Error),
     Msg(String),
     Reqwest(reqwest::Error),
+    /// Either local budget exhausted (no request was sent) or the server
+    /// returned 429/418. `source` distinguishes; `retry_after` is the
+    /// minimum back-off before retrying.
+    RateLimited {
+        retry_after: Duration,
+        source: RateLimitSource,
+    },
     SerdeJson(serde_json::Error),
     SerdeUrlEncoded(serde_urlencoded::ser::Error),
     SerdePathToError(serde_path_to_error::Error<serde_json::Error>),
@@ -22,6 +33,14 @@ impl std::fmt::Display for Error {
             Error::Io(error) => write!(f, "I/O error: {error}"),
             Error::Msg(msg) => write!(f, "{msg}"),
             Error::Reqwest(error) => write!(f, "reqwest error: {error}"),
+            Error::RateLimited {
+                retry_after,
+                source,
+            } => write!(
+                f,
+                "rate limited ({source:?}): retry after {}s",
+                retry_after.as_secs()
+            ),
             Error::SerdeJson(error) => write!(f, "serde_json error: {error}"),
             Error::SerdeUrlEncoded(error) => write!(f, "serde_urlencoded error: {error}"),
             Error::SerdePathToError(error) => write!(
@@ -30,6 +49,21 @@ impl std::fmt::Display for Error {
                 error.path(),
                 error.inner()
             ),
+        }
+    }
+}
+
+impl From<SendError> for Error {
+    fn from(err: SendError) -> Self {
+        match err {
+            SendError::Reqwest(e) => Self::Reqwest(e),
+            SendError::RateLimited {
+                retry_after,
+                source,
+            } => Self::RateLimited {
+                retry_after,
+                source,
+            },
         }
     }
 }

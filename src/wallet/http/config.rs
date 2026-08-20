@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 use reqwest::header::HeaderMap;
 
-use crate::SensitiveString;
+use crate::{SensitiveString, rate_limit::RateLimiter};
 
 /// Configuration for [`super::PrivateClient`].
 ///
@@ -13,6 +15,7 @@ pub struct PrivateConfig {
     pub api_key: SensitiveString,
     pub api_secret: SensitiveString,
     pub headers: Option<HeaderMap>,
+    pub rate_limiter: Option<Arc<RateLimiter>>,
 }
 
 impl PrivateConfig {
@@ -26,6 +29,7 @@ impl PrivateConfig {
             api_key,
             api_secret,
             headers: None,
+            rate_limiter: None,
         }
     }
 
@@ -35,6 +39,14 @@ impl PrivateConfig {
                 .get_or_insert_with(HeaderMap::new)
                 .extend(headers);
         }
+        self
+    }
+
+    /// Attach an optional client-side rate limiter. Wallet endpoints all
+    /// share the spot REQUEST_WEIGHT bucket per IP, so you typically want to
+    /// share one `Arc<RateLimiter>` across `spot::http::*Client` and this client.
+    pub fn rate_limiter(mut self, rate_limiter: Arc<RateLimiter>) -> Self {
+        self.rate_limiter = Some(rate_limiter);
         self
     }
 }

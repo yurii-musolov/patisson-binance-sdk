@@ -6,15 +6,12 @@ use crate::{
     wallet::{DepositStatus, WithdrawStatus},
 };
 
+pub use crate::http::ParsedHeaders as Headers;
+
 #[derive(Debug, PartialEq)]
 pub struct Response<T> {
     pub result: T,
     pub headers: Headers,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Headers {
-    pub retry_after: Option<Timestamp>,
 }
 
 // ===== Coins / capital config =====

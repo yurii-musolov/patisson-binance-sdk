@@ -9,15 +9,12 @@ use crate::{
     },
 };
 
+pub use crate::http::ParsedHeaders as Headers;
+
 #[derive(Debug, PartialEq)]
 pub struct Response<T> {
     pub result: T,
     pub headers: Headers,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Headers {
-    pub retry_after: Option<Timestamp>,
 }
 
 // ===== Margin metadata =====
@@ -114,7 +111,7 @@ pub struct NewOrderRequest {
     is_isolated: Option<IsIsolated>,
     side: OrderSide,
     #[serde(rename = "type")]
-    order_type: OrderType,
+    r#type: OrderType,
     quantity: Option<Decimal>,
     quote_order_qty: Option<Decimal>,
     price: Option<Decimal>,
@@ -137,7 +134,7 @@ impl NewOrderRequest {
         Self {
             symbol: symbol.into(),
             side,
-            order_type,
+            r#type: order_type,
             is_isolated: None,
             quantity: None,
             quote_order_qty: None,
@@ -235,7 +232,7 @@ pub struct NewOrderResponseResult {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub order_type: OrderType,
+    pub r#type: OrderType,
     pub side: OrderSide,
     pub margin_buy_borrow_amount: Option<Decimal>,
     pub margin_buy_borrow_asset: Option<String>,
@@ -257,7 +254,7 @@ pub struct NewOrderResponseFull {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub order_type: OrderType,
+    pub r#type: OrderType,
     pub side: OrderSide,
     pub fills: Vec<OrderFill>,
     pub margin_buy_borrow_amount: Option<Decimal>,
@@ -329,7 +326,7 @@ pub struct Order {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub order_type: OrderType,
+    pub r#type: OrderType,
     pub side: OrderSide,
     pub stop_price: Option<Decimal>,
     pub iceberg_qty: Option<Decimal>,
