@@ -2,8 +2,7 @@ use reqwest::{Method, header::HeaderMap};
 
 use crate::{
     SensitiveString,
-    crypto::sign_query,
-    http::{HttpClient, RawResponse, SendError},
+    http::{self, HttpClient, RawResponse, SendError},
     margin::{
         ApiError, Error, HEADER_X_MBX_APIKEY, Path,
         http::{
@@ -20,8 +19,6 @@ use crate::{
         },
     },
     rate_limit::Cost,
-    serde::{deserialize_json, serialize_query},
-    timestamp,
 };
 
 // Per-endpoint weights (Binance Margin REST docs). These charge against the
@@ -88,12 +85,15 @@ impl PrivateClient {
         &self,
         params: GetAllMarginAssetsParams,
     ) -> Result<Response<Vec<MarginAsset>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::AllAssets));
-        decode(self.http.send_raw(req, COST_ALL_ASSETS).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::AllAssets,
+            &params,
+            COST_ALL_ASSETS,
+        )
+        .await
     }
 }
 
@@ -104,12 +104,15 @@ impl PrivateClient {
         &self,
         params: GetMarginAccountParams,
     ) -> Result<Response<MarginAccount>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::Account));
-        decode(self.http.send_raw(req, COST_MARGIN_ACCOUNT).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::Account,
+            &params,
+            COST_MARGIN_ACCOUNT,
+        )
+        .await
     }
 }
 
@@ -125,22 +128,28 @@ impl PrivateClient {
         &self,
         params: NewOrderRequest,
     ) -> Result<Response<NewOrderResponse>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::POST, format!("{}?{query}", Path::Order));
-        decode(self.http.send_raw(req, COST_NEW_ORDER).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::POST,
+            Path::Order,
+            &params,
+            COST_NEW_ORDER,
+        )
+        .await
     }
 
     /// Look up a single margin order by `order_id` or `orig_client_order_id`.
     pub async fn query_order(&self, params: QueryOrderParams) -> Result<Response<Order>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::Order));
-        decode(self.http.send_raw(req, COST_QUERY_ORDER).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::Order,
+            &params,
+            COST_QUERY_ORDER,
+        )
+        .await
     }
 
     /// Cancel an active margin order.
@@ -148,12 +157,15 @@ impl PrivateClient {
         &self,
         params: CancelOrderParams,
     ) -> Result<Response<CanceledOrder>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::DELETE, format!("{}?{query}", Path::Order));
-        decode(self.http.send_raw(req, COST_CANCEL_ORDER).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::DELETE,
+            Path::Order,
+            &params,
+            COST_CANCEL_ORDER,
+        )
+        .await
     }
 
     /// Cancel all active orders on a symbol, including OCO orders.
@@ -161,12 +173,15 @@ impl PrivateClient {
         &self,
         params: CancelAllOpenOrdersParams,
     ) -> Result<Response<Vec<CanceledOrderOrList>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::DELETE, format!("{}?{query}", Path::OpenOrders));
-        decode(self.http.send_raw(req, COST_CANCEL_ALL_OPEN_ORDERS).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::DELETE,
+            Path::OpenOrders,
+            &params,
+            COST_CANCEL_ALL_OPEN_ORDERS,
+        )
+        .await
     }
 
     /// Get all open orders. Careful when accessing this with no symbol —
@@ -180,12 +195,15 @@ impl PrivateClient {
         } else {
             COST_OPEN_ORDERS_ALL
         };
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::OpenOrders));
-        decode(self.http.send_raw(req, cost).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::OpenOrders,
+            &params,
+            cost,
+        )
+        .await
     }
 
     /// Get all orders on a symbol: active, canceled, or filled.
@@ -193,12 +211,15 @@ impl PrivateClient {
         &self,
         params: GetAllOrdersParams,
     ) -> Result<Response<Vec<Order>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::AllOrders));
-        decode(self.http.send_raw(req, COST_ALL_ORDERS).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::AllOrders,
+            &params,
+            COST_ALL_ORDERS,
+        )
+        .await
     }
 
     /// Get trades for a specific margin account and symbol.
@@ -206,12 +227,15 @@ impl PrivateClient {
         &self,
         params: GetAccountTradeListParams,
     ) -> Result<Response<Vec<Trade>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::MyTrades));
-        decode(self.http.send_raw(req, COST_MY_TRADES).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::MyTrades,
+            &params,
+            COST_MY_TRADES,
+        )
+        .await
     }
 }
 
@@ -222,13 +246,15 @@ impl PrivateClient {
         &self,
         params: GetForceLiquidationRecordParams,
     ) -> Result<Response<ForceLiquidationRecords>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self.http.request(
+        send_signed(
+            &self.http,
+            &self.api_secret,
             Method::GET,
-            format!("{}?{query}", Path::ForceLiquidationRec),
-        );
-        decode(self.http.send_raw(req, COST_FORCE_LIQUIDATION_REC).await)
+            Path::ForceLiquidationRec,
+            &params,
+            COST_FORCE_LIQUIDATION_REC,
+        )
+        .await
     }
 }
 
@@ -242,12 +268,15 @@ impl PrivateClient {
         &self,
         params: GetMaxBorrowableParams,
     ) -> Result<Response<MaxBorrowable>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::MaxBorrowable));
-        decode(self.http.send_raw(req, COST_MAX_BORROWABLE).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::MaxBorrowable,
+            &params,
+            COST_MAX_BORROWABLE,
+        )
+        .await
     }
 
     /// Execute a borrow or repay against the cross- or isolated-margin
@@ -257,12 +286,15 @@ impl PrivateClient {
         &self,
         params: BorrowRepayParams,
     ) -> Result<Response<BorrowRepayResult>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::POST, format!("{}?{query}", Path::BorrowRepay));
-        decode(self.http.send_raw(req, COST_BORROW_REPAY).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::POST,
+            Path::BorrowRepay,
+            &params,
+            COST_BORROW_REPAY,
+        )
+        .await
     }
 
     /// Query past borrow/repay records for the margin account.
@@ -270,12 +302,15 @@ impl PrivateClient {
         &self,
         params: GetBorrowRepayRecordsParams,
     ) -> Result<Response<BorrowRepayRecords>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::BorrowRepay));
-        decode(self.http.send_raw(req, COST_BORROW_REPAY_RECORDS).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::BorrowRepay,
+            &params,
+            COST_BORROW_REPAY_RECORDS,
+        )
+        .await
     }
 
     /// Query the daily interest rate history charged for an asset.
@@ -283,13 +318,15 @@ impl PrivateClient {
         &self,
         params: GetMarginInterestRateHistoryParams,
     ) -> Result<Response<Vec<InterestRateRecord>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self.http.request(
+        send_signed(
+            &self.http,
+            &self.api_secret,
             Method::GET,
-            format!("{}?{query}", Path::InterestRateHistory),
-        );
-        decode(self.http.send_raw(req, COST_INTEREST_RATE_HISTORY).await)
+            Path::InterestRateHistory,
+            &params,
+            COST_INTEREST_RATE_HISTORY,
+        )
+        .await
     }
 
     /// Query the maximum amount transferable out of the margin account for
@@ -298,12 +335,15 @@ impl PrivateClient {
         &self,
         params: GetMaxTransferOutAmountParams,
     ) -> Result<Response<MaxTransferable>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::MaxTransferable));
-        decode(self.http.send_raw(req, COST_MAX_TRANSFERABLE).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::MaxTransferable,
+            &params,
+            COST_MAX_TRANSFERABLE,
+        )
+        .await
     }
 }
 
@@ -316,12 +356,15 @@ impl PrivateClient {
         &self,
         params: GetIsolatedMarginAccountParams,
     ) -> Result<Response<IsolatedMarginAccount>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::IsolatedAccount));
-        decode(self.http.send_raw(req, COST_ISOLATED_ACCOUNT).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::IsolatedAccount,
+            &params,
+            COST_ISOLATED_ACCOUNT,
+        )
+        .await
     }
 }
 
@@ -333,12 +376,15 @@ impl PrivateClient {
         &self,
         params: GetAllIsolatedMarginSymbolsParams,
     ) -> Result<Response<Vec<IsolatedMarginSymbol>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::IsolatedAllPairs));
-        decode(self.http.send_raw(req, COST_ISOLATED_SYMBOLS).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::IsolatedAllPairs,
+            &params,
+            COST_ISOLATED_SYMBOLS,
+        )
+        .await
     }
 
     /// Get the current price index for an isolated-margin symbol — used to
@@ -350,11 +396,14 @@ impl PrivateClient {
         &self,
         params: GetPriceIndexParams,
     ) -> Result<Response<PriceIndex>, Error> {
-        let query = serialize_query(&params)?;
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::PriceIndex));
-        decode(self.http.send_raw(req, COST_PRICE_INDEX).await)
+        send_query(
+            &self.http,
+            Method::GET,
+            Path::PriceIndex,
+            &params,
+            COST_PRICE_INDEX,
+        )
+        .await
     }
 }
 
@@ -362,7 +411,8 @@ impl PrivateClient {
 //
 // Unlike the trading endpoints, listenKey operations are authenticated by
 // API key alone (`X-MBX-APIKEY` header). They do NOT take `timestamp` /
-// `signature`, so these methods skip `sign_query` entirely.
+// `signature`, so these methods go through `send_query` (unsigned) rather
+// than `send_signed`.
 impl PrivateClient {
     /// Create a new listenKey for the cross-margin user data stream.
     ///
@@ -380,11 +430,14 @@ impl PrivateClient {
         &self,
         listen_key: &str,
     ) -> Result<Response<EmptyResponse>, Error> {
-        let req = self
-            .http
-            .request(Method::PUT, Path::UserDataStream)
-            .query(&[("listenKey", listen_key)]);
-        decode(self.http.send_raw(req, COST_LISTEN_KEY).await)
+        send_query(
+            &self.http,
+            Method::PUT,
+            Path::UserDataStream,
+            &[("listenKey", listen_key)],
+            COST_LISTEN_KEY,
+        )
+        .await
     }
 
     /// Close a cross-margin listenKey. The WebSocket connection associated
@@ -393,11 +446,14 @@ impl PrivateClient {
         &self,
         listen_key: &str,
     ) -> Result<Response<EmptyResponse>, Error> {
-        let req = self
-            .http
-            .request(Method::DELETE, Path::UserDataStream)
-            .query(&[("listenKey", listen_key)]);
-        decode(self.http.send_raw(req, COST_LISTEN_KEY).await)
+        send_query(
+            &self.http,
+            Method::DELETE,
+            Path::UserDataStream,
+            &[("listenKey", listen_key)],
+            COST_LISTEN_KEY,
+        )
+        .await
     }
 }
 
@@ -410,11 +466,14 @@ impl PrivateClient {
         &self,
         symbol: &str,
     ) -> Result<Response<ListenKey>, Error> {
-        let req = self
-            .http
-            .request(Method::POST, Path::UserDataStreamIsolated)
-            .query(&[("symbol", symbol)]);
-        decode(self.http.send_raw(req, COST_LISTEN_KEY).await)
+        send_query(
+            &self.http,
+            Method::POST,
+            Path::UserDataStreamIsolated,
+            &[("symbol", symbol)],
+            COST_LISTEN_KEY,
+        )
+        .await
     }
 
     /// Extend an isolated-margin listenKey's lifetime by 60 minutes.
@@ -423,11 +482,14 @@ impl PrivateClient {
         symbol: &str,
         listen_key: &str,
     ) -> Result<Response<EmptyResponse>, Error> {
-        let req = self
-            .http
-            .request(Method::PUT, Path::UserDataStreamIsolated)
-            .query(&[("symbol", symbol), ("listenKey", listen_key)]);
-        decode(self.http.send_raw(req, COST_LISTEN_KEY).await)
+        send_query(
+            &self.http,
+            Method::PUT,
+            Path::UserDataStreamIsolated,
+            &[("symbol", symbol), ("listenKey", listen_key)],
+            COST_LISTEN_KEY,
+        )
+        .await
     }
 
     /// Close an isolated-margin listenKey.
@@ -436,29 +498,54 @@ impl PrivateClient {
         symbol: &str,
         listen_key: &str,
     ) -> Result<Response<EmptyResponse>, Error> {
-        let req = self
-            .http
-            .request(Method::DELETE, Path::UserDataStreamIsolated)
-            .query(&[("symbol", symbol), ("listenKey", listen_key)]);
-        decode(self.http.send_raw(req, COST_LISTEN_KEY).await)
+        send_query(
+            &self.http,
+            Method::DELETE,
+            Path::UserDataStreamIsolated,
+            &[("symbol", symbol), ("listenKey", listen_key)],
+            COST_LISTEN_KEY,
+        )
+        .await
     }
 }
 
+/// Thin pins of the shared `crate::http` primitives (see `src/http.rs`) onto
+/// this product's own `ApiError`/`Error` types, so every endpoint above can
+/// call `decode`/`send_signed`/`send_query` directly instead of hand-copying
+/// the serialize → sign → request → send → decode sequence.
 fn decode<T>(raw: Result<RawResponse, SendError>) -> Result<Response<T>, Error>
 where
     T: serde::de::DeserializeOwned,
 {
-    let raw = raw?;
-    if !raw.status.is_success() {
-        #[cfg(debug_assertions)]
-        tracing::debug!(status = ?raw.status, body = ?raw.body, "request failed");
+    http::decode::<T, ApiError, Error>(raw)
+}
 
-        let api_err = deserialize_json::<ApiError>(&raw.body)?;
-        return Err(Error::Api(api_err));
-    }
-    let result = deserialize_json(&raw.body)?;
-    Ok(Response {
-        result,
-        headers: raw.headers,
-    })
+async fn send_signed<T, P>(
+    http_client: &HttpClient,
+    api_secret: &SensitiveString,
+    method: Method,
+    path: impl std::fmt::Display,
+    params: &P,
+    cost: Cost,
+) -> Result<Response<T>, Error>
+where
+    P: serde::Serialize,
+    T: serde::de::DeserializeOwned,
+{
+    http::send_signed::<T, P, ApiError, Error>(http_client, api_secret, method, path, params, cost)
+        .await
+}
+
+async fn send_query<T, P>(
+    http_client: &HttpClient,
+    method: Method,
+    path: impl std::fmt::Display,
+    params: &P,
+    cost: Cost,
+) -> Result<Response<T>, Error>
+where
+    P: serde::Serialize,
+    T: serde::de::DeserializeOwned,
+{
+    http::send_query::<T, P, ApiError, Error>(http_client, method, path, params, cost).await
 }

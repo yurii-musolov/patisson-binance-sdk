@@ -2,7 +2,6 @@ use reqwest::{Method, header::HeaderMap};
 
 use crate::{
     SensitiveString,
-    crypto::sign_query,
     derivatives::usds_margined_futures::{
         ApiError, Error, HEADER_X_MBX_APIKEY, Path,
         http::{
@@ -19,10 +18,8 @@ use crate::{
             SymbolPriceTicker, TestConnectivity,
         },
     },
-    http::{HttpClient, RawResponse, SendError},
+    http::{self, HttpClient, RawResponse, SendError},
     rate_limit::Cost,
-    serde::{deserialize_json, serialize_query},
-    timestamp,
 };
 
 // Per-endpoint weights (Binance USDⓈ-M Futures REST docs). These charge
@@ -105,16 +102,14 @@ impl PublicClient {
         params: GetOrderBookParams,
     ) -> Result<Response<OrderBook>, Error> {
         let cost = cost_depth(params.limit);
-        let req = self.http.request(Method::GET, Path::Depth).query(&params);
-        decode(self.http.send_raw(req, cost).await)
+        send_query(&self.http, Method::GET, Path::Depth, &params, cost).await
     }
 
     pub async fn get_kline_list(
         &self,
         params: GetKlineListParams,
     ) -> Result<Response<Vec<Kline>>, Error> {
-        let req = self.http.request(Method::GET, Path::KLines).query(&params);
-        decode(self.http.send_raw(req, COST_KLINES).await)
+        send_query(&self.http, Method::GET, Path::KLines, &params, COST_KLINES).await
     }
 
     /// Latest price for a symbol.
@@ -122,11 +117,14 @@ impl PublicClient {
         &self,
         params: GetSymbolPriceTickerParams,
     ) -> Result<Response<SymbolPriceTicker>, Error> {
-        let req = self
-            .http
-            .request(Method::GET, Path::TickerPrice)
-            .query(&params);
-        decode(self.http.send_raw(req, COST_TICKER_PRICE).await)
+        send_query(
+            &self.http,
+            Method::GET,
+            Path::TickerPrice,
+            &params,
+            COST_TICKER_PRICE,
+        )
+        .await
     }
 
     /// Best price/qty on the order book for a symbol.
@@ -134,11 +132,14 @@ impl PublicClient {
         &self,
         params: GetSymbolOrderBookTickerParams,
     ) -> Result<Response<SymbolOrderBookTicker>, Error> {
-        let req = self
-            .http
-            .request(Method::GET, Path::TickerBookTicker)
-            .query(&params);
-        decode(self.http.send_raw(req, COST_TICKER_BOOK).await)
+        send_query(
+            &self.http,
+            Method::GET,
+            Path::TickerBookTicker,
+            &params,
+            COST_TICKER_BOOK,
+        )
+        .await
     }
 
     /// Mark price, index price, and funding rate for a symbol.
@@ -146,11 +147,14 @@ impl PublicClient {
         &self,
         params: GetMarkPriceParams,
     ) -> Result<Response<MarkPrice>, Error> {
-        let req = self
-            .http
-            .request(Method::GET, Path::PremiumIndex)
-            .query(&params);
-        decode(self.http.send_raw(req, COST_MARK_PRICE).await)
+        send_query(
+            &self.http,
+            Method::GET,
+            Path::PremiumIndex,
+            &params,
+            COST_MARK_PRICE,
+        )
+        .await
     }
 }
 
@@ -186,31 +190,40 @@ impl PrivateClient {
         &self,
         params: NewOrderRequest,
     ) -> Result<Response<NewOrderResponse>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::POST, format!("{}?{query}", Path::Order));
-        decode(self.http.send_raw(req, COST_NEW_ORDER).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::POST,
+            Path::Order,
+            &params,
+            COST_NEW_ORDER,
+        )
+        .await
     }
 
     pub async fn query_order(&self, params: QueryOrderParams) -> Result<Response<Order>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::Order));
-        decode(self.http.send_raw(req, COST_QUERY_ORDER).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::Order,
+            &params,
+            COST_QUERY_ORDER,
+        )
+        .await
     }
 
     /// Cancel an active order.
     pub async fn cancel_order(&self, params: CancelOrderParams) -> Result<Response<Order>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::DELETE, format!("{}?{query}", Path::Order));
-        decode(self.http.send_raw(req, COST_CANCEL_ORDER).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::DELETE,
+            Path::Order,
+            &params,
+            COST_CANCEL_ORDER,
+        )
+        .await
     }
 
     /// Cancel all open orders on a symbol, including OCO / conditional orders.
@@ -218,12 +231,15 @@ impl PrivateClient {
         &self,
         params: CancelAllOpenOrdersParams,
     ) -> Result<Response<ActionResult>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::DELETE, format!("{}?{query}", Path::AllOpenOrders));
-        decode(self.http.send_raw(req, COST_CANCEL_ALL_OPEN_ORDERS).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::DELETE,
+            Path::AllOpenOrders,
+            &params,
+            COST_CANCEL_ALL_OPEN_ORDERS,
+        )
+        .await
     }
 
     /// Current open orders. If `symbol` is omitted, returns open orders for
@@ -237,12 +253,15 @@ impl PrivateClient {
         } else {
             COST_OPEN_ORDERS_ALL
         };
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::OpenOrders));
-        decode(self.http.send_raw(req, cost).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::OpenOrders,
+            &params,
+            cost,
+        )
+        .await
     }
 
     /// All orders (active, canceled, or filled) for a symbol.
@@ -250,12 +269,15 @@ impl PrivateClient {
         &self,
         params: GetAllOrdersParams,
     ) -> Result<Response<Vec<Order>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::AllOrders));
-        decode(self.http.send_raw(req, COST_ALL_ORDERS).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::AllOrders,
+            &params,
+            COST_ALL_ORDERS,
+        )
+        .await
     }
 
     /// Trades for a specific account and symbol.
@@ -263,12 +285,15 @@ impl PrivateClient {
         &self,
         params: GetAccountTradeListParams,
     ) -> Result<Response<Vec<AccountTrade>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::UserTrades));
-        decode(self.http.send_raw(req, COST_ACCOUNT_TRADE_LIST).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::UserTrades,
+            &params,
+            COST_ACCOUNT_TRADE_LIST,
+        )
+        .await
     }
 
     /// Change initial leverage for a symbol.
@@ -276,12 +301,15 @@ impl PrivateClient {
         &self,
         params: ChangeInitialLeverageParams,
     ) -> Result<Response<Leverage>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::POST, format!("{}?{query}", Path::Leverage));
-        decode(self.http.send_raw(req, COST_CHANGE_LEVERAGE).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::POST,
+            Path::Leverage,
+            &params,
+            COST_CHANGE_LEVERAGE,
+        )
+        .await
     }
 
     /// Change margin type (ISOLATED / CROSSED) for a symbol. No open
@@ -290,12 +318,15 @@ impl PrivateClient {
         &self,
         params: ChangeMarginTypeParams,
     ) -> Result<Response<ActionResult>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::POST, format!("{}?{query}", Path::MarginType));
-        decode(self.http.send_raw(req, COST_CHANGE_MARGIN_TYPE).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::POST,
+            Path::MarginType,
+            &params,
+            COST_CHANGE_MARGIN_TYPE,
+        )
+        .await
     }
 
     /// Change position mode (Hedge / One-way) for all symbols. No open
@@ -304,12 +335,15 @@ impl PrivateClient {
         &self,
         params: ChangePositionModeParams,
     ) -> Result<Response<ActionResult>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::POST, format!("{}?{query}", Path::PositionSideDual));
-        decode(self.http.send_raw(req, COST_CHANGE_POSITION_MODE).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::POST,
+            Path::PositionSideDual,
+            &params,
+            COST_CHANGE_POSITION_MODE,
+        )
+        .await
     }
 
     /// Get current position mode (Hedge / One-way) on this account.
@@ -317,12 +351,15 @@ impl PrivateClient {
         &self,
         params: GetCurrentPositionModeParams,
     ) -> Result<Response<PositionMode>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::PositionSideDual));
-        decode(self.http.send_raw(req, COST_GET_POSITION_MODE).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::PositionSideDual,
+            &params,
+            COST_GET_POSITION_MODE,
+        )
+        .await
     }
 
     /// Position information (v3). If `symbol` is omitted, returns positions
@@ -331,12 +368,15 @@ impl PrivateClient {
         &self,
         params: GetPositionInformationParams,
     ) -> Result<Response<Vec<Position>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::PositionRiskV3));
-        decode(self.http.send_raw(req, COST_POSITION_INFORMATION).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::PositionRiskV3,
+            &params,
+            COST_POSITION_INFORMATION,
+        )
+        .await
     }
 }
 
@@ -346,12 +386,15 @@ impl PrivateClient {
         &self,
         params: GetAccountInformationParams,
     ) -> Result<Response<AccountInformation>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::AccountV3));
-        decode(self.http.send_raw(req, COST_ACCOUNT).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::AccountV3,
+            &params,
+            COST_ACCOUNT,
+        )
+        .await
     }
 
     /// Account balance (v2), one entry per asset.
@@ -359,12 +402,15 @@ impl PrivateClient {
         &self,
         params: GetAccountBalanceParams,
     ) -> Result<Response<Vec<AccountBalance>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::BalanceV2));
-        decode(self.http.send_raw(req, COST_ACCOUNT_BALANCE).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::BalanceV2,
+            &params,
+            COST_ACCOUNT_BALANCE,
+        )
+        .await
     }
 }
 
@@ -394,21 +440,43 @@ impl PrivateClient {
     }
 }
 
+/// Thin pins of the shared `crate::http` primitives (see `src/http.rs`) onto
+/// this product's own `ApiError`/`Error` types, so every endpoint above can
+/// call `decode`/`send_signed`/`send_query` directly instead of hand-copying
+/// the serialize → sign → request → send → decode sequence.
 fn decode<T>(raw: Result<RawResponse, SendError>) -> Result<Response<T>, Error>
 where
     T: serde::de::DeserializeOwned,
 {
-    let raw = raw?;
-    if !raw.status.is_success() {
-        #[cfg(debug_assertions)]
-        tracing::debug!(status = ?raw.status, body = ?raw.body, "request failed");
+    http::decode::<T, ApiError, Error>(raw)
+}
 
-        let api_err = deserialize_json::<ApiError>(&raw.body)?;
-        return Err(Error::Api(api_err));
-    }
-    let result = deserialize_json(&raw.body)?;
-    Ok(Response {
-        result,
-        headers: raw.headers,
-    })
+async fn send_signed<T, P>(
+    http_client: &HttpClient,
+    api_secret: &SensitiveString,
+    method: Method,
+    path: impl std::fmt::Display,
+    params: &P,
+    cost: Cost,
+) -> Result<Response<T>, Error>
+where
+    P: serde::Serialize,
+    T: serde::de::DeserializeOwned,
+{
+    http::send_signed::<T, P, ApiError, Error>(http_client, api_secret, method, path, params, cost)
+        .await
+}
+
+async fn send_query<T, P>(
+    http_client: &HttpClient,
+    method: Method,
+    path: impl std::fmt::Display,
+    params: &P,
+    cost: Cost,
+) -> Result<Response<T>, Error>
+where
+    P: serde::Serialize,
+    T: serde::de::DeserializeOwned,
+{
+    http::send_query::<T, P, ApiError, Error>(http_client, method, path, params, cost).await
 }

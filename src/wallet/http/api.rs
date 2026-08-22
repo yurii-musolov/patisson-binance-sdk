@@ -6,13 +6,7 @@ use crate::{
     wallet::{DepositStatus, TransferStatus, UniversalTransferType, WithdrawStatus},
 };
 
-pub use crate::http::ParsedHeaders as Headers;
-
-#[derive(Debug, PartialEq)]
-pub struct Response<T> {
-    pub result: T,
-    pub headers: Headers,
-}
+pub use crate::http::{ParsedHeaders as Headers, Response};
 
 // ===== Coins / capital config =====
 
