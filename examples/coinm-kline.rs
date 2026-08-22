@@ -19,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let cfg = PublicConfig::new(BASE_URL_API);
-    let client = PublicClient::new(cfg);
+    let client = PublicClient::new(cfg)?;
 
     // COIN-M symbols carry a contract suffix (e.g. perpetual is "_PERP").
     let params = GetKlineListParams::new("BTCUSD_PERP", KlineInterval::Minute1).limit(2);

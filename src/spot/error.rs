@@ -12,6 +12,9 @@ pub use crate::ErrorCode;
 pub enum Error {
     Api(ApiError),
     Io(std::io::Error),
+    /// The configured API key isn't a valid HTTP header value (e.g. contains
+    /// a newline or non-ASCII byte).
+    InvalidApiKey(reqwest::header::InvalidHeaderValue),
     Msg(String),
     Reqwest(reqwest::Error),
     /// Either local budget exhausted (no request was sent) or the server
@@ -20,6 +23,9 @@ pub enum Error {
     RateLimited {
         retry_after: Duration,
         source: RateLimitSource,
+        /// Binance's decoded error body when the server returned it
+        /// (429/418); `None` when the request was rejected locally.
+        api_err: Option<ApiError>,
     },
     SerdeJson(serde_json::Error),
     SerdeUrlEncoded(serde_urlencoded::ser::Error),
@@ -31,16 +37,24 @@ impl std::fmt::Display for Error {
         match self {
             Error::Api(error) => write!(f, "API error: code: {}, msg: {}", error.code, error.msg),
             Error::Io(error) => write!(f, "I/O error: {error}"),
+            Error::InvalidApiKey(error) => write!(f, "invalid API key: {error}"),
             Error::Msg(msg) => write!(f, "{msg}"),
             Error::Reqwest(error) => write!(f, "reqwest error: {error}"),
             Error::RateLimited {
                 retry_after,
                 source,
-            } => write!(
-                f,
-                "rate limited ({source:?}): retry after {}s",
-                retry_after.as_secs()
-            ),
+                api_err,
+            } => {
+                write!(
+                    f,
+                    "rate limited ({source:?}): retry after {}s",
+                    retry_after.as_secs()
+                )?;
+                if let Some(err) = api_err {
+                    write!(f, " (code: {}, msg: {})", err.code, err.msg)?;
+                }
+                Ok(())
+            }
             Error::SerdeJson(error) => write!(f, "serde_json error: {error}"),
             Error::SerdeUrlEncoded(error) => write!(f, "serde_urlencoded error: {error}"),
             Error::SerdePathToError(error) => write!(
@@ -60,9 +74,11 @@ impl From<SendError> for Error {
             SendError::RateLimited {
                 retry_after,
                 source,
+                body,
             } => Self::RateLimited {
                 retry_after,
                 source,
+                api_err: body.and_then(|b| crate::serde::deserialize_json::<ApiError>(&b).ok()),
             },
         }
     }
@@ -85,6 +101,12 @@ impl From<ApiError> for Error {
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
         Error::Io(err)
+    }
+}
+
+impl From<reqwest::header::InvalidHeaderValue> for Error {
+    fn from(err: reqwest::header::InvalidHeaderValue) -> Self {
+        Error::InvalidApiKey(err)
     }
 }
 

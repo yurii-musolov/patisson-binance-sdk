@@ -27,7 +27,7 @@ async fn main() -> anyhow::Result<()> {
     let api_key = SensitiveString::from("unused");
     let api_secret = SensitiveString::from("unused");
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
-    let client = PrivateClient::new(cfg);
+    let client = PrivateClient::new(cfg)?;
 
     let response = client.system_status().await?;
     info!(?response, "response");

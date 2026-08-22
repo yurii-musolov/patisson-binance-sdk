@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 use crate::{
     Timestamp,
     margin::{
-        BorrowRepayType, IsIsolated, MarginLevelStatus, OrderResponseType, OrderSide, OrderStatus,
-        OrderType, STPMode, SideEffectType, TimeInForce,
+        BorrowRepayType, ContingencyType, IsIsolated, MarginLevelStatus, OrderListOrderStatus,
+        OrderListStatus, OrderResponseType, OrderSide, OrderStatus, OrderType, STPMode,
+        SideEffectType, TimeInForce,
     },
 };
 
@@ -111,7 +112,7 @@ pub struct NewOrderRequest {
     is_isolated: Option<IsIsolated>,
     side: OrderSide,
     #[serde(rename = "type")]
-    r#type: OrderType,
+    order_type: OrderType,
     quantity: Option<Decimal>,
     quote_order_qty: Option<Decimal>,
     price: Option<Decimal>,
@@ -134,7 +135,7 @@ impl NewOrderRequest {
         Self {
             symbol: symbol.into(),
             side,
-            r#type: order_type,
+            order_type,
             is_isolated: None,
             quantity: None,
             quote_order_qty: None,
@@ -232,7 +233,7 @@ pub struct NewOrderResponseResult {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub r#type: OrderType,
+    pub order_type: OrderType,
     pub side: OrderSide,
     pub margin_buy_borrow_amount: Option<Decimal>,
     pub margin_buy_borrow_asset: Option<String>,
@@ -254,7 +255,7 @@ pub struct NewOrderResponseFull {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub r#type: OrderType,
+    pub order_type: OrderType,
     pub side: OrderSide,
     pub fills: Vec<OrderFill>,
     pub margin_buy_borrow_amount: Option<Decimal>,
@@ -326,7 +327,7 @@ pub struct Order {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub r#type: OrderType,
+    pub order_type: OrderType,
     pub side: OrderSide,
     pub stop_price: Option<Decimal>,
     pub iceberg_qty: Option<Decimal>,
@@ -437,8 +438,48 @@ pub struct CanceledOrder {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub r#type: OrderType,
+    pub order_type: OrderType,
     pub side: OrderSide,
+}
+
+/// One entry of [`CancelAllOpenOrdersParams`]'s response. `cancel_order`
+/// (single order) can only ever cancel a plain order, but
+/// `cancel_all_open_orders` cancels everything on the symbol at once —
+/// including OCO order lists, whose entries are shaped completely
+/// differently (no top-level `orderId`/`price`/`status` at all). `untagged`
+/// tries [`CanceledOrder`] first and falls back to [`CanceledOrderList`].
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum CanceledOrderOrList {
+    Order(CanceledOrder),
+    OrderList(CanceledOrderList),
+}
+
+/// Minimal per-leg reference inside a canceled order list's `orders` array —
+/// distinct from [`CanceledOrder`], which is the shape of each entry in
+/// `order_reports` instead.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderListOrderRef {
+    pub symbol: String,
+    pub order_id: i64,
+    pub client_order_id: String,
+}
+
+/// An OCO order list canceled as a side effect of `cancel_all_open_orders`.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CanceledOrderList {
+    pub order_list_id: i64,
+    pub contingency_type: ContingencyType,
+    pub list_status_type: OrderListStatus,
+    pub list_order_status: OrderListOrderStatus,
+    pub list_client_order_id: String,
+    pub transaction_time: Timestamp,
+    pub symbol: String,
+    pub is_isolated: bool,
+    pub orders: Vec<OrderListOrderRef>,
+    pub order_reports: Vec<CanceledOrder>,
 }
 
 // ===== Cancel all open orders on a symbol =====
@@ -475,7 +516,9 @@ impl CancelAllOpenOrdersParams {
 #[derive(Debug, Serialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GetOpenOrdersParams {
-    symbol: Option<String>,
+    /// If omitted, open orders for all symbols are returned — much heavier;
+    /// see `COST_OPEN_ORDERS_ALL` at the call site.
+    pub(super) symbol: Option<String>,
     is_isolated: Option<IsIsolated>,
     recv_window: Option<u64>,
 }
@@ -637,7 +680,7 @@ pub struct BorrowRepayParams {
     is_isolated: IsIsolated,
     amount: Decimal,
     #[serde(rename = "type")]
-    r#type: BorrowRepayType,
+    order_type: BorrowRepayType,
     /// Required for isolated margin: the symbol whose isolated account to act on.
     symbol: Option<String>,
     recv_window: Option<u64>,
@@ -648,13 +691,13 @@ impl BorrowRepayParams {
         asset: impl Into<String>,
         is_isolated: IsIsolated,
         amount: Decimal,
-        r#type: BorrowRepayType,
+        order_type: BorrowRepayType,
     ) -> Self {
         Self {
             asset: asset.into(),
             is_isolated,
             amount,
-            r#type,
+            order_type,
             symbol: None,
             recv_window: None,
         }
@@ -689,7 +732,7 @@ pub enum BorrowRepayStatus {
 #[serde(rename_all = "camelCase")]
 pub struct GetBorrowRepayRecordsParams {
     #[serde(rename = "type")]
-    r#type: BorrowRepayType,
+    order_type: BorrowRepayType,
     asset: Option<String>,
     isolated_symbol: Option<String>,
     tx_id: Option<i64>,
@@ -702,9 +745,9 @@ pub struct GetBorrowRepayRecordsParams {
 }
 
 impl GetBorrowRepayRecordsParams {
-    pub fn new(r#type: BorrowRepayType) -> Self {
+    pub fn new(order_type: BorrowRepayType) -> Self {
         Self {
-            r#type,
+            order_type,
             asset: None,
             isolated_symbol: None,
             tx_id: None,
@@ -766,7 +809,7 @@ pub struct BorrowRepayRecords {
 #[serde(rename_all = "camelCase")]
 pub struct BorrowRepayRecord {
     #[serde(rename = "type")]
-    pub r#type: BorrowRepayType,
+    pub order_type: BorrowRepayType,
     pub isolated_symbol: Option<String>,
     pub amount: Decimal,
     pub asset: String,
@@ -1097,5 +1140,83 @@ mod tests {
         let json = r#"{}"#;
         let parsed: EmptyResponse = deserialize_json(json).unwrap();
         assert_eq!(parsed, EmptyResponse {});
+    }
+
+    #[test]
+    fn deserialize_canceled_order_or_list_mixed_array() {
+        let json = r#"[
+            {
+                "symbol": "LTCBTC",
+                "isIsolated": false,
+                "orderId": 28,
+                "origClientOrderId": "myOrder1",
+                "clientOrderId": "cancelMyOrder1",
+                "price": "1.00000000",
+                "origQty": "10.00000000",
+                "executedQty": "8.00000000",
+                "cummulativeQuoteQty": "8.00000000",
+                "status": "CANCELED",
+                "timeInForce": "GTC",
+                "type": "LIMIT",
+                "side": "SELL"
+            },
+            {
+                "orderListId": 1929,
+                "contingencyType": "OCO",
+                "listStatusType": "ALL_DONE",
+                "listOrderStatus": "ALL_DONE",
+                "listClientOrderId": "2inzWQdDvZLHbbAmAozX2N",
+                "transactionTime": 1585230948299,
+                "symbol": "BTCUSDT",
+                "isIsolated": false,
+                "orders": [
+                    {"symbol": "BTCUSDT", "orderId": 20, "clientOrderId": "CwOOIPHSmYywx6jZX77TdL"},
+                    {"symbol": "BTCUSDT", "orderId": 21, "clientOrderId": "461cPg51vQjV3zIMOXNz39"}
+                ],
+                "orderReports": [
+                    {
+                        "symbol": "BTCUSDT",
+                        "isIsolated": false,
+                        "orderId": 20,
+                        "origClientOrderId": "CwOOIPHSmYywx6jZX77TdL",
+                        "clientOrderId": "pXLV6Hz6mprAcVYpVMTGgx",
+                        "price": "0.668611",
+                        "origQty": "0.690354",
+                        "executedQty": "0.000000",
+                        "cummulativeQuoteQty": "0.000000",
+                        "status": "CANCELED",
+                        "timeInForce": "GTC",
+                        "type": "STOP_LOSS_LIMIT",
+                        "side": "SELL"
+                    },
+                    {
+                        "symbol": "BTCUSDT",
+                        "isIsolated": false,
+                        "orderId": 21,
+                        "origClientOrderId": "461cPg51vQjV3zIMOXNz39",
+                        "clientOrderId": "pXLV6Hz6mprAcVYpVMTGgx",
+                        "price": "0.008791",
+                        "origQty": "0.690354",
+                        "executedQty": "0.000000",
+                        "cummulativeQuoteQty": "0.000000",
+                        "status": "CANCELED",
+                        "timeInForce": "GTC",
+                        "type": "LIMIT_MAKER",
+                        "side": "SELL"
+                    }
+                ]
+            }
+        ]"#;
+        let parsed: Vec<CanceledOrderOrList> = deserialize_json(json).unwrap();
+        assert_eq!(parsed.len(), 2);
+        assert!(matches!(parsed[0], CanceledOrderOrList::Order(_)));
+        match &parsed[1] {
+            CanceledOrderOrList::OrderList(list) => {
+                assert_eq!(list.order_list_id, 1929);
+                assert_eq!(list.orders.len(), 2);
+                assert_eq!(list.order_reports.len(), 2);
+            }
+            other => panic!("expected OrderList, got {other:?}"),
+        }
     }
 }

@@ -59,7 +59,7 @@ async fn main() -> anyhow::Result<()> {
     // ----- Snapshot fetcher task: refetch on demand -----
     let (snap_tx, mut snap_rx) = mpsc::channel::<OrderBook>(4);
     let (refetch_tx, mut refetch_rx) = mpsc::channel::<()>(4);
-    let client = PublicClient::new(PublicConfig::new(BASE_URL_API));
+    let client = PublicClient::new(PublicConfig::new(BASE_URL_API))?;
     let symbol = symbol_rest.to_string();
     tokio::spawn(async move {
         while refetch_rx.recv().await.is_some() {

@@ -63,6 +63,11 @@ pub enum SendError {
     RateLimited {
         retry_after: Duration,
         source: RateLimitSource,
+        /// Binance's response body on a server-side 429/418 (its
+        /// `{"code":-XXXX,"msg":"..."}` payload), so callers can still
+        /// recover the specific throttle/ban reason. `None` when the
+        /// request was rejected locally before being sent.
+        body: Option<String>,
     },
 }
 
@@ -77,6 +82,7 @@ impl From<RateLimited> for SendError {
         Self::RateLimited {
             retry_after: r.retry_after,
             source: r.source,
+            body: None,
         }
     }
 }
@@ -148,6 +154,7 @@ impl HttpClient {
             return Err(SendError::RateLimited {
                 retry_after,
                 source: RateLimitSource::Server,
+                body: Some(body),
             });
         }
 
