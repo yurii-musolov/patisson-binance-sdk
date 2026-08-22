@@ -50,6 +50,37 @@ pub enum OrderResponseType {
     FULL,
 }
 
+/// Order list contingency type — currently Binance only issues `OCO`.
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub enum ContingencyType {
+    OCO,
+}
+
+/// Order List Status — top-level lifecycle state of an order list.
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum OrderListStatus {
+    /// Responding to a failed action (e.g. order list placement or cancellation).
+    Response,
+    /// The order list has been placed or there is an update to its status.
+    ExecStarted,
+    /// The order list has finished executing and is no longer active.
+    AllDone,
+}
+
+/// Order List Order Status — aggregate status of the list's legs.
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum OrderListOrderStatus {
+    /// The order list has been placed or there is an update to its status.
+    Executing,
+    /// The order list has completed execution and is no longer active.
+    AllDone,
+    /// The list status is responding to a failed action, either during
+    /// order list placement or cancellation.
+    Reject,
+}
+
 /// Margin order side-effect — controls auto-borrow/repay behaviour.
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]

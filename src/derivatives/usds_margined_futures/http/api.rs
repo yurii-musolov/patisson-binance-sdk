@@ -214,7 +214,7 @@ pub struct NewOrderRequest {
     symbol: String,
     side: OrderSide,
     #[serde(rename = "type")]
-    r#type: OrderType,
+    order_type: OrderType,
     position_side: Option<PositionSide>,
     time_in_force: Option<TimeInForce>,
     quantity: Option<Decimal>,
@@ -244,7 +244,7 @@ impl NewOrderRequest {
         Self {
             symbol: symbol.into(),
             side,
-            r#type: order_type,
+            order_type,
             position_side: None,
             time_in_force: None,
             quantity: None,
@@ -343,7 +343,7 @@ pub struct NewOrderResponse {
     pub client_order_id: String,
     pub status: OrderStatus,
     #[serde(rename = "type")]
-    pub r#type: OrderType,
+    pub order_type: OrderType,
     pub side: OrderSide,
     pub position_side: PositionSide,
     pub price: Decimal,
@@ -413,7 +413,7 @@ pub struct Order {
     pub cum_quote: Decimal,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub r#type: OrderType,
+    pub order_type: OrderType,
     pub side: OrderSide,
     pub position_side: PositionSide,
     pub stop_price: Decimal,
@@ -422,7 +422,10 @@ pub struct Order {
     pub orig_type: OrderType,
     pub reduce_only: bool,
     pub close_position: bool,
-    pub time: Timestamp,
+    /// Absent from the cancel-order response (only `updateTime` is present
+    /// there); present on order-status / open-orders / all-orders responses.
+    #[serde(default)]
+    pub time: Option<Timestamp>,
     pub update_time: Timestamp,
     /// Present on list-style responses (open/all orders, cancel); absent from
     /// the single order-status response.

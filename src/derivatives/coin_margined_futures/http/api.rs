@@ -380,7 +380,7 @@ pub struct NewOrderRequest {
     symbol: String,
     side: OrderSide,
     #[serde(rename = "type")]
-    r#type: OrderType,
+    order_type: OrderType,
     position_side: Option<PositionSide>,
     time_in_force: Option<TimeInForce>,
     /// Quantity in contracts (COIN-M).
@@ -405,7 +405,7 @@ impl NewOrderRequest {
         Self {
             symbol: symbol.into(),
             side,
-            r#type: order_type,
+            order_type,
             position_side: None,
             time_in_force: None,
             quantity: None,
@@ -490,7 +490,7 @@ pub struct NewOrderResponse {
     pub client_order_id: String,
     pub status: OrderStatus,
     #[serde(rename = "type")]
-    pub r#type: OrderType,
+    pub order_type: OrderType,
     pub side: OrderSide,
     pub position_side: PositionSide,
     pub price: Decimal,
@@ -556,7 +556,7 @@ pub struct Order {
     pub cum_base: Decimal,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub r#type: OrderType,
+    pub order_type: OrderType,
     pub side: OrderSide,
     pub position_side: PositionSide,
     pub stop_price: Decimal,
@@ -618,7 +618,7 @@ pub struct CancelOrderResponse {
     pub cum_qty: Decimal,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub r#type: OrderType,
+    pub order_type: OrderType,
     pub side: OrderSide,
     pub position_side: PositionSide,
     pub stop_price: Decimal,

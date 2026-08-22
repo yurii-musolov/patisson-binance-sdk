@@ -133,12 +133,22 @@ impl Bucket {
         if now < self.window_end {
             return;
         }
-        // Advance by however many whole windows have elapsed so the boundary
-        // stays aligned even after long idleness.
         let interval = self.spec.interval;
-        let past = now - (self.window_end - interval);
-        let windows = (past.as_nanos() / interval.as_nanos()).max(1) as u32;
-        self.window_end += interval * windows;
+        // Time elapsed since the start of the (now-stale) current window.
+        let elapsed = now - (self.window_end - interval);
+        // Land exactly on the next boundary via nanosecond modulo rather than
+        // computing a whole-windows count: that count has no natural ceiling
+        // (an idle gap can be arbitrarily long), so any fixed-width integer
+        // holding it would need clamping — which only approximates the true
+        // boundary and can undershoot it. The modulo approach has no such
+        // ceiling: `remainder` is always `< interval`, so `window_end` always
+        // lands strictly after `now`, by construction.
+        let remainder_nanos = elapsed.as_nanos() % interval.as_nanos();
+        let remainder = Duration::new(
+            (remainder_nanos / 1_000_000_000) as u64,
+            (remainder_nanos % 1_000_000_000) as u32,
+        );
+        self.window_end = now + interval - remainder;
         self.used = 0;
     }
 
@@ -350,6 +360,24 @@ mod tests {
         // Fresh window — should be allowed again.
         rl.try_acquire_at(Cost::weight(100), now + Duration::from_secs(61))
             .unwrap();
+    }
+
+    #[test]
+    fn window_rollover_survives_extreme_idle_gap() {
+        // A gap far beyond what a `u32` whole-windows count could hold
+        // (60s interval * u32::MAX would already be ~8000 years; push well
+        // past that) must still land `window_end` strictly after `now`.
+        let (rl, now) = limiter();
+        rl.try_acquire_at(Cost::weight(100), now).unwrap();
+        let much_later = now + Duration::from_secs(60) * u32::MAX * 10;
+        rl.try_acquire_at(Cost::weight(100), much_later)
+            .expect("bucket must have rolled over despite the extreme gap");
+
+        let inner = rl.inner.lock().unwrap();
+        assert!(
+            inner.buckets[0].window_end > much_later,
+            "roll() invariant: window_end must be strictly after `now`"
+        );
     }
 
     #[test]

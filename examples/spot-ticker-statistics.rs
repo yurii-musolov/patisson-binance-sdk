@@ -19,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let cfg = PublicConfig::new(BASE_URL_API);
-    let client = PublicClient::new(cfg);
+    let client = PublicClient::new(cfg)?;
 
     let params =
         GetTickerPriceChangeStatisticsParams::Full(SymbolOrSymbols::new().symbol("BTCUSDT"));

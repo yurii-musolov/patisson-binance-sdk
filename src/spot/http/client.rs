@@ -10,17 +10,17 @@ use crate::{
         ApiError, Error, HEADER_X_MBX_APIKEY, Path,
         http::{
             AccountCommission, AccountInformation, AccountTrade, AggregateTrade,
-            CancelOpenOrdersParams, CancelOrderParams, CanceledOrder, CurrentAveragePrice,
-            EmptyResponse, ExchangeInfo, GetAccountCommissionParams, GetAccountInformationParams,
-            GetAccountTradeListParams, GetAggregateTradesParams, GetAllOrdersParams,
-            GetCurrentAveragePriceParams, GetExchangeInfoParams, GetKlineListParams,
-            GetOlderTradesParams, GetOpenOrdersParams, GetOrderBookParams, GetOrderRateLimitParams,
-            GetRecentTradesParams, GetSymbolOrderBookTickerParams, GetSymbolPriceTickerParams,
-            GetTickerPriceChangeStatisticsParams, GetTickerTradingDayParams, Kline, ListenKey,
-            NewOrderRequest, NewOrderResponse, Order, OrderBook, OrderRateLimit, PrivateConfig,
-            PublicConfig, QueryOrderParams, RecentTrade, Response, ServerTime,
-            SymbolOrderBookTickers, SymbolPriceTickers, TestCommissionRates, TestConnectivity,
-            TickerPriceChangeStatistic,
+            CancelOpenOrdersParams, CancelOrderParams, CanceledOrder, CanceledOrderOrList,
+            CurrentAveragePrice, EmptyResponse, ExchangeInfo, GetAccountCommissionParams,
+            GetAccountInformationParams, GetAccountTradeListParams, GetAggregateTradesParams,
+            GetAllOrdersParams, GetCurrentAveragePriceParams, GetExchangeInfoParams,
+            GetKlineListParams, GetOlderTradesParams, GetOpenOrdersParams, GetOrderBookParams,
+            GetOrderRateLimitParams, GetRecentTradesParams, GetSymbolOrderBookTickerParams,
+            GetSymbolPriceTickerParams, GetTickerPriceChangeStatisticsParams,
+            GetTickerTradingDayParams, Kline, ListenKey, NewOrderRequest, NewOrderResponse, Order,
+            OrderBook, OrderRateLimit, PrivateConfig, PublicConfig, QueryOrderParams, RecentTrade,
+            Response, ServerTime, SymbolOrderBookTickers, SymbolPriceTickers, TestCommissionRates,
+            TestConnectivity, TickerPriceChangeStatistic,
         },
     },
     timestamp,
@@ -75,14 +75,13 @@ pub struct PublicClient {
 }
 
 impl PublicClient {
-    pub fn new(cfg: PublicConfig) -> Self {
+    pub fn new(cfg: PublicConfig) -> Result<Self, Error> {
         let http = HttpClient::new(
             cfg.base_url,
             cfg.headers.unwrap_or_default(),
             cfg.rate_limiter,
-        )
-        .expect("reqwest client builder failed");
-        Self { http }
+        )?;
+        Ok(Self { http })
     }
 }
 
@@ -280,25 +279,24 @@ pub struct PrivateClient {
 }
 
 impl PrivateClient {
-    pub fn new(cfg: PrivateConfig) -> Self {
-        let headers = build_private_headers(&cfg);
-        let http = HttpClient::new(cfg.base_url, headers, cfg.rate_limiter)
-            .expect("reqwest client builder failed");
-        Self {
+    pub fn new(cfg: PrivateConfig) -> Result<Self, Error> {
+        let headers = build_private_headers(&cfg)?;
+        let http = HttpClient::new(cfg.base_url, headers, cfg.rate_limiter)?;
+        Ok(Self {
             http,
             api_secret: cfg.api_secret,
-        }
+        })
     }
 }
 
-fn build_private_headers(cfg: &PrivateConfig) -> HeaderMap {
+fn build_private_headers(cfg: &PrivateConfig) -> Result<HeaderMap, Error> {
     let mut headers = HeaderMap::new();
-    let api_key = cfg.api_key.expose().parse().unwrap();
+    let api_key = cfg.api_key.expose().parse()?;
     headers.append(HEADER_X_MBX_APIKEY, api_key);
     if let Some(extra) = &cfg.headers {
         headers.extend(extra.clone());
     }
-    headers
+    Ok(headers)
 }
 
 // Trading
@@ -360,7 +358,7 @@ impl PrivateClient {
     pub async fn cancel_open_orders(
         &self,
         params: CancelOpenOrdersParams,
-    ) -> Result<Response<Vec<CanceledOrder>>, Error> {
+    ) -> Result<Response<Vec<CanceledOrderOrList>>, Error> {
         let query = serialize_query(&params)?;
         let query = sign_query(&self.api_secret, timestamp(), &query);
         let req = self

@@ -5,9 +5,9 @@ use crate::{
     Timestamp,
     serde::serialize_option_as_json,
     spot::{
-        AccountType, ExchangeFilter, KlineInterval, OrderResponseType, OrderSide, OrderStatus,
-        OrderType, RateLimitInterval, RateLimiter, STPMode, SymbolStatus, TimeInForce,
-        WorkingFloor,
+        AccountType, ContingencyType, ExchangeFilter, KlineInterval, OrderListOrderStatus,
+        OrderListStatus, OrderResponseType, OrderSide, OrderStatus, OrderType, RateLimitInterval,
+        RateLimiter, STPMode, SymbolStatus, TimeInForce, WorkingFloor,
     },
 };
 
@@ -632,7 +632,7 @@ pub struct NewOrderRequest {
     symbol: String,
     side: OrderSide,
     #[serde(rename = "type")]
-    r#type: OrderType,
+    order_type: OrderType,
     time_in_force: Option<TimeInForce>,
     quantity: Option<Decimal>,
     quote_order_qty: Option<Decimal>,
@@ -670,7 +670,7 @@ impl NewOrderRequest {
         Self {
             symbol: symbol.into(),
             side,
-            r#type: order_type,
+            order_type,
             new_order_resp_type,
             time_in_force: None,
             quantity: None,
@@ -754,7 +754,7 @@ impl NewOrderRequest {
     }
 
     pub fn is_valid(&self) -> bool {
-        match self.r#type {
+        match self.order_type {
             OrderType::Limit => {
                 self.time_in_force.is_some() && self.quantity.is_some() && self.price.is_some()
             }
@@ -865,7 +865,7 @@ pub struct NewOrderResponseResult {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub r#type: OrderType,
+    pub order_type: OrderType,
     pub side: OrderSide,
     pub working_time: Timestamp,
     pub self_trade_prevention_mode: STPMode,
@@ -918,7 +918,7 @@ pub struct NewOrderResponseFull {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub r#type: OrderType,
+    pub order_type: OrderType,
     pub side: OrderSide,
     pub working_time: Timestamp,
     pub self_trade_prevention_mode: STPMode,
@@ -1118,7 +1118,7 @@ pub struct Order {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub r#type: OrderType,
+    pub order_type: OrderType,
     pub side: OrderSide,
     /// Price when the algorithmic order will be triggered
     /// Appears for STOP_LOSS. TAKE_PROFIT, STOP_LOSS_LIMIT and TAKE_PROFIT_LIMIT orders.
@@ -1197,7 +1197,7 @@ pub struct CanceledOrder {
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
-    pub r#type: OrderType,
+    pub order_type: OrderType,
     pub side: OrderSide,
     pub stop_price: Option<Decimal>,
     pub trailing_delta: Option<i64>,
@@ -1225,6 +1225,41 @@ impl CancelOpenOrdersParams {
         self.recv_window = Some(value);
         self
     }
+}
+
+/// Response element of `DELETE /api/v3/openOrders`. Unlike the single-order
+/// cancel, bulk-cancelling can sweep up an OCO order list — Binance reports
+/// that case as an order-list-shaped object instead of a plain order, with no
+/// `orderId`/`price`/`status` at the top level.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum CanceledOrderOrList {
+    Order(CanceledOrder),
+    OrderList(CanceledOrderList),
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CanceledOrderList {
+    pub order_list_id: i64,
+    pub contingency_type: ContingencyType,
+    pub list_status_type: OrderListStatus,
+    pub list_order_status: OrderListOrderStatus,
+    pub list_client_order_id: String,
+    pub transaction_time: Timestamp,
+    pub symbol: String,
+    pub orders: Vec<OrderListOrderRef>,
+    pub order_reports: Vec<CanceledOrder>,
+}
+
+/// Minimal per-leg reference inside a [`CanceledOrderList`]'s `orders` array
+/// — the full per-leg detail lives in `order_reports` instead.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderListOrderRef {
+    pub symbol: String,
+    pub order_id: i64,
+    pub client_order_id: String,
 }
 
 #[derive(Debug, Default, Serialize, PartialEq)]
@@ -1792,7 +1827,7 @@ mod tests {
             cummulative_quote_qty: dec!(10.00000000),
             status: OrderStatus::Filled,
             time_in_force: TimeInForce::GTC,
-            r#type: OrderType::Market,
+            order_type: OrderType::Market,
             side: OrderSide::SELL,
             working_time: 1507725176595,
             self_trade_prevention_mode: STPMode::None,
@@ -1884,7 +1919,7 @@ mod tests {
             cummulative_quote_qty: dec!(10.00000000),
             status: OrderStatus::Filled,
             time_in_force: TimeInForce::GTC,
-            r#type: OrderType::Market,
+            order_type: OrderType::Market,
             side: OrderSide::SELL,
             working_time: 1507725176595,
             self_trade_prevention_mode: STPMode::None,
@@ -2108,7 +2143,7 @@ mod tests {
             cummulative_quote_qty: dec!(0.0),
             status: OrderStatus::New,
             time_in_force: TimeInForce::GTC,
-            r#type: OrderType::Limit,
+            order_type: OrderType::Limit,
             side: OrderSide::BUY,
             stop_price: Some(dec!(0.0)),
             iceberg_qty: Some(dec!(0.0)),
@@ -2123,6 +2158,93 @@ mod tests {
         let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
+    }
+
+    #[test]
+    fn deserialize_response_cancel_open_orders_mixed_array() {
+        // DELETE /api/v3/openOrders can sweep up both plain orders and OCO
+        // order lists in the same response array.
+        let json = r#"[
+            {
+                "symbol": "BTCUSDT",
+                "origClientOrderId": "E6APeyTJvkMvLMYMqu1KQ4",
+                "orderId": 11,
+                "orderListId": -1,
+                "clientOrderId": "pXLV6Hz6mprAcVYpVMTGgx",
+                "transactTime": 1684804350068,
+                "price": "0.089853",
+                "origQty": "0.178622",
+                "executedQty": "0.000000",
+                "cummulativeQuoteQty": "0.000000",
+                "status": "CANCELED",
+                "timeInForce": "GTC",
+                "type": "LIMIT",
+                "side": "BUY"
+            },
+            {
+                "orderListId": 1929,
+                "contingencyType": "OCO",
+                "listStatusType": "ALL_DONE",
+                "listOrderStatus": "ALL_DONE",
+                "listClientOrderId": "2inzWQdDvZLHbbAmAozX2N",
+                "transactionTime": 1585230948299,
+                "symbol": "BTCUSDT",
+                "orders": [
+                    {"symbol": "BTCUSDT", "orderId": 20, "clientOrderId": "CwOOIPHSmYywx6jZX77TdL"},
+                    {"symbol": "BTCUSDT", "orderId": 21, "clientOrderId": "461cPg51vQjV3zIMOXNz39"}
+                ],
+                "orderReports": [
+                    {
+                        "symbol": "BTCUSDT",
+                        "origClientOrderId": "CwOOIPHSmYywx6jZX77TdL",
+                        "orderId": 20,
+                        "orderListId": 1929,
+                        "clientOrderId": "pXLV6Hz6mprAcVYpVMTGgx",
+                        "transactTime": 1585230948299,
+                        "price": "0.668611",
+                        "origQty": "0.690354",
+                        "executedQty": "0.000000",
+                        "cummulativeQuoteQty": "0.000000",
+                        "status": "CANCELED",
+                        "timeInForce": "GTC",
+                        "type": "STOP_LOSS_LIMIT",
+                        "side": "SELL",
+                        "stopPrice": "0.378131"
+                    },
+                    {
+                        "symbol": "BTCUSDT",
+                        "origClientOrderId": "461cPg51vQjV3zIMOXNz39",
+                        "orderId": 21,
+                        "orderListId": 1929,
+                        "clientOrderId": "pXLV6Hz6mprAcVYpVMTGgx",
+                        "transactTime": 1585230948299,
+                        "price": "0.008791",
+                        "origQty": "0.690354",
+                        "executedQty": "0.000000",
+                        "cummulativeQuoteQty": "0.000000",
+                        "status": "CANCELED",
+                        "timeInForce": "GTC",
+                        "type": "LIMIT_MAKER",
+                        "side": "SELL"
+                    }
+                ]
+            }
+        ]"#;
+
+        let current: Vec<CanceledOrderOrList> = deserialize_json(json).unwrap();
+
+        assert!(matches!(current[0], CanceledOrderOrList::Order(_)));
+        assert!(matches!(current[1], CanceledOrderOrList::OrderList(_)));
+        let CanceledOrderOrList::OrderList(list) = &current[1] else {
+            panic!("expected an order list");
+        };
+        assert_eq!(list.order_list_id, 1929);
+        assert_eq!(list.contingency_type, ContingencyType::OCO);
+        assert_eq!(list.list_status_type, OrderListStatus::AllDone);
+        assert_eq!(list.list_order_status, OrderListOrderStatus::AllDone);
+        assert_eq!(list.orders.len(), 2);
+        assert_eq!(list.order_reports.len(), 2);
+        assert_eq!(list.order_reports[0].order_type, OrderType::StopLossLimit);
     }
 
     #[test]
@@ -2157,7 +2279,7 @@ mod tests {
             cummulative_quote_qty: dec!(0.00000000),
             status: OrderStatus::Canceled,
             time_in_force: TimeInForce::GTC,
-            r#type: OrderType::Limit,
+            order_type: OrderType::Limit,
             side: OrderSide::BUY,
             stop_price: None,
             trailing_delta: None,

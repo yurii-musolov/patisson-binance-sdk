@@ -43,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
         BASE_URL_API,
         SensitiveString::from(api_key),
         SensitiveString::from(api_secret),
-    ));
+    ))?;
 
     // 1. Mint a listenKey.
     let listen_key = http_client.create_listen_key().await?.result.listen_key;

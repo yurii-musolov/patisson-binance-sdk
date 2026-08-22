@@ -8,11 +8,11 @@ use crate::{
         ApiError, Error, HEADER_X_MBX_APIKEY, Path,
         http::{
             BorrowRepayParams, BorrowRepayRecords, BorrowRepayResult, CancelAllOpenOrdersParams,
-            CancelOrderParams, CanceledOrder, EmptyResponse, ForceLiquidationRecords,
-            GetAccountTradeListParams, GetAllIsolatedMarginSymbolsParams, GetAllMarginAssetsParams,
-            GetAllOrdersParams, GetBorrowRepayRecordsParams, GetForceLiquidationRecordParams,
-            GetIsolatedMarginAccountParams, GetMarginAccountParams,
-            GetMarginInterestRateHistoryParams, GetMaxBorrowableParams,
+            CancelOrderParams, CanceledOrder, CanceledOrderOrList, EmptyResponse,
+            ForceLiquidationRecords, GetAccountTradeListParams, GetAllIsolatedMarginSymbolsParams,
+            GetAllMarginAssetsParams, GetAllOrdersParams, GetBorrowRepayRecordsParams,
+            GetForceLiquidationRecordParams, GetIsolatedMarginAccountParams,
+            GetMarginAccountParams, GetMarginInterestRateHistoryParams, GetMaxBorrowableParams,
             GetMaxTransferOutAmountParams, GetOpenOrdersParams, GetPriceIndexParams,
             InterestRateRecord, IsolatedMarginAccount, IsolatedMarginSymbol, ListenKey,
             MarginAccount, MarginAsset, MaxBorrowable, MaxTransferable, NewOrderRequest,
@@ -35,7 +35,8 @@ const COST_MAX_BORROWABLE: Cost = Cost::weight(50);
 const COST_LISTEN_KEY: Cost = Cost::weight(1);
 const COST_CANCEL_ORDER: Cost = Cost::weight(1);
 const COST_CANCEL_ALL_OPEN_ORDERS: Cost = Cost::weight(1);
-const COST_OPEN_ORDERS: Cost = Cost::weight(10);
+const COST_OPEN_ORDERS_SYMBOL: Cost = Cost::weight(10);
+const COST_OPEN_ORDERS_ALL: Cost = Cost::weight(200);
 const COST_ALL_ORDERS: Cost = Cost::weight(10);
 const COST_MY_TRADES: Cost = Cost::weight(10);
 /// Borrow/repay execution is one of the heaviest Margin endpoints on
@@ -60,25 +61,24 @@ pub struct PrivateClient {
 }
 
 impl PrivateClient {
-    pub fn new(cfg: PrivateConfig) -> Self {
-        let headers = build_private_headers(&cfg);
-        let http = HttpClient::new(cfg.base_url, headers, cfg.rate_limiter)
-            .expect("reqwest client builder failed");
-        Self {
+    pub fn new(cfg: PrivateConfig) -> Result<Self, Error> {
+        let headers = build_private_headers(&cfg)?;
+        let http = HttpClient::new(cfg.base_url, headers, cfg.rate_limiter)?;
+        Ok(Self {
             http,
             api_secret: cfg.api_secret,
-        }
+        })
     }
 }
 
-fn build_private_headers(cfg: &PrivateConfig) -> HeaderMap {
+fn build_private_headers(cfg: &PrivateConfig) -> Result<HeaderMap, Error> {
     let mut headers = HeaderMap::new();
-    let api_key = cfg.api_key.expose().parse().unwrap();
+    let api_key = cfg.api_key.expose().parse()?;
     headers.append(HEADER_X_MBX_APIKEY, api_key);
     if let Some(extra) = &cfg.headers {
         headers.extend(extra.clone());
     }
-    headers
+    Ok(headers)
 }
 
 // Margin metadata
@@ -160,7 +160,7 @@ impl PrivateClient {
     pub async fn cancel_all_open_orders(
         &self,
         params: CancelAllOpenOrdersParams,
-    ) -> Result<Response<Vec<CanceledOrder>>, Error> {
+    ) -> Result<Response<Vec<CanceledOrderOrList>>, Error> {
         let query = serialize_query(&params)?;
         let query = sign_query(&self.api_secret, timestamp(), &query);
         let req = self
@@ -175,12 +175,17 @@ impl PrivateClient {
         &self,
         params: GetOpenOrdersParams,
     ) -> Result<Response<Vec<Order>>, Error> {
+        let cost = if params.symbol.is_some() {
+            COST_OPEN_ORDERS_SYMBOL
+        } else {
+            COST_OPEN_ORDERS_ALL
+        };
         let query = serialize_query(&params)?;
         let query = sign_query(&self.api_secret, timestamp(), &query);
         let req = self
             .http
             .request(Method::GET, format!("{}?{query}", Path::OpenOrders));
-        decode(self.http.send_raw(req, COST_OPEN_ORDERS).await)
+        decode(self.http.send_raw(req, cost).await)
     }
 
     /// Get all orders on a symbol: active, canceled, or filled.

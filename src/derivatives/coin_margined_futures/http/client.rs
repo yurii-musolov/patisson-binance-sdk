@@ -79,14 +79,13 @@ pub struct PublicClient {
 }
 
 impl PublicClient {
-    pub fn new(cfg: PublicConfig) -> Self {
+    pub fn new(cfg: PublicConfig) -> Result<Self, Error> {
         let http = HttpClient::new(
             cfg.base_url,
             cfg.headers.unwrap_or_default(),
             cfg.rate_limiter,
-        )
-        .expect("reqwest client builder failed");
-        Self { http }
+        )?;
+        Ok(Self { http })
     }
 }
 
@@ -172,25 +171,24 @@ pub struct PrivateClient {
 }
 
 impl PrivateClient {
-    pub fn new(cfg: PrivateConfig) -> Self {
-        let headers = build_private_headers(&cfg);
-        let http = HttpClient::new(cfg.base_url, headers, cfg.rate_limiter)
-            .expect("reqwest client builder failed");
-        Self {
+    pub fn new(cfg: PrivateConfig) -> Result<Self, Error> {
+        let headers = build_private_headers(&cfg)?;
+        let http = HttpClient::new(cfg.base_url, headers, cfg.rate_limiter)?;
+        Ok(Self {
             http,
             api_secret: cfg.api_secret,
-        }
+        })
     }
 }
 
-fn build_private_headers(cfg: &PrivateConfig) -> HeaderMap {
+fn build_private_headers(cfg: &PrivateConfig) -> Result<HeaderMap, Error> {
     let mut headers = HeaderMap::new();
-    let api_key = cfg.api_key.expose().parse().unwrap();
+    let api_key = cfg.api_key.expose().parse()?;
     headers.append(HEADER_X_MBX_APIKEY, api_key);
     if let Some(extra) = &cfg.headers {
         headers.extend(extra.clone());
     }
-    headers
+    Ok(headers)
 }
 
 // Trading
@@ -391,28 +389,18 @@ impl PrivateClient {
     }
 
     /// Extend a listenKey's lifetime by 60 minutes. Idempotent; safe to call
-    /// on a schedule (recommended every 30 min).
-    pub async fn keepalive_listen_key(
-        &self,
-        listen_key: &str,
-    ) -> Result<Response<EmptyResponse>, Error> {
-        let req = self
-            .http
-            .request(Method::PUT, Path::ListenKey)
-            .query(&[("listenKey", listen_key)]);
+    /// on a schedule (recommended every 30 min). Like [`Self::create_listen_key`],
+    /// scoped by the `X-MBX-APIKEY` header alone — Binance's futures listenKey
+    /// endpoints (unlike spot/margin's) take no `listenKey` parameter.
+    pub async fn keepalive_listen_key(&self) -> Result<Response<EmptyResponse>, Error> {
+        let req = self.http.request(Method::PUT, Path::ListenKey);
         decode(self.http.send_raw(req, COST_LISTEN_KEY).await)
     }
 
-    /// Close a listenKey. The WebSocket connection associated with the key
+    /// Close the listenKey. The WebSocket connection associated with the key
     /// will be dropped by the server.
-    pub async fn close_listen_key(
-        &self,
-        listen_key: &str,
-    ) -> Result<Response<EmptyResponse>, Error> {
-        let req = self
-            .http
-            .request(Method::DELETE, Path::ListenKey)
-            .query(&[("listenKey", listen_key)]);
+    pub async fn close_listen_key(&self) -> Result<Response<EmptyResponse>, Error> {
+        let req = self.http.request(Method::DELETE, Path::ListenKey);
         decode(self.http.send_raw(req, COST_LISTEN_KEY).await)
     }
 }

@@ -27,7 +27,7 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("API_SECRET").expect("environment variable API_SECRET is required");
     let api_secret = SensitiveString::from(api_secret);
     let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
-    let client = PrivateClient::new(cfg);
+    let client = PrivateClient::new(cfg)?;
 
     // Cross-margin: omit isolated_symbol. For isolated margin, set it via `.isolated_symbol("BTCUSDT")`.
     let params = GetMaxBorrowableParams::new("USDT");
