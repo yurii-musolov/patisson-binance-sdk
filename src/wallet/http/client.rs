@@ -2,11 +2,8 @@ use reqwest::{Method, header::HeaderMap};
 
 use crate::{
     SensitiveString,
-    crypto::sign_query,
-    http::{HttpClient, RawResponse, SendError},
+    http::{self, HttpClient, RawResponse, SendError},
     rate_limit::Cost,
-    serde::{deserialize_json, serialize_query},
-    timestamp,
     wallet::{
         ApiError, Error, HEADER_X_MBX_APIKEY, Path,
         http::{
@@ -80,13 +77,15 @@ impl PrivateClient {
         &self,
         params: GetAllCoinsParams,
     ) -> Result<Response<Vec<CoinInfo>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self.http.request(
+        send_signed(
+            &self.http,
+            &self.api_secret,
             Method::GET,
-            format!("{}?{query}", Path::CapitalConfigGetAll),
-        );
-        decode(self.http.send_raw(req, COST_ALL_COINS).await)
+            Path::CapitalConfigGetAll,
+            &params,
+            COST_ALL_COINS,
+        )
+        .await
     }
 
     /// Fetch the deposit address for a coin (optionally on a specific network).
@@ -94,13 +93,15 @@ impl PrivateClient {
         &self,
         params: GetDepositAddressParams,
     ) -> Result<Response<DepositAddress>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self.http.request(
+        send_signed(
+            &self.http,
+            &self.api_secret,
             Method::GET,
-            format!("{}?{query}", Path::CapitalDepositAddress),
-        );
-        decode(self.http.send_raw(req, COST_DEPOSIT_ADDRESS).await)
+            Path::CapitalDepositAddress,
+            &params,
+            COST_DEPOSIT_ADDRESS,
+        )
+        .await
     }
 
     /// Recent deposit history. Defaults: last 90 days, up to 1000 records.
@@ -108,13 +109,15 @@ impl PrivateClient {
         &self,
         params: GetDepositHistoryParams,
     ) -> Result<Response<Vec<Deposit>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self.http.request(
+        send_signed(
+            &self.http,
+            &self.api_secret,
             Method::GET,
-            format!("{}?{query}", Path::CapitalDepositHistory),
-        );
-        decode(self.http.send_raw(req, COST_DEPOSIT_HISTORY).await)
+            Path::CapitalDepositHistory,
+            &params,
+            COST_DEPOSIT_HISTORY,
+        )
+        .await
     }
 
     /// Recent withdraw history. Defaults: last 90 days, up to 1000 records.
@@ -122,13 +125,15 @@ impl PrivateClient {
         &self,
         params: GetWithdrawHistoryParams,
     ) -> Result<Response<Vec<Withdraw>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self.http.request(
+        send_signed(
+            &self.http,
+            &self.api_secret,
             Method::GET,
-            format!("{}?{query}", Path::CapitalWithdrawHistory),
-        );
-        decode(self.http.send_raw(req, COST_WITHDRAW_HISTORY).await)
+            Path::CapitalWithdrawHistory,
+            &params,
+            COST_WITHDRAW_HISTORY,
+        )
+        .await
     }
 }
 
@@ -139,12 +144,15 @@ impl PrivateClient {
         &self,
         params: GetAccountStatusParams,
     ) -> Result<Response<AccountStatus>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::AccountStatus));
-        decode(self.http.send_raw(req, COST_ACCOUNT_STATUS).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::AccountStatus,
+            &params,
+            COST_ACCOUNT_STATUS,
+        )
+        .await
     }
 }
 
@@ -155,12 +163,15 @@ impl PrivateClient {
         &self,
         params: GetTradeFeeParams,
     ) -> Result<Response<Vec<TradeFee>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::AssetTradeFee));
-        decode(self.http.send_raw(req, COST_TRADE_FEE).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::AssetTradeFee,
+            &params,
+            COST_TRADE_FEE,
+        )
+        .await
     }
 
     /// Asset dividend records (e.g. staking / airdrop distributions).
@@ -168,13 +179,15 @@ impl PrivateClient {
         &self,
         params: GetAssetDividendRecordParams,
     ) -> Result<Response<AssetDividendRecord>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self.http.request(
+        send_signed(
+            &self.http,
+            &self.api_secret,
             Method::GET,
-            format!("{}?{query}", Path::AssetDividendRecord),
-        );
-        decode(self.http.send_raw(req, COST_ASSET_DIVIDEND_RECORD).await)
+            Path::AssetDividendRecord,
+            &params,
+            COST_ASSET_DIVIDEND_RECORD,
+        )
+        .await
     }
 
     /// Per-wallet balances (Spot, Funding, Cross Margin, …), each converted
@@ -183,12 +196,15 @@ impl PrivateClient {
         &self,
         params: GetUserWalletBalanceParams,
     ) -> Result<Response<Vec<WalletBalance>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::AssetWalletBalance));
-        decode(self.http.send_raw(req, COST_WALLET_BALANCE).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::AssetWalletBalance,
+            &params,
+            COST_WALLET_BALANCE,
+        )
+        .await
     }
 
     /// Move `asset` between two account types (e.g. `MAIN_UMFUTURE`,
@@ -197,12 +213,15 @@ impl PrivateClient {
         &self,
         params: UserUniversalTransferRequest,
     ) -> Result<Response<UniversalTransferResult>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::POST, format!("{}?{query}", Path::AssetTransfer));
-        decode(self.http.send_raw(req, COST_UNIVERSAL_TRANSFER).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::POST,
+            Path::AssetTransfer,
+            &params,
+            COST_UNIVERSAL_TRANSFER,
+        )
+        .await
     }
 
     /// History of universal transfers previously submitted via
@@ -211,16 +230,15 @@ impl PrivateClient {
         &self,
         params: GetUniversalTransferHistoryParams,
     ) -> Result<Response<UniversalTransferHistory>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::GET, format!("{}?{query}", Path::AssetTransfer));
-        decode(
-            self.http
-                .send_raw(req, COST_UNIVERSAL_TRANSFER_HISTORY)
-                .await,
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::AssetTransfer,
+            &params,
+            COST_UNIVERSAL_TRANSFER_HISTORY,
         )
+        .await
     }
 
     /// User assets, optionally filtered to a single `asset` and optionally
@@ -230,12 +248,15 @@ impl PrivateClient {
         &self,
         params: GetUserAssetParams,
     ) -> Result<Response<Vec<UserAsset>>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self
-            .http
-            .request(Method::POST, format!("{}?{query}", Path::AssetUserAsset));
-        decode(self.http.send_raw(req, COST_USER_ASSET).await)
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::POST,
+            Path::AssetUserAsset,
+            &params,
+            COST_USER_ASSET,
+        )
+        .await
     }
 }
 
@@ -247,43 +268,45 @@ impl PrivateClient {
         &self,
         params: GetAccountApiTradingStatusParams,
     ) -> Result<Response<AccountApiTradingStatus>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self.http.request(
+        send_signed(
+            &self.http,
+            &self.api_secret,
             Method::GET,
-            format!("{}?{query}", Path::AccountApiTradingStatus),
-        );
-        decode(
-            self.http
-                .send_raw(req, COST_ACCOUNT_API_TRADING_STATUS)
-                .await,
+            Path::AccountApiTradingStatus,
+            &params,
+            COST_ACCOUNT_API_TRADING_STATUS,
         )
+        .await
     }
 
     pub async fn enable_fast_withdraw_switch(
         &self,
         params: FastWithdrawSwitchParams,
     ) -> Result<Response<Empty>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self.http.request(
+        send_signed(
+            &self.http,
+            &self.api_secret,
             Method::POST,
-            format!("{}?{query}", Path::AccountEnableFastWithdrawSwitch),
-        );
-        decode(self.http.send_raw(req, COST_FAST_WITHDRAW_SWITCH).await)
+            Path::AccountEnableFastWithdrawSwitch,
+            &params,
+            COST_FAST_WITHDRAW_SWITCH,
+        )
+        .await
     }
 
     pub async fn disable_fast_withdraw_switch(
         &self,
         params: FastWithdrawSwitchParams,
     ) -> Result<Response<Empty>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self.http.request(
+        send_signed(
+            &self.http,
+            &self.api_secret,
             Method::POST,
-            format!("{}?{query}", Path::AccountDisableFastWithdrawSwitch),
-        );
-        decode(self.http.send_raw(req, COST_FAST_WITHDRAW_SWITCH).await)
+            Path::AccountDisableFastWithdrawSwitch,
+            &params,
+            COST_FAST_WITHDRAW_SWITCH,
+        )
+        .await
     }
 }
 
@@ -295,13 +318,15 @@ impl PrivateClient {
         &self,
         params: WithdrawRequest,
     ) -> Result<Response<WithdrawResult>, Error> {
-        let query = serialize_query(&params)?;
-        let query = sign_query(&self.api_secret, timestamp(), &query);
-        let req = self.http.request(
+        send_signed(
+            &self.http,
+            &self.api_secret,
             Method::POST,
-            format!("{}?{query}", Path::CapitalWithdrawApply),
-        );
-        decode(self.http.send_raw(req, COST_WITHDRAW).await)
+            Path::CapitalWithdrawApply,
+            &params,
+            COST_WITHDRAW,
+        )
+        .await
     }
 }
 
@@ -317,21 +342,29 @@ impl PrivateClient {
     }
 }
 
+/// Thin pins of the shared `crate::http` primitives (see `src/http.rs`) onto
+/// this product's own `ApiError`/`Error` types, so every endpoint above can
+/// call `decode`/`send_signed` directly instead of hand-copying the
+/// serialize → sign → request → send → decode sequence.
 fn decode<T>(raw: Result<RawResponse, SendError>) -> Result<Response<T>, Error>
 where
     T: serde::de::DeserializeOwned,
 {
-    let raw = raw?;
-    if !raw.status.is_success() {
-        #[cfg(debug_assertions)]
-        tracing::debug!(status = ?raw.status, body = ?raw.body, "request failed");
+    http::decode::<T, ApiError, Error>(raw)
+}
 
-        let api_err = deserialize_json::<ApiError>(&raw.body)?;
-        return Err(Error::Api(api_err));
-    }
-    let result = deserialize_json(&raw.body)?;
-    Ok(Response {
-        result,
-        headers: raw.headers,
-    })
+async fn send_signed<T, P>(
+    http_client: &HttpClient,
+    api_secret: &SensitiveString,
+    method: Method,
+    path: impl std::fmt::Display,
+    params: &P,
+    cost: Cost,
+) -> Result<Response<T>, Error>
+where
+    P: serde::Serialize,
+    T: serde::de::DeserializeOwned,
+{
+    http::send_signed::<T, P, ApiError, Error>(http_client, api_secret, method, path, params, cost)
+        .await
 }

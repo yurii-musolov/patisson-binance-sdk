@@ -9,6 +9,16 @@
 //! 4xx Binance error bodies) so each product can decode its own
 //! `ApiError` shape; only transport failure and 429/418 short-circuit through
 //! [`SendError`].
+//!
+//! [`decode`], [`send_signed`], and [`send_query`] additionally centralise
+//! the "serialize params → (sign) → build request → send → decode" sequence
+//! that used to be hand-copied at every endpoint in every product's
+//! `client.rs`. They stay generic over the product's own `ApiError` (`A`)
+//! and `Error` (`E`) types rather than sharing one across the crate — each
+//! product keeps a distinct, nominal error type — so each product's
+//! `client.rs` defines a thin local wrapper that pins `A`/`E` once (see e.g.
+//! `spot::http::client`'s private `decode`/`send_signed`/`send_query`) and
+//! every endpoint just calls that.
 
 use std::{
     collections::BTreeMap,
@@ -18,8 +28,15 @@ use std::{
 };
 
 use reqwest::{Method, RequestBuilder, StatusCode, header::HeaderMap};
+use serde::{Serialize, de::DeserializeOwned};
 
-use crate::rate_limit::{Cost, ObservedUsage, RateLimitSource, RateLimited, RateLimiter};
+use crate::{
+    SensitiveString,
+    crypto::sign_query,
+    rate_limit::{Cost, ObservedUsage, RateLimitSource, RateLimited, RateLimiter},
+    serde::{deserialize_json, serialize_query},
+    timestamp,
+};
 
 const HEADER_RETRY_AFTER: &str = "retry-after";
 const HEADER_USED_WEIGHT_PREFIX: &str = "x-mbx-used-weight-";
@@ -164,6 +181,90 @@ impl HttpClient {
             body,
         })
     }
+}
+
+/// Successful decoded response: the typed result plus the response headers
+/// Binance returned (rate-limit usage, retry-after, …). Every product's
+/// `http` module re-exports this at its own path (`spot::http::Response`,
+/// …) via `pub use crate::http::Response;`, so downstream code sees no
+/// difference from before this was centralized here.
+#[derive(Debug, PartialEq)]
+pub struct Response<T> {
+    pub result: T,
+    pub headers: ParsedHeaders,
+}
+
+/// Decode a [`RawResponse`] outcome into a typed [`Response<T>`] or a
+/// product `Error`. `A` is the product's own `ApiError` shape (Binance's
+/// `{"code":...,"msg":...}` error body); `E` is its own `Error` enum.
+pub fn decode<T, A, E>(raw: Result<RawResponse, SendError>) -> Result<Response<T>, E>
+where
+    T: DeserializeOwned,
+    A: DeserializeOwned,
+    E: From<SendError> + From<A> + From<serde_path_to_error::Error<serde_json::Error>>,
+{
+    let raw = raw?;
+    if !raw.status.is_success() {
+        #[cfg(debug_assertions)]
+        tracing::debug!(status = ?raw.status, body = ?raw.body, "request failed");
+
+        // Binance returns `{"code":-XXXX,"msg":"..."}` on error.
+        let api_err = deserialize_json::<A>(&raw.body)?;
+        return Err(E::from(api_err));
+    }
+    let result = deserialize_json(&raw.body)?;
+    Ok(Response {
+        result,
+        headers: raw.headers,
+    })
+}
+
+/// Serialize `params`, sign with the current timestamp, build a `method`
+/// request to `path`, send it charging `cost`, and decode the result. This
+/// is the "serialize → sign → request → send → decode" sequence every
+/// HMAC-signed endpoint repeats.
+pub async fn send_signed<T, P, A, E>(
+    http: &HttpClient,
+    api_secret: &SensitiveString,
+    method: Method,
+    path: impl Display,
+    params: &P,
+    cost: Cost,
+) -> Result<Response<T>, E>
+where
+    P: Serialize,
+    T: DeserializeOwned,
+    A: DeserializeOwned,
+    E: From<SendError>
+        + From<A>
+        + From<serde_path_to_error::Error<serde_json::Error>>
+        + From<serde_urlencoded::ser::Error>,
+{
+    let query = serialize_query(params).map_err(E::from)?;
+    let query = sign_query(api_secret, timestamp(), &query);
+    let req = http.request(method, format!("{path}?{query}"));
+    decode::<T, A, E>(http.send_raw(req, cost).await)
+}
+
+/// Build a `method` request to `path` with `params` attached as a query
+/// string — unsigned: either a genuinely public endpoint, or a private one
+/// authenticated by the `X-MBX-APIKEY` header alone (e.g. listen-key
+/// lifecycle calls) — send it charging `cost`, and decode the result.
+pub async fn send_query<T, P, A, E>(
+    http: &HttpClient,
+    method: Method,
+    path: impl Display,
+    params: &P,
+    cost: Cost,
+) -> Result<Response<T>, E>
+where
+    P: Serialize,
+    T: DeserializeOwned,
+    A: DeserializeOwned,
+    E: From<SendError> + From<A> + From<serde_path_to_error::Error<serde_json::Error>>,
+{
+    let req = http.request(method, path).query(params);
+    decode::<T, A, E>(http.send_raw(req, cost).await)
 }
 
 fn parse_headers(headers: &HeaderMap) -> ParsedHeaders {
