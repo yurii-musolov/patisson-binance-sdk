@@ -31,6 +31,9 @@ This runs `git config core.hooksPath .githooks` for the current repo.
 | `cargo clippy --all-targets -- -D warnings` | lint errors **and** warnings (strict — any new warning fails the push) |
 | `cargo test --all-targets` | failing tests |
 
+`pre-push` also refuses any push to `main`: changes reach `main` only
+through pull requests (enforced server-side by a GitHub ruleset as well).
+
 ## Bypassing
 
 Either hook can be skipped on an individual operation:
