@@ -29,6 +29,9 @@ pub struct ExchangeInfo {
     pub timezone: String,
     pub server_time: Timestamp,
     pub rate_limits: Vec<RateLimit>,
+    /// Exchange-wide filters (empty in current responses), as raw JSON.
+    #[serde(default)]
+    pub exchange_filters: Vec<serde_json::Value>,
     pub symbols: Vec<SymbolInfo>,
 }
 
@@ -87,6 +90,9 @@ pub enum SymbolFilter {
     MaxNumOrders(SymbolFilterMaxNumOrders),
     MaxNumAlgoOrders(SymbolFilterMaxNumAlgoOrders),
     PercentPrice(SymbolFilterPercentPrice),
+    /// A filter type this SDK version doesn't know yet.
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -1367,6 +1373,7 @@ mod tests {
             permission_sets,
         };
         let expected = ExchangeInfo {
+            exchange_filters: vec![],
             timezone: "UTC".into(),
             server_time: 1781510419499,
             rate_limits,
