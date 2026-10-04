@@ -32,29 +32,29 @@ impl From<i64> for MessageID {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StreamName {
-    /// "<symbol>@aggTrade"
+    /// `<symbol>@aggTrade`
     AggTrade { symbol: String },
-    /// "<symbol>@trade"
+    /// `<symbol>@trade`
     Trade { symbol: String },
-    /// Top <levels> bids and asks, pushed every second. Valid <levels> are 5, 10, or 20.
-    /// Stream Names: <symbol>@depth<levels> OR <symbol>@depth<levels>@100ms
+    /// Top `<levels>` bids and asks, pushed every second. Valid `<levels>` are 5, 10, or 20.
+    /// Stream Names: `<symbol>@depth<levels>` OR `<symbol>@depth<levels>@100ms`
     PartialBookDepth {
         symbol: String,
         levels: PartialBookDepthLevels,
         update_speed: Option<PartialBookDepthUpdateSpeed>,
     },
     /// Order book price and quantity depth updates used to locally manage an order book.
-    /// Stream Names: <symbol>@depth OR <symbol>@depth@100ms
+    /// Stream Names: `<symbol>@depth` OR `<symbol>@depth@100ms`
     DiffDepth {
         symbol: String,
         update_speed: Option<DiffDepthUpdateSpeed>,
     },
-    /// "<symbol>@kline_<interval>"
+    /// `<symbol>@kline_<interval>`
     Kline {
         symbol: String,
         interval: KlineInterval,
     },
-    /// "<symbol>@24hrMiniTicker"
+    /// `<symbol>@24hrMiniTicker`
     MiniTicker24 { symbol: String },
     /// "serverShutdown"
     ServerShutdownRaw,
@@ -207,7 +207,7 @@ impl<'de> Deserialize<'de> for StreamName {
     }
 }
 
-/// Top <levels> bids and asks, pushed every second. Valid <levels> are 5, 10, or 20.
+/// Top `<levels>` bids and asks, pushed every second. Valid `<levels>` are 5, 10, or 20.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub enum PartialBookDepthLevels {
     #[serde(rename = "5")]

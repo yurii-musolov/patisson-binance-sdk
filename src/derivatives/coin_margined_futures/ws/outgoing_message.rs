@@ -32,20 +32,20 @@ impl From<i64> for MessageID {
 /// Subset of stream names supported by COIN-M Futures market data streams.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StreamName {
-    /// "<symbol>@aggTrade"
+    /// `<symbol>@aggTrade`
     AggTrade { symbol: String },
-    /// "<symbol>@kline_<interval>"
+    /// `<symbol>@kline_<interval>`
     Kline {
         symbol: String,
         interval: KlineInterval,
     },
-    /// "<pair>@indexPrice" — index price updates
+    /// `<pair>@indexPrice` — index price updates
     IndexPrice { pair: String },
-    /// "<symbol>@markPrice"
+    /// `<symbol>@markPrice`
     MarkPrice { symbol: String },
-    /// "<symbol>@depth"
+    /// `<symbol>@depth`
     Depth { symbol: String },
-    /// "<symbol>@forceOrder" — liquidation order
+    /// `<symbol>@forceOrder` — liquidation order
     ForceOrder { symbol: String },
     /// "!forceOrder@arr" — all-symbol liquidation
     ForceOrderAll,

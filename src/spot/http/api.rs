@@ -83,7 +83,7 @@ pub struct ExchangeInfo {
     pub exchange_filters: Vec<ExchangeFilter>,
     pub symbols: Vec<SymbolInfo>,
     /// Optional field. Present only when SOR is available.
-    /// LINK: https://github.com/binance/binance-spot-api-docs/blob/master/faqs/sor_faq.md
+    /// LINK: <https://github.com/binance/binance-spot-api-docs/blob/master/faqs/sor_faq.md>
     pub sors: Option<Vec<SOR>>,
 }
 

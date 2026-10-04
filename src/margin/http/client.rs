@@ -124,7 +124,8 @@ impl PrivateClient {
     ///
     /// Set `is_isolated = IsIsolated::True` to route the order to the isolated
     /// margin account for the symbol; otherwise the cross-margin account is used.
-    /// Combine with [`SideEffectType::MarginBuy`] / [`SideEffectType::AutoRepay`]
+    /// Combine with [`crate::margin::SideEffectType::MarginBuy`] /
+    /// [`crate::margin::SideEffectType::AutoRepay`]
     /// to opt into automatic borrowing or repayment when the order fills.
     pub async fn new_order(
         &self,

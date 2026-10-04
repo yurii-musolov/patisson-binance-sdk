@@ -1,7 +1,7 @@
 //! Optional client-side rate limiter mirroring Binance's request-weight,
 //! order-count, and raw-request buckets.
 //!
-//! Attach an [`Arc<RateLimiter>`] to a product `Config` via its
+//! Attach an [`Arc<RateLimiter>`](std::sync::Arc) to a product `Config` via its
 //! `rate_limiter(...)` builder to enable it. Calls that would exceed local
 //! budget are rejected up front with `Error::RateLimited` (RejectFast mode)
 //! before they reach Binance — the goal is to avoid burning the request on a
