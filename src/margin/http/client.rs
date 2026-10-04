@@ -26,26 +26,29 @@ use crate::{
 // with `spot::http::*Client` if you want correct accounting.
 const COST_ALL_ASSETS: Cost = Cost::weight(1);
 const COST_MARGIN_ACCOUNT: Cost = Cost::weight(10);
-const COST_NEW_ORDER: Cost = Cost::weight_and_orders(6, 1);
+const COST_NEW_ORDER: Cost = Cost::uid_weight_and_orders(6, 1);
+/// `MARGIN_BUY` / `AUTO_BORROW_REPAY` orders borrow and weigh more.
+const COST_NEW_ORDER_BORROWING: Cost = Cost::uid_weight_and_orders(1500, 1);
 const COST_QUERY_ORDER: Cost = Cost::weight(10);
 const COST_MAX_BORROWABLE: Cost = Cost::weight(50);
-const COST_LISTEN_KEY: Cost = Cost::weight(1);
-const COST_CANCEL_ORDER: Cost = Cost::weight(1);
+const COST_LISTEN_KEY: Cost = Cost::uid_weight(1);
+const COST_CLOSE_LISTEN_KEY: Cost = Cost::uid_weight(3000);
+const COST_CANCEL_ORDER: Cost = Cost::weight(10);
 const COST_CANCEL_ALL_OPEN_ORDERS: Cost = Cost::weight(1);
 const COST_OPEN_ORDERS_SYMBOL: Cost = Cost::weight(10);
 const COST_OPEN_ORDERS_ALL: Cost = Cost::weight(200);
-const COST_ALL_ORDERS: Cost = Cost::weight(10);
+const COST_ALL_ORDERS: Cost = Cost::weight(200);
 const COST_MY_TRADES: Cost = Cost::weight(10);
 /// Borrow/repay execution is one of the heaviest Margin endpoints on
 /// Binance's documented weight table.
-const COST_BORROW_REPAY: Cost = Cost::weight(3000);
+const COST_BORROW_REPAY: Cost = Cost::uid_weight(1500);
 const COST_BORROW_REPAY_RECORDS: Cost = Cost::weight(10);
 const COST_ISOLATED_ACCOUNT: Cost = Cost::weight(10);
 const COST_ISOLATED_SYMBOLS: Cost = Cost::weight(10);
-const COST_INTEREST_RATE_HISTORY: Cost = Cost::weight(10);
+const COST_INTEREST_RATE_HISTORY: Cost = Cost::weight(1);
 const COST_PRICE_INDEX: Cost = Cost::weight(10);
 const COST_MAX_TRANSFERABLE: Cost = Cost::weight(50);
-const COST_FORCE_LIQUIDATION_REC: Cost = Cost::weight(10);
+const COST_FORCE_LIQUIDATION_REC: Cost = Cost::weight(1);
 
 /// Client for the authenticated `/sapi/v1/margin/*` surface.
 ///
@@ -131,13 +134,18 @@ impl PrivateClient {
         &self,
         params: NewOrderRequest,
     ) -> Result<Response<NewOrderResponse>, Error> {
+        let cost = if params.borrows() {
+            COST_NEW_ORDER_BORROWING
+        } else {
+            COST_NEW_ORDER
+        };
         send_signed(
             &self.http,
             &self.api_secret,
             Method::POST,
             Path::Order,
             &params,
-            COST_NEW_ORDER,
+            cost,
         )
         .await
     }
@@ -410,25 +418,26 @@ impl PrivateClient {
     }
 }
 
-// User data stream — cross margin.
+// User data stream (`/sapi/v1/margin/listen-key`).
 //
-// Unlike the trading endpoints, listenKey operations are authenticated by
-// API key alone (`X-MBX-APIKEY` header). They do NOT take `timestamp` /
-// `signature`, so these methods go through `send_query` (unsigned) rather
-// than `send_signed`.
+// Binance retired `/sapi/v1/userDataStream` and `/sapi/v1/userDataStream/isolated`
+// (deprecated 2025-10-27, removed from the API specification 2025-11-10);
+// `/sapi/v1/margin/listen-key` replaces them and has no isolated variant.
+// listenKey operations are authenticated by API key alone (`X-MBX-APIKEY`),
+// without `timestamp` / `signature`, so they go through `send_query`.
 impl PrivateClient {
-    /// Create a new listenKey for the cross-margin user data stream.
+    /// Create a listenKey for the margin user data stream.
     ///
-    /// Returns a key that can be used to connect to
-    /// `wss://stream.binance.com:9443/ws/<listenKey>`. The key expires after
-    /// 60 minutes — extend via [`Self::keepalive_listen_key`] every 30 min.
+    /// Connect to `wss://stream.binance.com:9443/ws/<listenKey>`. The key
+    /// expires after 60 minutes; extend it with [`Self::keepalive_listen_key`]
+    /// every 30 minutes.
     pub async fn create_listen_key(&self) -> Result<Response<ListenKey>, Error> {
-        let req = self.http.request(Method::POST, Path::UserDataStream);
+        let req = self.http.request(Method::POST, Path::ListenKey);
         decode(self.http.send_raw(req, COST_LISTEN_KEY).await)
     }
 
-    /// Extend a cross-margin listenKey's lifetime by 60 minutes. Idempotent;
-    /// safe to call on a schedule (recommended every 30 min).
+    /// Extend the listenKey's lifetime by 60 minutes. Idempotent; safe to
+    /// call on a schedule (recommended every 30 min).
     pub async fn keepalive_listen_key(
         &self,
         listen_key: &str,
@@ -436,79 +445,18 @@ impl PrivateClient {
         send_query(
             &self.http,
             Method::PUT,
-            Path::UserDataStream,
+            Path::ListenKey,
             &[("listenKey", listen_key)],
             COST_LISTEN_KEY,
         )
         .await
     }
 
-    /// Close a cross-margin listenKey. The WebSocket connection associated
-    /// with the key will be dropped by the server.
-    pub async fn close_listen_key(
-        &self,
-        listen_key: &str,
-    ) -> Result<Response<EmptyResponse>, Error> {
-        send_query(
-            &self.http,
-            Method::DELETE,
-            Path::UserDataStream,
-            &[("listenKey", listen_key)],
-            COST_LISTEN_KEY,
-        )
-        .await
-    }
-}
-
-// User data stream — isolated margin. Same lifecycle as cross-margin but
-// every call carries the isolated-account `symbol`.
-impl PrivateClient {
-    /// Create a new listenKey for an isolated-margin account's user data
-    /// stream. Each isolated account has its own key.
-    pub async fn create_isolated_listen_key(
-        &self,
-        symbol: &str,
-    ) -> Result<Response<ListenKey>, Error> {
-        send_query(
-            &self.http,
-            Method::POST,
-            Path::UserDataStreamIsolated,
-            &[("symbol", symbol)],
-            COST_LISTEN_KEY,
-        )
-        .await
-    }
-
-    /// Extend an isolated-margin listenKey's lifetime by 60 minutes.
-    pub async fn keepalive_isolated_listen_key(
-        &self,
-        symbol: &str,
-        listen_key: &str,
-    ) -> Result<Response<EmptyResponse>, Error> {
-        send_query(
-            &self.http,
-            Method::PUT,
-            Path::UserDataStreamIsolated,
-            &[("symbol", symbol), ("listenKey", listen_key)],
-            COST_LISTEN_KEY,
-        )
-        .await
-    }
-
-    /// Close an isolated-margin listenKey.
-    pub async fn close_isolated_listen_key(
-        &self,
-        symbol: &str,
-        listen_key: &str,
-    ) -> Result<Response<EmptyResponse>, Error> {
-        send_query(
-            &self.http,
-            Method::DELETE,
-            Path::UserDataStreamIsolated,
-            &[("symbol", symbol), ("listenKey", listen_key)],
-            COST_LISTEN_KEY,
-        )
-        .await
+    /// Close the margin user data stream. The WebSocket connection associated
+    /// with the key is dropped by the server.
+    pub async fn close_listen_key(&self) -> Result<Response<EmptyResponse>, Error> {
+        let req = self.http.request(Method::DELETE, Path::ListenKey);
+        decode(self.http.send_raw(req, COST_CLOSE_LISTEN_KEY).await)
     }
 }
 

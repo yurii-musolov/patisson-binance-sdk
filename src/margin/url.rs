@@ -45,8 +45,7 @@ pub enum Path {
     MaxTransferable,
 
     // User data stream lifecycle
-    UserDataStream,
-    UserDataStreamIsolated,
+    ListenKey,
 }
 
 impl std::fmt::Display for Path {
@@ -61,14 +60,13 @@ impl std::fmt::Display for Path {
             Self::ForceLiquidationRec => "/sapi/v1/margin/forceLiquidationRec",
             Self::AllAssets => "/sapi/v1/margin/allAssets",
             Self::AllPairs => "/sapi/v1/margin/allPairs",
-            Self::IsolatedAllPairs => "/sapi/v1/margin/isolated/pair",
+            Self::IsolatedAllPairs => "/sapi/v1/margin/isolated/allPairs",
             Self::PriceIndex => "/sapi/v1/margin/priceIndex",
             Self::MaxBorrowable => "/sapi/v1/margin/maxBorrowable",
             Self::BorrowRepay => "/sapi/v1/margin/borrow-repay",
             Self::InterestRateHistory => "/sapi/v1/margin/interestRateHistory",
             Self::MaxTransferable => "/sapi/v1/margin/maxTransferable",
-            Self::UserDataStream => "/sapi/v1/userDataStream",
-            Self::UserDataStreamIsolated => "/sapi/v1/userDataStream/isolated",
+            Self::ListenKey => "/sapi/v1/margin/listen-key",
         };
         write!(f, "{s}")
     }

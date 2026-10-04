@@ -46,6 +46,8 @@ pub struct MarginAsset {
     pub is_mortgageable: bool,
     pub user_min_borrow: Decimal,
     pub user_min_repay: Decimal,
+    /// Scheduled delisting time, if any.
+    pub delist_time: Option<Timestamp>,
 }
 
 // ===== Cross margin account =====
@@ -77,12 +79,18 @@ pub struct MarginAccount {
     pub total_asset_of_btc: Decimal,
     pub total_liability_of_btc: Decimal,
     pub total_net_asset_of_btc: Decimal,
+    /// Binance spells this key `TotalCollateralValueInUSDT`.
+    #[serde(
+        rename = "TotalCollateralValueInUSDT",
+        alias = "totalCollateralValueInUsdt"
+    )]
     pub total_collateral_value_in_usdt: Decimal,
     pub trade_enabled: bool,
     pub transfer_in_enabled: bool,
     pub transfer_out_enabled: bool,
     pub account_type: String,
-    pub margin_level_status: MarginLevelStatus,
+    /// Not part of the documented response; kept optional.
+    pub margin_level_status: Option<MarginLevelStatus>,
     pub user_assets: Vec<MarginUserAsset>,
 }
 
@@ -120,6 +128,11 @@ pub struct NewOrderRequest {
     side_effect_type: Option<SideEffectType>,
     time_in_force: Option<TimeInForce>,
     self_trade_prevention_mode: Option<STPMode>,
+    /// Trailing stop delta in BIPS (`STOP_LOSS`/`TAKE_PROFIT` variants).
+    trailing_delta: Option<i64>,
+    /// Only with `AUTO_REPAY` / `AUTO_BORROW_REPAY`: whether to repay the
+    /// borrowed amount when the order is canceled (default `true`).
+    auto_repay_at_cancel: Option<bool>,
     /// Max 60000.
     recv_window: Option<u64>,
 }
@@ -141,8 +154,29 @@ impl NewOrderRequest {
             side_effect_type: None,
             time_in_force: None,
             self_trade_prevention_mode: None,
+            trailing_delta: None,
+            auto_repay_at_cancel: None,
             recv_window: None,
         }
+    }
+
+    pub fn trailing_delta(mut self, value: i64) -> Self {
+        self.trailing_delta = Some(value);
+        self
+    }
+
+    pub fn auto_repay_at_cancel(mut self, value: bool) -> Self {
+        self.auto_repay_at_cancel = Some(value);
+        self
+    }
+
+    /// `MARGIN_BUY` and `AUTO_BORROW_REPAY` orders borrow, which Binance
+    /// weighs as 1500 UID weight instead of 6.
+    pub(crate) fn borrows(&self) -> bool {
+        matches!(
+            self.side_effect_type,
+            Some(SideEffectType::MarginBuy | SideEffectType::AutoBorrowRepay)
+        )
     }
 
     pub fn is_isolated(mut self, value: IsIsolated) -> Self {
@@ -265,6 +299,7 @@ pub struct OrderFill {
     pub qty: Decimal,
     pub commission: Decimal,
     pub commission_asset: String,
+    pub trade_id: Option<i64>,
 }
 
 // ===== Query order =====
@@ -434,6 +469,10 @@ pub struct CanceledOrder {
     #[serde(rename = "type")]
     pub order_type: OrderType,
     pub side: OrderSide,
+    /// Present when the order belongs to an order list (`orderReports`).
+    pub order_list_id: Option<i64>,
+    pub stop_price: Option<Decimal>,
+    pub iceberg_qty: Option<Decimal>,
 }
 
 /// One entry of [`CancelAllOpenOrdersParams`]'s response. `cancel_order`
@@ -708,6 +747,7 @@ impl BorrowRepayParams {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct BorrowRepayResult {
     pub tran_id: i64,
 }
@@ -1103,7 +1143,7 @@ pub struct ForceLiquidationRecord {
 
 // ===== User data stream =====
 
-/// Response from `POST /sapi/v1/userDataStream{,/isolated}`.
+/// Response from `POST /sapi/v1/margin/listen-key`.
 ///
 /// Use the returned `listen_key` to connect to
 /// `wss://stream.binance.com:9443/ws/<listen_key>` and consume margin user

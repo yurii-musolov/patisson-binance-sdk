@@ -1,9 +1,9 @@
 //! Margin user data stream end-to-end:
 //!
-//! 1. `POST /sapi/v1/userDataStream` to mint a `listenKey`
+//! 1. `POST /sapi/v1/margin/listen-key` to mint a `listenKey`
 //! 2. WebSocket-connect to `wss://stream.binance.com:9443/ws/<listenKey>`
 //! 3. Consume events for ~60 s
-//! 4. `DELETE /sapi/v1/userDataStream` to release the key
+//! 4. `DELETE /sapi/v1/margin/listen-key` to release the key
 //!
 //! Run with
 //!
@@ -71,7 +71,7 @@ async fn main() -> anyhow::Result<()> {
 
     // 4. Release the listenKey. Skipping this leaves it valid for up to 60
     //    minutes — usually harmless, but cleaner to close explicitly.
-    if let Err(e) = http_client.close_listen_key(&listen_key).await {
+    if let Err(e) = http_client.close_listen_key().await {
         warn!(?e, "close_listen_key failed");
     }
 
