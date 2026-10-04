@@ -1027,10 +1027,16 @@ impl GetAccountInformationParams {
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountInformation {
-    pub maker_commission: f64,
-    pub taker_commission: f64,
-    pub buyer_commission: f64,
-    pub seller_commission: f64,
+    /// Commission in basis points (Binance sends a JSON number). Prefer
+    /// `commission_rates`, which carries the same values as fractions.
+    #[serde(deserialize_with = "crate::serde::decimal_from_number")]
+    pub maker_commission: Decimal,
+    #[serde(deserialize_with = "crate::serde::decimal_from_number")]
+    pub taker_commission: Decimal,
+    #[serde(deserialize_with = "crate::serde::decimal_from_number")]
+    pub buyer_commission: Decimal,
+    #[serde(deserialize_with = "crate::serde::decimal_from_number")]
+    pub seller_commission: Decimal,
     pub commission_rates: CommissionRates,
     pub can_trade: bool,
     pub can_withdraw: bool,
@@ -2064,10 +2070,10 @@ mod tests {
             "uid": 354937868
         }"#;
         let expected = AccountInformation {
-            maker_commission: 15.0,
-            taker_commission: 15.0,
-            buyer_commission: 0.0,
-            seller_commission: 0.0,
+            maker_commission: dec!(15),
+            taker_commission: dec!(15),
+            buyer_commission: dec!(0),
+            seller_commission: dec!(0),
             commission_rates: CommissionRates {
                 maker: dec!(0.00150000),
                 taker: dec!(0.00150000),

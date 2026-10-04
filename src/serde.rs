@@ -30,6 +30,48 @@ where
     serde_urlencoded::to_string(msg)
 }
 
+/// Deserializer for use with `#[serde(deserialize_with = ...)]` on
+/// [`Decimal`](rust_decimal::Decimal) fields Binance sends as JSON numbers
+/// (e.g. `"makerCommission": 15`) rather than strings. A fractional number is
+/// converted through its shortest round-trip decimal form, so `0.001` becomes
+/// exactly `0.001`. Strings are accepted too.
+pub fn decimal_from_number<'de, D>(deserializer: D) -> Result<rust_decimal::Decimal, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use rust_decimal::Decimal;
+    use serde::de::{Error, Visitor};
+    use std::{fmt, str::FromStr};
+
+    struct DecimalVisitor;
+
+    impl Visitor<'_> for DecimalVisitor {
+        type Value = Decimal;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("a decimal number or numeric string")
+        }
+
+        fn visit_i64<E: Error>(self, v: i64) -> Result<Decimal, E> {
+            Ok(Decimal::from(v))
+        }
+
+        fn visit_u64<E: Error>(self, v: u64) -> Result<Decimal, E> {
+            Ok(Decimal::from(v))
+        }
+
+        fn visit_f64<E: Error>(self, v: f64) -> Result<Decimal, E> {
+            Decimal::from_str(&v.to_string()).map_err(E::custom)
+        }
+
+        fn visit_str<E: Error>(self, v: &str) -> Result<Decimal, E> {
+            Decimal::from_str(v).map_err(E::custom)
+        }
+    }
+
+    deserializer.deserialize_any(DecimalVisitor)
+}
+
 /// Serializer for use with `#[serde(serialize_with = ...)]` on fields that
 /// Binance expects as a JSON-array literal in a URL query — e.g.
 /// `symbols=["BTC","ETH"]` rather than the repeated `symbols=BTC&symbols=ETH`
@@ -97,6 +139,21 @@ mod tests {
                 ExchangeFilter::Unknown,
             ]
         );
+    }
+
+    #[test]
+    fn test_decimal_from_number() {
+        #[derive(Deserialize)]
+        struct D {
+            #[serde(deserialize_with = "decimal_from_number")]
+            v: rust_decimal::Decimal,
+        }
+        let parse = |json: &str| deserialize_json::<D>(json).unwrap().v;
+        assert_eq!(parse(r#"{"v":15}"#), dec!(15));
+        assert_eq!(parse(r#"{"v":-3}"#), dec!(-3));
+        assert_eq!(parse(r#"{"v":0.001}"#), dec!(0.001));
+        assert_eq!(parse(r#"{"v":"7.25"}"#), dec!(7.25));
+        assert!(deserialize_json::<D>(r#"{"v":true}"#).is_err());
     }
 
     #[test]
