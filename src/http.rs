@@ -40,6 +40,7 @@ use crate::{
 const HEADER_RETRY_AFTER: &str = "retry-after";
 const HEADER_USED_WEIGHT_PREFIX: &str = "x-mbx-used-weight-";
 const HEADER_ORDER_COUNT_PREFIX: &str = "x-mbx-order-count-";
+const HEADER_SAPI_UID_WEIGHT_PREFIX: &str = "x-sapi-used-uid-weight-";
 
 /// Parsed rate-limit-related response headers.
 ///
@@ -51,6 +52,8 @@ pub struct ParsedHeaders {
     pub retry_after: Option<Duration>,
     pub used_weight: BTreeMap<Duration, u32>,
     pub order_count: BTreeMap<Duration, u32>,
+    /// `X-SAPI-USED-UID-WEIGHT-*`: UID weight used by `/sapi` endpoints.
+    pub used_uid_weight: BTreeMap<Duration, u32>,
 }
 
 impl ParsedHeaders {
@@ -58,6 +61,7 @@ impl ParsedHeaders {
         ObservedUsage {
             weight: self.used_weight.clone(),
             orders: self.order_count.clone(),
+            uid_weight: self.used_uid_weight.clone(),
         }
     }
 }
@@ -357,6 +361,10 @@ fn parse_headers(headers: &HeaderMap) -> ParsedHeaders {
             && let Some((interval, count)) = parse_interval_and_count(suffix, value)
         {
             parsed.order_count.insert(interval, count);
+        } else if let Some(suffix) = name.strip_prefix(HEADER_SAPI_UID_WEIGHT_PREFIX)
+            && let Some((interval, count)) = parse_interval_and_count(suffix, value)
+        {
+            parsed.used_uid_weight.insert(interval, count);
         }
     }
     parsed
@@ -428,6 +436,13 @@ mod tests {
             parse_interval_and_count(" 1m", "5"),
             Some((Duration::from_secs(60), 5))
         );
+    }
+
+    #[test]
+    fn parses_sapi_uid_weight() {
+        let h = parse_headers(&header_map(&[("x-sapi-used-uid-weight-1m", "1800")]));
+        assert_eq!(h.used_uid_weight.get(&Duration::from_secs(60)), Some(&1800));
+        assert!(h.used_weight.is_empty());
     }
 
     #[test]

@@ -27,12 +27,14 @@ use std::{
 /// What an endpoint consumes from the limiter.
 ///
 /// `weight` charges the per-IP `REQUEST_WEIGHT` bucket; `orders` charges the
-/// per-UID `ORDERS` bucket. `RAW_REQUESTS` buckets always charge 1 per call,
-/// independent of `Cost`.
+/// per-UID `ORDERS` bucket; `uid_weight` charges the per-UID weight bucket
+/// that `/sapi` endpoints documented as `Weight(UID)` use. `RAW_REQUESTS`
+/// buckets always charge 1 per call, independent of `Cost`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Cost {
     pub weight: u32,
     pub orders: u32,
+    pub uid_weight: u32,
 }
 
 impl Cost {
@@ -41,14 +43,41 @@ impl Cost {
     pub const FREE: Self = Self {
         weight: 0,
         orders: 0,
+        uid_weight: 0,
     };
 
     pub const fn weight(weight: u32) -> Self {
-        Self { weight, orders: 0 }
+        Self {
+            weight,
+            orders: 0,
+            uid_weight: 0,
+        }
     }
 
     pub const fn weight_and_orders(weight: u32, orders: u32) -> Self {
-        Self { weight, orders }
+        Self {
+            weight,
+            orders,
+            uid_weight: 0,
+        }
+    }
+
+    /// A `/sapi` endpoint documented as `Weight(UID)`: it counts against the
+    /// account's UID weight, not the IP's `REQUEST_WEIGHT`.
+    pub const fn uid_weight(uid_weight: u32) -> Self {
+        Self {
+            weight: 0,
+            orders: 0,
+            uid_weight,
+        }
+    }
+
+    pub const fn uid_weight_and_orders(uid_weight: u32, orders: u32) -> Self {
+        Self {
+            weight: 0,
+            orders,
+            uid_weight,
+        }
     }
 }
 
@@ -61,6 +90,9 @@ pub enum BucketKind {
     Orders,
     /// IP-scoped `RAW_REQUESTS` bucket. Always charged 1 per call.
     RawRequests,
+    /// UID-scoped weight of `/sapi` endpoints (`Weight(UID)` in the docs,
+    /// reported in `X-SAPI-USED-UID-WEIGHT-*`). Charged by `Cost::uid_weight`.
+    UidWeight,
 }
 
 /// One Binance limit declaration: "at most `limit` uses of `kind` per `interval`".
@@ -111,6 +143,7 @@ pub struct RateLimited {
 pub struct ObservedUsage {
     pub weight: BTreeMap<Duration, u32>,
     pub orders: BTreeMap<Duration, u32>,
+    pub uid_weight: BTreeMap<Duration, u32>,
 }
 
 /// A point in time on both clocks: `mono` drives the deadlines, `since_epoch`
@@ -176,6 +209,7 @@ impl Bucket {
             BucketKind::Weight => cost.weight,
             BucketKind::Orders => cost.orders,
             BucketKind::RawRequests => 1,
+            BucketKind::UidWeight => cost.uid_weight,
         }
     }
 }
@@ -285,6 +319,7 @@ impl RateLimiter {
                 BucketKind::Weight => headers.weight.get(&bucket.spec.interval).copied(),
                 BucketKind::Orders => headers.orders.get(&bucket.spec.interval).copied(),
                 BucketKind::RawRequests => None,
+                BucketKind::UidWeight => headers.uid_weight.get(&bucket.spec.interval).copied(),
             };
             if let Some(obs) = observed
                 && obs > bucket.used
@@ -475,6 +510,29 @@ mod tests {
             .try_acquire_at(Cost::weight(1), now.plus(Duration::from_secs(10)))
             .unwrap_err();
         assert_eq!(err.source, RateLimitSource::Server);
+    }
+
+    #[test]
+    fn uid_weight_is_charged_to_its_own_bucket_only() {
+        let now = now_at(MIDNIGHT);
+        let rl = RateLimiter::new_at(
+            [
+                BucketSpec::new(BucketKind::Weight, Duration::from_secs(60), 100),
+                BucketSpec::new(BucketKind::UidWeight, Duration::from_secs(60), 2000),
+            ],
+            now,
+        );
+        // Far above the IP weight limit, yet it must not touch that bucket.
+        rl.try_acquire_at(Cost::uid_weight(1500), now).unwrap();
+        rl.try_acquire_at(Cost::weight(100), now).unwrap();
+        let err = rl.try_acquire_at(Cost::uid_weight(600), now).unwrap_err();
+        assert_eq!(err.source, RateLimitSource::Local);
+
+        let mut obs = ObservedUsage::default();
+        obs.uid_weight.insert(Duration::from_secs(60), 1990);
+        rl.observe_at(&obs, now);
+        let inner = rl.inner.lock().unwrap();
+        assert_eq!(inner.buckets[1].used, 1990);
     }
 
     #[test]
