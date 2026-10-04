@@ -25,6 +25,18 @@ use tracing::{debug, error, info, warn};
 ///     If the WebSocket server does not receive a pong frame back from the connection within a minute the connection will be disconnected.
 ///     When you receive a ping, you must send a pong with a copy of ping's payload as soon as possible.
 ///     Unsolicited pong frames are allowed, but will not prevent disconnection. It is recommended that the payload for these pong frames are empty.
+///
+/// # Connection lifecycle
+///
+/// The driver answers server pings, reconnects with exponential back-off
+/// after a lost connection (`Event::ConnectionLost` followed by
+/// `Event::Reconnecting`) and renews the connection before the 24h limit.
+/// `Event::Disconnected` is only emitted once the driver has stopped.
+///
+/// Subscriptions are **not** restored after a reconnect: send the
+/// `SUBSCRIBE` requests again on every `Event::Connected` (or use a URL that
+/// carries the stream names). Messages sent while a reconnect is pending are
+/// queued and delivered once the connection is back.
 pub struct Stream<C, M>
 where
     C: Serialize + Send + Debug + 'static,
@@ -153,40 +165,49 @@ where
     }
 
     async fn step_connecting(&mut self, attempt: u32) -> State {
-        debug!(attempt, "connecting…");
+        debug!(attempt, "connecting");
 
-        match connect_async(&self.config.url).await {
-            Ok((ws_stream, _)) => {
-                info!("websocket connected");
-                self.emit(Event::Connected).await;
-
-                let (mut sink, stream) = ws_stream.split();
-                if let Err(e) = self.flush_pending(&mut sink).await {
-                    error!(error = %e, "sending queued messages failed");
-                    return self.next_reconnect_state(1, e.to_string()).await;
+        let ws_stream =
+            match timeout(self.config.connect_timeout, connect_async(&self.config.url)).await {
+                Ok(Ok((ws_stream, _))) => ws_stream,
+                Ok(Err(e)) => {
+                    error!(error = %e, attempt, "connection failed");
+                    return self.next_reconnect_state(attempt + 1, e.to_string()).await;
                 }
-                let (frame_tx, frame_rx) =
-                    mpsc::channel::<FrameResult>(self.config.event_queue_size);
+                Err(_) => {
+                    error!(attempt, "connection attempt timed out");
+                    return self
+                        .next_reconnect_state(attempt + 1, "connect timed out".into())
+                        .await;
+                }
+            };
 
-                let read_task = tokio::spawn(async move {
-                    let mut stream = stream;
-                    while let Some(msg) = stream.next().await {
-                        if frame_tx.send(msg).await.is_err() {
-                            break;
-                        }
-                    }
-                });
+        info!("websocket connected");
+        self.emit(Event::Connected).await;
 
-                State::Connected {
-                    frame_rx,
-                    read_task,
-                    sink: Box::new(sink),
+        let (sink, stream) = ws_stream.split();
+        let mut sink: Sink = Box::new(sink);
+        let (frame_tx, frame_rx) = mpsc::channel::<FrameResult>(self.config.event_queue_size);
+        let read_task = tokio::spawn(async move {
+            let mut stream = stream;
+            while let Some(msg) = stream.next().await {
+                if frame_tx.send(msg).await.is_err() {
+                    break;
                 }
             }
-            Err(e) => {
-                error!(error = %e, attempt, "connection failed");
-                self.next_reconnect_state(attempt + 1, e.to_string()).await
-            }
+        });
+
+        if let Err(e) = self.flush_pending(&mut sink).await {
+            error!(error = %e, "sending queued messages failed");
+            return self
+                .connection_lost(read_task, DisconnectReason::Error(e.to_string()))
+                .await;
+        }
+
+        State::Connected {
+            frame_rx,
+            read_task,
+            sink,
         }
     }
 
@@ -210,57 +231,49 @@ where
         let mut ttl_timer = Box::pin(sleep(ttl_dur));
         let mut hb = HeartbeatState::Idle;
 
-        loop {
+        let lost = loop {
             tokio::select! {
                 biased;
 
                 frame = frame_rx.recv() => match frame {
                     None => {
                         info!("remote closed the connection");
-                        read_task.abort();
-                        return self.next_reconnect_state(1, "remote closed".into()).await;
+                        break DisconnectReason::RemoteClosed;
                     }
                     Some(Err(e)) => {
                         error!(error = %e, "websocket read error");
-                        read_task.abort();
-                        return self.next_reconnect_state(1, e.to_string()).await;
+                        break DisconnectReason::Error(e.to_string());
                     }
                     Some(Ok(msg)) => match msg {
                         Message::Ping(bytes) => {
                             debug!("protocol ping received ({}B)", bytes.len());
                             if let Err(e) = sink.send(Message::Pong(bytes)).await {
                                 error!(error = %e, "send protocol pong failed");
-                                read_task.abort();
-                                return self.next_reconnect_state(1, e.to_string()).await;
+                                break DisconnectReason::Error(e.to_string());
                             }
                             hb = HeartbeatState::PongSent;
                             ping_timer.as_mut().reset(far_future_instant());
                             pong_timeout.as_mut().reset(Instant::now() + pong_timeout_dur);
                         }
-                        Message::Text(json) => {
-                            match deserialize_json::<M>(&json) {
-                                Ok(msg) => {
-                                    if msg.server_shutdown_event_time().is_some() {
-                                        info!("server shutdown notice received, initiating reconnect");
-                                        self.emit_data(Event::Message(msg));
-                                        read_task.abort();
-                                        return self.next_reconnect_state(1, "server shutdown".into()).await;
-                                    } else {
-                                        self.emit_data(Event::Message(msg))
-                                    }
-                                }
-                                Err(e) => {
-                                    warn!(error = %e, "parsing IncomingMessage failed");
-                                    self.emit_data(Event::ParseError(e.to_string()));
+                        Message::Text(json) => match deserialize_json::<M>(&json) {
+                            Ok(msg) => {
+                                let shutdown = msg.server_shutdown_event_time().is_some();
+                                self.emit_data(Event::Message(msg));
+                                if shutdown {
+                                    info!("server shutdown notice received, initiating reconnect");
+                                    break DisconnectReason::ServerShutdown;
                                 }
                             }
-                        }
+                            Err(e) => {
+                                warn!(error = %e, "parsing IncomingMessage failed");
+                                self.emit_data(Event::ParseError(e.to_string()));
+                            }
+                        },
                         Message::Pong(bytes) => debug!("pong received ({}B)", bytes.len()),
                         Message::Binary(bytes) => debug!("binary message received ({}B)", bytes.len()),
                         Message::Close(close_frame) => {
                             debug!(?close_frame, "close frame received");
-                            read_task.abort();
-                            return self.next_reconnect_state(1, "remote close frame".into()).await;
+                            break DisconnectReason::RemoteClosed;
                         }
                         Message::Frame(frame) => debug!("frame received ({}B)", frame.len()),
                     },
@@ -274,12 +287,18 @@ where
                         return State::Closing { frame_rx, read_task, sink };
                     }
                     Some(Command::Send(msg)) => {
-                        let json = serialize_json(&msg).expect("serialize outgoing message failed");
-                        let msg = Message::Text(json.into());
-                        if let Err(e) = sink.send(msg).await {
+                        let frame = match encode(&msg) {
+                            Ok(frame) => frame,
+                            Err(error) => {
+                                self.emit(Event::SendFailed { error }).await;
+                                continue;
+                            }
+                        };
+                        if let Err(e) = sink.send(frame).await {
                             error!(error = %e, "send error");
-                            read_task.abort();
-                            return self.next_reconnect_state(1, e.to_string()).await;
+                            // The message never left: retry it after reconnect.
+                            self.pending.push_front(msg);
+                            break DisconnectReason::Error(e.to_string());
                         }
                     }
                     Some(Command::Connect) => warn!("Connect ignored - already connected")
@@ -287,25 +306,35 @@ where
 
                 _ = ping_timer.as_mut(), if matches!(hb, HeartbeatState::Idle) => {
                     warn!("no ping received within ping_interval - connection assumed dead");
-                    self.emit(Event::Disconnected { reason: DisconnectReason::PongTimeout }).await;
-                    read_task.abort();
-                    return self.next_reconnect_state(1, "ping interval exceeded".into()).await;
+                    break DisconnectReason::PongTimeout;
                 }
 
                 _ = pong_timeout.as_mut(), if matches!(hb, HeartbeatState::PongSent) => {
                     warn!("no ping received within pong_timeout after last pong - connection assumed dead");
-                    self.emit(Event::Disconnected { reason: DisconnectReason::PongTimeout }).await;
-                    read_task.abort();
-                    return self.next_reconnect_state(1, "pong timeout".into()).await;
+                    break DisconnectReason::PongTimeout;
                 }
 
                 _ = ttl_timer.as_mut() => {
                     info!("connection TTL reached, reconnecting proactively");
-                    read_task.abort();
-                    return self.next_reconnect_state(1, "connection TTL reached".into()).await;
+                    break DisconnectReason::ConnectionTtl;
                 }
             }
-        }
+        };
+
+        self.connection_lost(read_task, lost).await
+    }
+
+    /// An established connection ended without the user asking for it:
+    /// report it and schedule a reconnect.
+    async fn connection_lost(
+        &mut self,
+        read_task: tokio::task::JoinHandle<()>,
+        reason: DisconnectReason,
+    ) -> State {
+        read_task.abort();
+        let detail = format!("{reason:?}");
+        self.emit(Event::ConnectionLost { reason }).await;
+        self.next_reconnect_state(1, detail).await
     }
 
     async fn step_reconnecting(&mut self, attempt: u32, delay_ms: u64) -> State {
@@ -352,13 +381,19 @@ where
 
     /// Send every queued message in order. On failure the unsent message is
     /// put back at the front so it is retried after the next reconnect.
-    async fn flush_pending<S>(&mut self, sink: &mut S) -> Result<(), S::Error>
-    where
-        S: futures_util::Sink<Message> + Unpin,
-    {
+    async fn flush_pending(
+        &mut self,
+        sink: &mut Sink,
+    ) -> Result<(), tokio_tungstenite::tungstenite::Error> {
         while let Some(msg) = self.pending.pop_front() {
-            let json = serialize_json(&msg).expect("serialize outgoing message failed");
-            if let Err(e) = sink.send(Message::Text(json.into())).await {
+            let frame = match encode(&msg) {
+                Ok(frame) => frame,
+                Err(error) => {
+                    self.emit(Event::SendFailed { error }).await;
+                    continue;
+                }
+            };
+            if let Err(e) = sink.send(frame).await {
                 self.pending.push_front(msg);
                 return Err(e);
             }
@@ -426,6 +461,18 @@ where
     }
 }
 
+/// Serialize an outgoing message. A message that can't be serialized can
+/// never be sent; callers report it as `Event::SendFailed` and drop it
+/// instead of bringing the driver down.
+fn encode<C: Serialize + Debug>(msg: &C) -> Result<Message, String> {
+    serialize_json(msg)
+        .map(|json| Message::Text(json.into()))
+        .map_err(|e| {
+            error!(error = %e, ?msg, "serialize outgoing message failed");
+            e.to_string()
+        })
+}
+
 const FAR_FUTURE: Duration = Duration::from_secs(u64::MAX / 4);
 
 #[inline]
@@ -452,7 +499,7 @@ mod tests {
     /// What the test server does with the n-th accepted connection.
     #[derive(Clone, Copy)]
     enum Behaviour {
-        /// Complete the handshake, then drop the socket at once.
+        /// Complete the handshake, then close the connection at once.
         CloseImmediately,
         /// Read frames until the client goes away, reporting each one.
         Record,
@@ -487,6 +534,9 @@ mod tests {
                 let _ = tx.send(ServerEvent::Accepted(n, Instant::now()));
                 let id = n;
                 tokio::spawn(async move {
+                    if let Behaviour::CloseImmediately = behaviour {
+                        let _ = ws.close(None).await;
+                    }
                     if let Behaviour::Burst(count) = behaviour {
                         for i in 0..count {
                             let text = json!({ "i": i }).to_string();
@@ -626,5 +676,96 @@ mod tests {
         }
         assert!(dropped > 0, "the burst should have overflowed the queue");
         assert_eq!(received + dropped, SENT);
+    }
+
+    #[tokio::test]
+    async fn remote_close_reports_connection_lost_and_reconnects() {
+        let (url, _server) =
+            spawn_server(vec![Behaviour::CloseImmediately, Behaviour::Record]).await;
+        let (handle, mut events) = Stream::<Value, TestMsg>::new(test_config(url));
+        handle.connect().await.unwrap();
+
+        assert!(matches!(next_event(&mut events).await, Event::Connected));
+        let lost = next_event(&mut events).await;
+        assert!(
+            matches!(
+                lost,
+                Event::ConnectionLost {
+                    reason: DisconnectReason::RemoteClosed
+                }
+            ),
+            "got {lost:?}"
+        );
+        assert!(matches!(
+            next_event(&mut events).await,
+            Event::Reconnecting { attempt: 1, .. }
+        ));
+        // A transient loss must not look like the terminal Disconnected.
+        assert!(matches!(next_event(&mut events).await, Event::Connected));
+
+        handle.disconnect().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn stalled_handshake_hits_connect_timeout() {
+        // Accepts TCP connections but never answers the WebSocket handshake.
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            let mut held = Vec::new();
+            while let Ok((tcp, _)) = listener.accept().await {
+                held.push(tcp);
+            }
+        });
+
+        let cfg = test_config(url)
+            .connect_timeout(Duration::from_millis(200))
+            .max_reconnect_attempts(1);
+        let (handle, mut events) = Stream::<Value, TestMsg>::new(cfg);
+        handle.connect().await.unwrap();
+
+        match next_event(&mut events).await {
+            Event::Disconnected {
+                reason: DisconnectReason::Error(_),
+            } => {}
+            other => panic!("unexpected event {other:?}"),
+        }
+    }
+
+    #[derive(Debug, serde::Serialize)]
+    #[serde(untagged)]
+    enum Outgoing {
+        Good(Value),
+        /// serde_json rejects non-string map keys.
+        Bad(std::collections::BTreeMap<Vec<u8>, u8>),
+    }
+
+    #[tokio::test]
+    async fn unserializable_message_is_reported_not_fatal() {
+        let (url, mut server) = spawn_server(vec![Behaviour::Record]).await;
+        let (handle, mut events) = Stream::<Outgoing, TestMsg>::new(test_config(url));
+        handle.connect().await.unwrap();
+        assert!(matches!(next_event(&mut events).await, Event::Connected));
+
+        let bad = Outgoing::Bad([(vec![1], 1)].into_iter().collect());
+        handle.send_command(bad).await.unwrap();
+        assert!(matches!(
+            next_event(&mut events).await,
+            Event::SendFailed { .. }
+        ));
+
+        // The driver is still alive and keeps sending.
+        handle
+            .send_command(Outgoing::Good(json!({"id": 2})))
+            .await
+            .unwrap();
+        loop {
+            if let ServerEvent::Text(0, text) = next_server_event(&mut server).await {
+                assert_eq!(text, r#"{"id":2}"#);
+                break;
+            }
+        }
+
+        handle.disconnect().await.unwrap();
     }
 }
