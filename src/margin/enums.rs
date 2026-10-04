@@ -6,6 +6,10 @@ use serde::{Deserialize, Serialize};
 pub enum OrderSide {
     BUY,
     SELL,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -18,6 +22,10 @@ pub enum OrderType {
     TakeProfit,
     TakeProfitLimit,
     LimitMaker,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -28,6 +36,10 @@ pub enum TimeInForce {
     IOC,
     /// Fill or Kill.
     FOK,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -41,6 +53,10 @@ pub enum OrderStatus {
     Rejected,
     Expired,
     ExpiredInMatch,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -48,12 +64,20 @@ pub enum OrderResponseType {
     ACK,
     RESULT,
     FULL,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Order list contingency type — currently Binance only issues `OCO`.
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum ContingencyType {
     OCO,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Order List Status — top-level lifecycle state of an order list.
@@ -66,6 +90,10 @@ pub enum OrderListStatus {
     ExecStarted,
     /// The order list has finished executing and is no longer active.
     AllDone,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Order List Order Status — aggregate status of the list's legs.
@@ -79,6 +107,10 @@ pub enum OrderListOrderStatus {
     /// The list status is responding to a failed action, either during
     /// order list placement or cancellation.
     Reject,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Margin order side-effect — controls auto-borrow/repay behaviour.
@@ -89,6 +121,10 @@ pub enum SideEffectType {
     MarginBuy,
     AutoRepay,
     AutoBorrowRepay,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Self-trade prevention mode.
@@ -100,6 +136,10 @@ pub enum STPMode {
     ExpireTaker,
     ExpireBoth,
     Decrement,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Direction of a borrow/repay execution against the margin account.
@@ -108,6 +148,10 @@ pub enum STPMode {
 pub enum BorrowRepayType {
     Borrow,
     Repay,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Whether a margin operation targets the isolated or cross-margin account.
@@ -118,6 +162,10 @@ pub enum BorrowRepayType {
 pub enum IsIsolated {
     True,
     False,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -128,6 +176,10 @@ pub enum MarginLevelStatus {
     MarginCall,
     PreLiquidation,
     ForceLiquidation,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]

@@ -12,6 +12,10 @@ pub enum SymbolStatus {
     EndOfDay,
     Halt,
     Break,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Order status.
@@ -37,6 +41,10 @@ pub enum OrderStatus {
     Expired,
     /// The order was expired by the exchange due to STP. (e.g. an order with EXPIRE_TAKER will match with existing orders on the book with the same account or same tradeGroupId)
     ExpiredInMatch,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Order List Status.
@@ -51,6 +59,10 @@ pub enum OrderListStatus {
     Updated,
     /// The order list has finished executing and thus is no longer active.
     AllDone,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Order List Order Status.
@@ -63,6 +75,10 @@ pub enum OrderListOrderStatus {
     AllDone,
     /// The List Status is responding to a failed action either during order placement or order canceled.
     Reject,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// ContingencyType
@@ -70,12 +86,20 @@ pub enum OrderListOrderStatus {
 pub enum ContingencyType {
     OCO,
     OTO,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Allocation type.
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum AllocationType {
     SOR,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Order types.
@@ -89,6 +113,10 @@ pub enum OrderType {
     TakeProfit,
     TakeProfitLimit,
     LimitMaker,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Order Response Type.
@@ -97,6 +125,10 @@ pub enum OrderResponseType {
     ACK,
     RESULT,
     FULL,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Working Floor.
@@ -104,6 +136,10 @@ pub enum OrderResponseType {
 pub enum WorkingFloor {
     EXCHANGE,
     SOR,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Order side.
@@ -111,6 +147,10 @@ pub enum WorkingFloor {
 pub enum OrderSide {
     BUY,
     SELL,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Time in force.
@@ -126,6 +166,10 @@ pub enum TimeInForce {
     /// Fill or Kill
     /// An order will expire if the full order cannot be filled upon execution.
     FOK,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Rate limiter.
@@ -135,6 +179,10 @@ pub enum RateLimiter {
     RequestWeight,
     Orders,
     RawRequests,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Rate limit interval.
@@ -144,6 +192,10 @@ pub enum RateLimitInterval {
     Second,
     Minute,
     Day,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -215,6 +267,10 @@ pub enum STPMode {
     ExpireTaker,
     ExpireBoth,
     Decrement,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -228,6 +284,10 @@ pub enum SecurityType {
     UserData,
     /// Endpoint requires sending a valid API-Key.
     UserStream,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Exchange-wide filter from `exchangeInfo.exchangeFilters`.
@@ -258,4 +318,8 @@ pub enum ExchangeFilter {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AccountType {
     Spot,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }

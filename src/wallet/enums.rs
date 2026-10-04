@@ -57,6 +57,10 @@ pub enum UniversalTransferType {
     FundingMargin,
     FundingCmfuture,
     CmfutureFunding,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Status of a universal-transfer record reported by the transfer-history
@@ -67,4 +71,8 @@ pub enum TransferStatus {
     Confirmed,
     Failed,
     Pending,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
