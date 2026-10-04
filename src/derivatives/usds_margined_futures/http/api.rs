@@ -30,9 +30,11 @@ pub struct ExchangeInfo {
     pub server_time: Timestamp,
     pub rate_limits: Vec<RateLimit>,
     pub symbols: Vec<SymbolInfo>,
-    /// Exchange-wide filters, as raw JSON (not modelled yet).
+    /// Exchange-wide filters (empty in current responses), as raw JSON.
     #[serde(default)]
     pub exchange_filters: Vec<serde_json::Value>,
+    /// `U_MARGINED`.
+    pub futures_type: Option<String>,
     /// Margin assets (Multi-Assets mode).
     #[serde(default)]
     pub assets: Vec<ExchangeAsset>,
@@ -46,6 +48,69 @@ pub struct ExchangeAsset {
     pub margin_available: bool,
     /// Auto-exchange threshold in Multi-Assets margin mode.
     pub auto_asset_exchange: Option<Decimal>,
+}
+
+/// Symbol trading rule from `exchangeInfo`, tagged by `filterType`. Shapes
+/// taken from a live `/fapi/v1/exchangeInfo` response (2026-10-04).
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(tag = "filterType", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum SymbolFilter {
+    PriceFilter(SymbolFilterPriceFilter),
+    LotSize(SymbolFilterLotSize),
+    MarketLotSize(SymbolFilterLotSize),
+    MaxNumOrders(SymbolFilterLimit),
+    MaxNumAlgoOrders(SymbolFilterLimit),
+    MinNotional(SymbolFilterMinNotional),
+    PercentPrice(SymbolFilterPercentPrice),
+    PositionRiskControl(SymbolFilterPositionRiskControl),
+    /// A filter type this SDK version doesn't know yet.
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolFilterPriceFilter {
+    pub min_price: Decimal,
+    pub max_price: Decimal,
+    pub tick_size: Decimal,
+}
+
+/// `LOT_SIZE` and `MARKET_LOT_SIZE`.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolFilterLotSize {
+    pub min_qty: Decimal,
+    pub max_qty: Decimal,
+    pub step_size: Decimal,
+}
+
+/// `MAX_NUM_ORDERS` and `MAX_NUM_ALGO_ORDERS`.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolFilterLimit {
+    pub limit: u32,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolFilterMinNotional {
+    pub notional: Decimal,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolFilterPercentPrice {
+    pub multiplier_up: Decimal,
+    pub multiplier_down: Decimal,
+    pub multiplier_decimal: Decimal,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolFilterPositionRiskControl {
+    /// `NONE` when position risk control is off.
+    pub position_control_side: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -86,10 +151,11 @@ pub struct SymbolInfo {
     pub liquidation_fee: Option<Decimal>,
     /// Max price difference rate (from mark price) a market order can make.
     pub market_take_bound: Option<Decimal>,
-    /// Symbol filters (`PRICE_FILTER`, `LOT_SIZE`, ...), as raw JSON: the
-    /// specification's example is malformed, so they are not typed yet.
+    pub filters: Vec<SymbolFilter>,
+    /// Max order price move between consecutive amendments, in ticks.
+    pub max_move_order_limit: Option<i64>,
     #[serde(default)]
-    pub filters: Vec<serde_json::Value>,
+    pub permission_sets: Vec<String>,
 }
 
 // ===== Market Data =====

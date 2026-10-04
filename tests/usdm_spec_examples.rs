@@ -56,3 +56,23 @@ fn v3_account_and_position_risk_parse() {
     let positions: Vec<Position> = parse("position_information.json");
     assert!(!positions.is_empty());
 }
+
+#[test]
+fn live_exchange_info_filters_are_all_typed() {
+    // `exchange_info_live.json`: a real /fapi/v1/exchangeInfo response from
+    // 2026-10-04, trimmed to two symbols. The specification's example has a
+    // malformed filter list, so the filter shapes are checked against this.
+    use binance::derivatives::usds_margined_futures::http::SymbolFilter;
+    let info: ExchangeInfo = parse("exchange_info_live.json");
+    let filters: Vec<_> = info.symbols.iter().flat_map(|s| &s.filters).collect();
+    assert!(!filters.is_empty());
+    assert!(
+        filters.iter().all(|f| !matches!(f, SymbolFilter::Unknown)),
+        "unmodelled filter type in {filters:?}"
+    );
+    assert!(
+        filters
+            .iter()
+            .any(|f| matches!(f, SymbolFilter::PriceFilter(p) if !p.tick_size.is_zero()))
+    );
+}
