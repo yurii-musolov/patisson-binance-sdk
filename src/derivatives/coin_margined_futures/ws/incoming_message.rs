@@ -55,7 +55,9 @@ pub enum StreamMessage {
     AggTrade(AggTradeMsg),
     #[serde(rename = "kline")]
     Kline(KlineMsg),
-    #[serde(rename = "indexPriceUpdate")]
+    /// Binance renamed the event to `IndexUpdate` (2026-06); the old name is
+    /// still accepted.
+    #[serde(rename = "IndexUpdate", alias = "indexPriceUpdate")]
     IndexPriceUpdate(IndexPriceUpdateMsg),
     #[serde(rename = "markPriceUpdate")]
     MarkPriceUpdate(MarkPriceUpdateMsg),
@@ -141,7 +143,8 @@ pub struct IndexPriceUpdateMsg {
     #[serde(rename = "E")]
     pub event_time: Timestamp,
     /// Pair (e.g. BTCUSD).
-    #[serde(rename = "i")]
+    /// `s` since 2026-06 (was `i`).
+    #[serde(rename = "s", alias = "i")]
     pub pair: String,
     #[serde(rename = "p")]
     pub index_price: Decimal,
@@ -215,4 +218,24 @@ pub struct DepthUpdateMsg {
     pub bids: Vec<OrderLevel>,
     #[serde(rename = "a")]
     pub asks: Vec<OrderLevel>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn index_price_update_accepts_the_current_and_the_old_format() {
+        // Live payload from wss://dstream.binance.com/ws/btcusd@indexPrice (2026-10-04).
+        let current = r#"{"E":1791139959000,"s":"BTCUSD","p":"85331.64268507","e":"IndexUpdate"}"#;
+        let old = r#"{"e":"indexPriceUpdate","E":1791139959000,"i":"BTCUSD","p":"85331.64268507"}"#;
+        for json in [current, old] {
+            match crate::serde::deserialize_json::<IncomingMessage>(json).unwrap() {
+                IncomingMessage::Stream(StreamMessage::IndexPriceUpdate(msg)) => {
+                    assert_eq!(msg.pair, "BTCUSD");
+                }
+                other => panic!("unexpected {other:?}"),
+            }
+        }
+    }
 }
