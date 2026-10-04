@@ -13,7 +13,12 @@
 //!
 //! - Drop buffered events where `u <= lastUpdateId` (note: `<=`, not `<`).
 //! - First processed event: `U <= lastUpdateId+1 AND u >= lastUpdateId+1`.
-//! - Subsequent events must satisfy `next.U == prev.u + 1`.
+//! - Subsequent events must satisfy `next.U == prev.u + 1`; once live, an
+//!   event that overlaps the book (`U <= last + 1 <= u`) is applied too, and
+//!   only `U > last + 1` is treated as a gap.
+//!
+//! A newer snapshot fed into a live book (e.g. a periodic refresh) is bridged
+//! the same way as the initial one.
 
 use rust_decimal::Decimal;
 use std::collections::{BTreeMap, VecDeque};
@@ -84,22 +89,15 @@ impl OrderBookState {
         Self::default()
     }
 
-    /// Feed a REST depth snapshot into the state machine.
+    /// Feed a REST depth snapshot into the state machine. A newer snapshot
+    /// for a live book (e.g. a periodic refresh) is bridged like the initial
+    /// one, so the book reports `Buffered` until the next bridging diff.
     pub fn apply_snapshot(&mut self, snapshot: OrderBook) -> ApplyOutcome {
         let new_id = snapshot.last_update_id;
 
         match &self.inner {
-            Inner::Synced { last_update_id, .. } => {
-                if new_id <= *last_update_id {
-                    return ApplyOutcome::Ignored;
-                }
-                let (bids, asks) = sides_from_snapshot(snapshot);
-                self.inner = Inner::Synced {
-                    last_update_id: new_id,
-                    bids,
-                    asks,
-                };
-                return ApplyOutcome::Applied;
+            Inner::Synced { last_update_id, .. } if new_id <= *last_update_id => {
+                return ApplyOutcome::Ignored;
             }
             Inner::Pending {
                 snapshot_last_id, ..
@@ -111,7 +109,10 @@ impl OrderBookState {
 
         let buffered = match std::mem::take(&mut self.inner) {
             Inner::NoSnapshot { buffered } | Inner::Pending { buffered, .. } => buffered,
-            Inner::Synced { .. } => unreachable!("handled above"),
+            // A newer snapshot for a live book (e.g. a periodic refresh) is
+            // bridged like the initial one, so the diff stream continues
+            // seamlessly instead of hitting a chain mismatch.
+            Inner::Synced { .. } => VecDeque::new(),
         };
         let (bids, asks) = sides_from_snapshot(snapshot);
         self.inner = Inner::Pending {
@@ -127,11 +128,11 @@ impl OrderBookState {
     pub fn apply_diff(&mut self, diff: DepthUpdateMsg) -> ApplyOutcome {
         match &mut self.inner {
             Inner::NoSnapshot { buffered } => {
-                buffered.push_back(diff);
+                push_bounded(buffered, diff);
                 ApplyOutcome::Buffered
             }
             Inner::Pending { buffered, .. } => {
-                buffered.push_back(diff);
+                push_bounded(buffered, diff);
                 self.try_bridge()
             }
             Inner::Synced {
@@ -142,7 +143,9 @@ impl OrderBookState {
                 if diff.final_update_id <= *last_update_id {
                     return ApplyOutcome::Ignored;
                 }
-                if diff.first_update_id != *last_update_id + 1 {
+                // `u > last` holds here, so `U <= last + 1` means the diff
+                // continues (or overlaps) the chain; only `U > last + 1` is a gap.
+                if diff.first_update_id > *last_update_id + 1 {
                     let mut buffered = VecDeque::new();
                     buffered.push_back(diff);
                     self.inner = Inner::NoSnapshot { buffered };
@@ -264,6 +267,18 @@ impl OrderBookState {
         };
         ApplyOutcome::Synced
     }
+}
+
+/// Upper bound on diffs held while waiting for a snapshot to bridge. If the
+/// snapshot never arrives the oldest diffs are dropped; the resulting gap is
+/// detected when the snapshot finally arrives (`ResyncRequired`).
+pub const MAX_BUFFERED_DIFFS: usize = 10_000;
+
+fn push_bounded(buffered: &mut VecDeque<DepthUpdateMsg>, diff: DepthUpdateMsg) {
+    if buffered.len() >= MAX_BUFFERED_DIFFS {
+        buffered.pop_front();
+    }
+    buffered.push_back(diff);
 }
 
 fn sides_from_snapshot(
@@ -400,13 +415,42 @@ mod tests {
     }
 
     #[test]
-    fn newer_snapshot_replaces_synced_book() {
+    fn newer_snapshot_rebridges_synced_book() {
         let mut book = OrderBookState::new();
         book.apply_snapshot(snapshot(100));
         book.apply_diff(diff(95, 105));
         assert!(book.is_synced());
-        assert_eq!(book.apply_snapshot(snapshot(200)), ApplyOutcome::Applied);
-        assert_eq!(book.last_update_id(), Some(200));
+        // Refresh during live operation: bridged like the initial snapshot.
+        assert_eq!(book.apply_snapshot(snapshot(200)), ApplyOutcome::Buffered);
+        assert_eq!(book.apply_diff(diff(150, 199)), ApplyOutcome::Buffered);
+        // The diff straddling the snapshot id continues the book seamlessly.
+        assert_eq!(book.apply_diff(diff(198, 210)), ApplyOutcome::Synced);
+        assert_eq!(book.last_update_id(), Some(210));
+        assert_eq!(book.apply_diff(diff(211, 215)), ApplyOutcome::Applied);
+    }
+
+    #[test]
+    fn overlapping_diff_after_sync_is_applied() {
+        let mut book = OrderBookState::new();
+        book.apply_snapshot(snapshot(100));
+        book.apply_diff(diff(95, 105));
+        // U=103 <= last+1=106 <= u=110: overlaps, not a gap.
+        assert_eq!(book.apply_diff(diff(103, 110)), ApplyOutcome::Applied);
+        assert_eq!(book.last_update_id(), Some(110));
+    }
+
+    #[test]
+    fn buffer_is_bounded() {
+        let mut book = OrderBookState::new();
+        for i in 0..(MAX_BUFFERED_DIFFS as i64 + 5) {
+            book.apply_diff(diff(i * 10, i * 10 + 9));
+        }
+        let Inner::NoSnapshot { buffered } = &book.inner else {
+            panic!("expected NoSnapshot");
+        };
+        assert_eq!(buffered.len(), MAX_BUFFERED_DIFFS);
+        // The oldest diffs were the ones dropped.
+        assert_eq!(buffered.front().unwrap().first_update_id, 50);
     }
 
     #[test]
