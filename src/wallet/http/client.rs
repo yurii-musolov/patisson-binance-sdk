@@ -25,13 +25,13 @@ use crate::{
 const COST_ALL_COINS: Cost = Cost::weight(10);
 const COST_DEPOSIT_ADDRESS: Cost = Cost::weight(10);
 const COST_DEPOSIT_HISTORY: Cost = Cost::weight(1);
-const COST_WITHDRAW: Cost = Cost::weight(600);
-const COST_WITHDRAW_HISTORY: Cost = Cost::weight(18_000);
+const COST_WITHDRAW: Cost = Cost::uid_weight(900);
+const COST_WITHDRAW_HISTORY: Cost = Cost::uid_weight(18_000);
 const COST_ACCOUNT_STATUS: Cost = Cost::weight(1);
 const COST_TRADE_FEE: Cost = Cost::weight(1);
 const COST_ASSET_DIVIDEND_RECORD: Cost = Cost::weight(10);
 const COST_WALLET_BALANCE: Cost = Cost::weight(60);
-const COST_UNIVERSAL_TRANSFER: Cost = Cost::weight(900);
+const COST_UNIVERSAL_TRANSFER: Cost = Cost::uid_weight(300);
 const COST_UNIVERSAL_TRANSFER_HISTORY: Cost = Cost::weight(1);
 const COST_USER_ASSET: Cost = Cost::weight(5);
 const COST_ACCOUNT_API_TRADING_STATUS: Cost = Cost::weight(1);

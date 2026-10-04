@@ -128,11 +128,25 @@ pub struct GetDepositHistoryParams {
     limit: Option<u32>,
     offset: Option<u32>,
     recv_window: Option<u64>,
+    /// Also return the deposit `sourceAddress` (default `false`).
+    include_source: Option<bool>,
+    /// Filter by transaction id.
+    tx_id: Option<String>,
 }
 
 impl GetDepositHistoryParams {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn include_source(mut self, value: bool) -> Self {
+        self.include_source = Some(value);
+        self
+    }
+
+    pub fn tx_id(mut self, value: impl Into<String>) -> Self {
+        self.tx_id = Some(value.into());
+        self
     }
 
     pub fn coin(mut self, value: impl Into<String>) -> Self {
@@ -182,6 +196,8 @@ pub struct Deposit {
     pub confirm_times: String,
     pub unlock_confirm: u32,
     pub wallet_type: u8,
+    pub complete_time: Option<Timestamp>,
+    pub travel_rule_status: Option<u8>,
 }
 
 // ===== Withdraw history =====
@@ -200,11 +216,23 @@ pub struct GetWithdrawHistoryParams {
     limit: Option<u32>,
     offset: Option<u32>,
     recv_window: Option<u64>,
+    /// Withdraw ids to look up, sent comma-separated (max 45).
+    id_list: Option<String>,
 }
 
 impl GetWithdrawHistoryParams {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn id_list<I, S>(mut self, ids: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let ids: Vec<String> = ids.into_iter().map(|id| id.as_ref().to_owned()).collect();
+        self.id_list = Some(ids.join(","));
+        self
     }
 
     pub fn coin(mut self, value: impl Into<String>) -> Self {
@@ -449,6 +477,7 @@ pub struct AssetDividend {
     pub div_time: Timestamp,
     pub en_info: String,
     pub tran_id: u64,
+    pub direction: Option<i8>,
 }
 
 // ===== Wallet balance =====
@@ -457,11 +486,25 @@ pub struct AssetDividend {
 #[serde(rename_all = "camelCase")]
 pub struct GetUserWalletBalanceParams {
     recv_window: Option<u64>,
+    /// Valuation currency of `balance` (default `BTC`).
+    quote_asset: Option<String>,
+    /// Include the per-asset `asset_balances` breakdown.
+    need_balance_detail: Option<bool>,
 }
 
 impl GetUserWalletBalanceParams {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn quote_asset(mut self, value: impl Into<String>) -> Self {
+        self.quote_asset = Some(value.into());
+        self
+    }
+
+    pub fn need_balance_detail(mut self, value: bool) -> Self {
+        self.need_balance_detail = Some(value);
+        self
     }
 
     pub fn recv_window(mut self, value: u64) -> Self {
@@ -476,6 +519,20 @@ pub struct WalletBalance {
     pub activate: bool,
     pub balance: Decimal,
     pub wallet_name: String,
+    /// Only with `need_balance_detail(true)`.
+    pub asset_balances: Option<Vec<WalletAssetBalance>>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct WalletAssetBalance {
+    pub asset: String,
+    pub asset_name: String,
+    pub free: Decimal,
+    pub locked: Decimal,
+    pub freeze: Decimal,
+    pub withdrawing: Decimal,
+    pub btc_valuation: Decimal,
 }
 
 // ===== Universal transfer =====
