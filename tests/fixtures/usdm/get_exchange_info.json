@@ -1,0 +1,71 @@
+{
+  "exchangeFilters": [
+    ""
+  ],
+  "rateLimits": [
+    {
+      "interval": "MINUTE",
+      "intervalNum": 1,
+      "limit": 2400,
+      "rateLimitType": "REQUEST_WEIGHT"
+    }
+  ],
+  "serverTime": 1565613908500,
+  "assets": [
+    {
+      "asset": "BTC",
+      "marginAvailable": true,
+      "autoAssetExchange": "-0.10"
+    }
+  ],
+  "symbols": [
+    {
+      "symbol": "BLZUSDT",
+      "pair": "BLZUSDT",
+      "contractType": "PERPETUAL",
+      "deliveryDate": 4133404800000,
+      "onboardDate": 1598252400000,
+      "status": "TRADING",
+      "maintMarginPercent": "2.5000",
+      "requiredMarginPercent": "5.0000",
+      "baseAsset": "BLZ",
+      "quoteAsset": "USDT",
+      "marginAsset": "USDT",
+      "pricePrecision": 5,
+      "quantityPrecision": 0,
+      "baseAssetPrecision": 8,
+      "quotePrecision": 8,
+      "underlyingType": "COIN",
+      "underlyingSubType": [
+        "STORAGE"
+      ],
+      "settlePlan": 0,
+      "triggerProtect": "0.15",
+      "filters": [
+        {
+          "filterType": "PRICE_FILTER",
+          "maxPrice": "300",
+          "minPrice": "0.0001",
+          "tickSize": "0.0001",
+          "maxQty": "10000000",
+          "minQty": "1",
+          "stepSize": "1",
+          "limit": 200,
+          "notional": "5.0",
+          "multiplierUp": "1.1500",
+          "multiplierDown": "0.8500",
+          "multiplierDecimal": "4"
+        }
+      ],
+      "orderTypes": [
+        "LIMIT"
+      ],
+      "timeInForce": [
+        "GTC"
+      ],
+      "liquidationFee": "0.010000",
+      "marketTakeBound": "0.30"
+    }
+  ],
+  "timezone": "UTC"
+}

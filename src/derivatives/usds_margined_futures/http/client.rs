@@ -29,7 +29,8 @@ const COST_TIME: Cost = Cost::weight(1);
 const COST_EXCHANGE_INFO: Cost = Cost::weight(1);
 const COST_KLINES: Cost = Cost::weight(5);
 const COST_ACCOUNT: Cost = Cost::weight(5);
-const COST_NEW_ORDER: Cost = Cost::weight_and_orders(1, 1);
+/// New orders cost no IP weight, only order count.
+const COST_NEW_ORDER: Cost = Cost::weight_and_orders(0, 1);
 const COST_QUERY_ORDER: Cost = Cost::weight(1);
 const COST_CANCEL_ORDER: Cost = Cost::weight(1);
 const COST_CANCEL_ALL_OPEN_ORDERS: Cost = Cost::weight(1);
@@ -189,6 +190,13 @@ fn build_private_headers(cfg: &PrivateConfig) -> Result<HeaderMap, Error> {
 
 // Trading
 impl PrivateClient {
+    /// Send a new order (`POST /fapi/v1/order`).
+    ///
+    /// The current API specification lists additional mandatory parameters
+    /// only for `LIMIT` and `MARKET`: conditional orders (`STOP`,
+    /// `TAKE_PROFIT`, `*_MARKET`, `TRAILING_STOP_MARKET`) are placed through
+    /// the Algo Order API (`POST /fapi/v1/algoOrder`), which this SDK does
+    /// not cover yet.
     pub async fn new_order(
         &self,
         params: NewOrderRequest,
