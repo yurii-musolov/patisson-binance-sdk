@@ -1,6 +1,12 @@
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
-use std::fmt::{self, Display, Formatter};
+use std::{
+    fmt::{self, Display, Formatter},
+    sync::{
+        Arc,
+        atomic::{AtomicI64, Ordering},
+    },
+};
 
 use crate::Timestamp;
 
@@ -74,9 +80,70 @@ pub fn sign_query(api_secret: &SensitiveString, timestamp: Timestamp, query: &st
     format!("{query}&signature={signature}")
 }
 
-/// Return milliseconds.
+/// Local wall-clock time in milliseconds since the Unix epoch (0 if the
+/// system clock is set before 1970).
 pub fn timestamp() -> Timestamp {
-    std::time::UNIX_EPOCH.elapsed().unwrap().as_millis() as Timestamp
+    std::time::UNIX_EPOCH
+        .elapsed()
+        .map_or(0, |d| d.as_millis() as Timestamp)
+}
+
+/// Correction (in milliseconds) between the local clock and Binance's,
+/// applied to the `timestamp` of every signed request.
+///
+/// Binance rejects signed requests whose timestamp is outside `recvWindow`
+/// (error `-1021`), which happens when the local clock drifts. Measure the
+/// offset with the server-time endpoint and share one `TimeOffset` (it is a
+/// cheap, cloneable handle) with every private client:
+///
+/// ```no_run
+/// # async fn run() -> Result<(), binance::spot::Error> {
+/// use binance::{TimeOffset, timestamp};
+/// use binance::spot::http::{PrivateClient, PrivateConfig, PublicClient, PublicConfig};
+///
+/// let offset = TimeOffset::new();
+/// let public = PublicClient::new(PublicConfig::new("https://api.binance.com"))?;
+/// let sent_at = timestamp();
+/// let server = public.get_server_time().await?.result.server_time;
+/// offset.update(server, sent_at, timestamp());
+///
+/// let cfg = PrivateConfig::new("https://api.binance.com", "key".into(), "secret".into())
+///     .time_offset(offset.clone());
+/// let private = PrivateClient::new(cfg)?;
+/// # Ok(()) }
+/// ```
+#[derive(Debug, Clone, Default)]
+pub struct TimeOffset(Arc<AtomicI64>);
+
+impl TimeOffset {
+    /// A zero offset: requests are signed with the local clock.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the offset directly: `server_time - local_time`, in milliseconds.
+    pub fn set(&self, offset_ms: i64) {
+        self.0.store(offset_ms, Ordering::Relaxed);
+    }
+
+    /// Current offset in milliseconds.
+    pub fn get(&self) -> i64 {
+        self.0.load(Ordering::Relaxed)
+    }
+
+    /// Derive the offset from one server-time round trip: `server_time` was
+    /// returned for a request sent at local time `sent_at` and answered at
+    /// `received_at`. The server is assumed to have stamped the response in
+    /// the middle of the round trip.
+    pub fn update(&self, server_time: Timestamp, sent_at: Timestamp, received_at: Timestamp) {
+        let midpoint = sent_at / 2 + received_at / 2 + (sent_at % 2 + received_at % 2) / 2;
+        self.set(server_time as i64 - midpoint as i64);
+    }
+
+    /// Local time corrected by the offset, in milliseconds.
+    pub fn now(&self) -> Timestamp {
+        timestamp().saturating_add_signed(self.get())
+    }
 }
 
 #[cfg(test)]
@@ -123,6 +190,28 @@ mod tests {
     fn sensitive_string_deserializes_from_plain_string() {
         let s: SensitiveString = serde_json::from_str(r#""abc""#).unwrap();
         assert_eq!(s.expose(), "abc");
+    }
+
+    #[test]
+    fn time_offset_shifts_the_clock_and_is_shared_between_clones() {
+        let offset = TimeOffset::new();
+        assert_eq!(offset.get(), 0);
+        let shared = offset.clone();
+        shared.set(-5_000);
+        assert_eq!(offset.get(), -5_000);
+        let local = timestamp();
+        let corrected = offset.now();
+        assert!(corrected + 5_000 >= local && corrected + 5_000 <= local + 1_000);
+    }
+
+    #[test]
+    fn time_offset_update_uses_round_trip_midpoint() {
+        let offset = TimeOffset::new();
+        // Sent at 1000, answered at 1100: the server stamped ~1050.
+        offset.update(3_050, 1_000, 1_100);
+        assert_eq!(offset.get(), 2_000);
+        offset.update(950, 1_000, 1_100);
+        assert_eq!(offset.get(), -100);
     }
 
     #[test]

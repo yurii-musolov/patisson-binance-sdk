@@ -31,11 +31,10 @@ use reqwest::{Method, RequestBuilder, StatusCode, header::HeaderMap};
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
-    SensitiveString,
+    SensitiveString, TimeOffset,
     crypto::sign_query,
     rate_limit::{Cost, ObservedUsage, RateLimitSource, RateLimited, RateLimiter},
     serde::{deserialize_json, serialize_query},
-    timestamp,
 };
 
 const HEADER_RETRY_AFTER: &str = "retry-after";
@@ -136,6 +135,7 @@ pub struct HttpClient {
     base_url: String,
     headers: HeaderMap,
     rate_limiter: Option<Arc<RateLimiter>>,
+    time_offset: TimeOffset,
 }
 
 impl HttpClient {
@@ -154,7 +154,14 @@ impl HttpClient {
             base_url,
             headers,
             rate_limiter,
+            time_offset: TimeOffset::default(),
         })
+    }
+
+    /// Sign requests with the local clock corrected by `time_offset`.
+    pub fn with_time_offset(mut self, time_offset: TimeOffset) -> Self {
+        self.time_offset = time_offset;
+        self
     }
 
     /// Start building a request rooted at `<base_url><path_suffix>` with the
@@ -297,7 +304,7 @@ where
         + From<serde_urlencoded::ser::Error>,
 {
     let query = serialize_query(params).map_err(E::from)?;
-    let query = sign_query(api_secret, timestamp(), &query);
+    let query = sign_query(api_secret, http.time_offset.now(), &query);
     let req = http.request(method, format!("{path}?{query}"));
     decode::<T, A, E>(http.send_raw(req, cost).await)
 }
@@ -477,5 +484,61 @@ mod tests {
         let long = "\u{e9}".repeat(300);
         assert_eq!(body_excerpt(&long).chars().count(), 200);
         assert_eq!(body_excerpt("short"), "short");
+    }
+
+    /// Serve exactly one HTTP request on a local port, answer `{}` and hand
+    /// back the request line.
+    async fn one_shot_server() -> (String, tokio::sync::oneshot::Receiver<String>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base_url = format!("http://{}", listener.local_addr().unwrap());
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        tokio::spawn(async move {
+            let (mut tcp, _) = listener.accept().await.unwrap();
+            let mut buf = vec![0u8; 8192];
+            let n = tcp.read(&mut buf).await.unwrap();
+            let request = String::from_utf8_lossy(&buf[..n]).to_string();
+            let response = "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}";
+            tcp.write_all(response.as_bytes()).await.unwrap();
+            let _ = tx.send(request.lines().next().unwrap_or_default().to_string());
+        });
+        (base_url, rx)
+    }
+
+    #[tokio::test]
+    async fn signed_request_uses_corrected_timestamp() {
+        let (base_url, request_line) = one_shot_server().await;
+        let offset = TimeOffset::new();
+        offset.set(-3_600_000);
+        let http = HttpClient::new(base_url, HeaderMap::new(), None, Timeouts::default())
+            .unwrap()
+            .with_time_offset(offset);
+
+        let before = crate::timestamp() - 3_600_000;
+        let _: Response<serde_json::Value> =
+            send_signed::<_, _, crate::spot::ApiError, crate::spot::Error>(
+                &http,
+                &SensitiveString::from("secret"),
+                Method::GET,
+                "/api/v3/account",
+                &[("symbol", "BTCUSDT")],
+                Cost::FREE,
+            )
+            .await
+            .unwrap();
+        let after = crate::timestamp() - 3_600_000;
+
+        let line = request_line.await.unwrap();
+        let ts: u64 = line
+            .split(['?', '&', ' '])
+            .find_map(|kv| kv.strip_prefix("timestamp="))
+            .expect("timestamp in query")
+            .parse()
+            .unwrap();
+        assert!(
+            (before..=after).contains(&ts),
+            "{ts} not in {before}..={after}"
+        );
+        assert!(line.contains("&signature="), "{line}");
     }
 }
