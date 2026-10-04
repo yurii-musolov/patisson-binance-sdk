@@ -16,7 +16,12 @@ use crate::{
 #[allow(clippy::large_enum_variant)]
 pub enum IncomingMessage {
     CombinedStream(CombinedStreamMessage<StreamMessage>),
+    /// Partial book depth (`<symbol>@depth<levels>`) on a combined stream;
+    /// its payload has no `e` field, so it can't be a [`StreamMessage`].
+    CombinedPartialBookDepth(CombinedStreamMessage<PartialBookDepthMsg>),
     Stream(StreamMessage),
+    /// Partial book depth (`<symbol>@depth<levels>`) on a raw stream.
+    PartialBookDepth(PartialBookDepthMsg),
     Error(ErrorMessage),
     Response(ResponseMessage), // last.
 }
@@ -36,11 +41,18 @@ impl ReceivedMessage for IncomingMessage {
     }
 }
 
+/// Reply to a request (`SUBSCRIBE`, `LIST_SUBSCRIPTIONS`, ...).
+///
+/// `deny_unknown_fields` keeps stream events out: every field here is
+/// optional, so without it any event this SDK doesn't model would be
+/// silently turned into an empty `Response` instead of a parse error.
 #[derive(PartialEq, Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 pub struct ResponseMessage {
     pub id: Option<MessageID>,
     pub status: Option<i64>,
     pub result: Option<serde_json::Value>,
+    #[serde(rename = "rateLimits")]
     pub rate_limits: Option<Vec<serde_json::Value>>,
 }
 
@@ -237,6 +249,15 @@ pub struct DepthUpdateMsg {
     pub bids: Vec<OrderLevel>,
     /// Asks to be updated (price + qty pairs).
     #[serde(rename = "a")]
+    pub asks: Vec<OrderLevel>,
+}
+
+/// Top `<levels>` bids and asks (`<symbol>@depth<levels>[@100ms]`).
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PartialBookDepthMsg {
+    pub last_update_id: i64,
+    pub bids: Vec<OrderLevel>,
     pub asks: Vec<OrderLevel>,
 }
 
