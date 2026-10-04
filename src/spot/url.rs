@@ -22,8 +22,15 @@ pub const BASE_URL_MARKET_DATA_STREAM1: &str = "wss://data-stream.binance.vision
 pub const BASE_URL_MARKET_DATA_STREAM2: &str = "wss://data-stream.binance.vision:443";
 pub const BASE_URL_MARKET_DATA_STREAM3: &str = "wss://data-stream.binance.vision:9443";
 
-// Demo
+// Demo mode (https://demo.binance.com, demo-mode/general-info.md in the
+// Spot API docs). Needs an API key created on demo.binance.com.
 pub const BASE_URL_DEMO_API: &str = "https://demo-api.binance.com";
+
+pub const BASE_URL_DEMO_WEBSOCKET_API1: &str = "wss://demo-ws-api.binance.com";
+pub const BASE_URL_DEMO_WEBSOCKET_API2: &str = "wss://demo-ws-api.binance.com:9443";
+
+pub const BASE_URL_DEMO_STREAM1: &str = "wss://demo-stream.binance.com";
+pub const BASE_URL_DEMO_STREAM2: &str = "wss://demo-stream.binance.com:9443";
 
 // Testnet
 
@@ -32,9 +39,9 @@ pub const BASE_URL_TESTNET_API: &str = "https://testnet.binance.vision";
 pub const BASE_URL_TESTNET_WEBSOCKET_API1: &str = "wss://ws-api.testnet.binance.vision";
 pub const BASE_URL_TESTNET_WEBSOCKET_API2: &str = "wss://ws-api.testnet.binance.vision:9443";
 
-pub const BASE_URL_TESTNET_STREAM1: &str = "wss://stream.testnet.binance.com";
-pub const BASE_URL_TESTNET_STREAM2: &str = "wss://stream.testnet.binance.com:443";
-pub const BASE_URL_TESTNET_STREAM3: &str = "wss://stream.testnet.binance.com:9443";
+pub const BASE_URL_TESTNET_STREAM1: &str = "wss://stream.testnet.binance.vision";
+pub const BASE_URL_TESTNET_STREAM2: &str = "wss://stream.testnet.binance.vision:443";
+pub const BASE_URL_TESTNET_STREAM3: &str = "wss://stream.testnet.binance.vision:9443";
 
 pub enum Path {
     // General endpoints.
