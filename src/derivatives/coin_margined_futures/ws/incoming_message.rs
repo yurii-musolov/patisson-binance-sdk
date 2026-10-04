@@ -29,7 +29,13 @@ impl ReceivedMessage for IncomingMessage {
     }
 }
 
+/// Reply to a request (`SUBSCRIBE`, `LIST_SUBSCRIPTIONS`, ...).
+///
+/// `deny_unknown_fields` keeps stream events out: every field here is
+/// optional, so without it any event this SDK doesn't model would be
+/// silently turned into an empty `Response` instead of a parse error.
 #[derive(PartialEq, Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 pub struct ResponseMessage {
     pub id: Option<MessageID>,
     pub result: Option<serde_json::Value>,
