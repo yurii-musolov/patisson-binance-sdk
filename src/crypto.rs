@@ -80,6 +80,20 @@ pub fn sign_query(api_secret: &SensitiveString, timestamp: Timestamp, query: &st
     format!("{query}&signature={signature}")
 }
 
+/// Signature of a WebSocket API request (HMAC-SHA256, hex): the `params`
+/// (everything except `signature`) are sorted by name and joined as
+/// `name=value&...` without URL-encoding.
+pub fn sign_ws_params(api_secret: &SensitiveString, params: &[(&str, String)]) -> String {
+    let mut sorted: Vec<&(&str, String)> = params.iter().collect();
+    sorted.sort_by_key(|(name, _)| *name);
+    let payload = sorted
+        .iter()
+        .map(|(name, value)| format!("{name}={value}"))
+        .collect::<Vec<_>>()
+        .join("&");
+    hmac_sha256(api_secret.expose(), payload)
+}
+
 /// Local wall-clock time in milliseconds since the Unix epoch (0 if the
 /// system clock is set before 1970).
 pub fn timestamp() -> Timestamp {
@@ -212,6 +226,32 @@ mod tests {
         assert_eq!(offset.get(), 2_000);
         offset.update(950, 1_000, 1_100);
         assert_eq!(offset.get(), -100);
+    }
+
+    #[test]
+    fn ws_params_signature_matches_the_documentation() {
+        // "SIGNED request example (HMAC)" in the Spot WebSocket API docs.
+        let secret = SensitiveString::from(
+            "NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j",
+        );
+        let params = [
+            ("symbol", "BTCUSDT".to_string()),
+            ("side", "SELL".to_string()),
+            ("type", "LIMIT".to_string()),
+            ("timeInForce", "GTC".to_string()),
+            ("quantity", "0.01000000".to_string()),
+            ("price", "52000.00".to_string()),
+            ("recvWindow", "100".to_string()),
+            ("timestamp", "1645423376532".to_string()),
+            (
+                "apiKey",
+                "vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A".to_string(),
+            ),
+        ];
+        assert_eq!(
+            sign_ws_params(&secret, &params),
+            "aa1b5712c094bc4e57c05a1a5c1fd8d88dcd628338ea863fec7b88e59fe2db24"
+        );
     }
 
     #[test]

@@ -5,6 +5,7 @@ mod url;
 
 pub mod http;
 pub mod ws;
+pub mod ws_api;
 
 pub use enums::*;
 pub use error::*;

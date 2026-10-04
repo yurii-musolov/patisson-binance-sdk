@@ -16,7 +16,8 @@ This directory contains examples showcasing capabilities of the
 `spot-account-information`, `spot-all-orders`, `spot-cancel-order`,
 `spot-exchange-info`, `spot-kline`, `spot-my-trades`, `spot-open-orders`,
 `spot-order-book`, `spot-query-order`, `spot-server-time`,
-`spot-stream-public`, `spot-test-new-order`, `spot-ticker-statistics`
+`spot-stream-public`, `spot-test-new-order`, `spot-ticker-statistics`,
+`spot-user-data-stream`
 
 ### USDⓈ-M Futures
 

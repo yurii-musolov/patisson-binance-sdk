@@ -102,6 +102,18 @@ pub fn stream(product: Product) -> anyhow::Result<&'static str> {
     Ok(url)
 }
 
+/// WebSocket API base URL (without the `/ws-api/v3` path) of `product`.
+pub fn ws_api(product: Product) -> anyhow::Result<&'static str> {
+    let env = env()?;
+    let url = match (product, env) {
+        (Product::Spot, Env::Production) => spot::BASE_URL_WEBSOCKET_API3,
+        (Product::Spot, Env::Testnet) => spot::BASE_URL_TESTNET_WEBSOCKET_API1,
+        (Product::Spot, Env::Demo) => spot::BASE_URL_DEMO_WEBSOCKET_API1,
+        _ => unsupported(product, env)?,
+    };
+    Ok(url)
+}
+
 fn unsupported(product: Product, env: Env) -> anyhow::Result<&'static str> {
     bail!("{product:?} is not available in the {env:?} environment (BINANCE_ENV)")
 }

@@ -1,0 +1,10 @@
+{
+  "subscriptionId": 0,
+  "event": {
+    "e": "externalLockUpdate",
+    "E": 1581557507324,
+    "a": "NEO",
+    "d": "10.00000000",
+    "T": 1581557507268
+  }
+}

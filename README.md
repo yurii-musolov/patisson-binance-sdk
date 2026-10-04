@@ -204,7 +204,7 @@ status is never lost.
 
 | Path | Purpose | HTTP | WS |
 |---|---|---|---|
-| `binance::spot` | Spot trading | `PublicClient` + `PrivateClient` | market streams |
+| `binance::spot` | Spot trading | `PublicClient` + `PrivateClient` | market streams; user data stream via the WebSocket API (`spot::ws_api`) |
 | `binance::margin` | Margin (cross + isolated) | `PrivateClient` only — use spot's `PublicClient` for market data | user data stream (listenKey-based) |
 | `binance::derivatives::usds_margined_futures` | USDⓈ-M Futures | `PublicClient` + `PrivateClient` | market streams |
 | `binance::derivatives::coin_margined_futures` | COIN-M Futures | `PublicClient` + `PrivateClient` | market streams |
