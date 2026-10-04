@@ -1,17 +1,13 @@
 //! Response examples from Binance's Wallet API specification, as shipped in
 //! the official `binance-connector-rust` (commit 5ff71b4, 2026-10-01), parsed
 //! with the SDK types. Each example must deserialize without error and
-//! without silently ignoring any field.
-//!
-//! Two specification examples are left out because they belong to other
-//! endpoints: `GET /sapi/v1/asset/tradeFee` shows the `getUserAsset` payload
-//! and `POST /sapi/v1/account/disableFastWithdrawSwitch` shows API key
-//! restrictions.
+//! without silently ignoring any field. The specification has no examples
+//! for `tradeFee`, `system/status` and the fast-withdraw switches.
 
 use binance::wallet::http::{
-    AccountApiTradingStatus, AccountStatus, AssetDividendRecord, Deposit, DepositAddress,
-    GetWithdrawHistoryParams, UniversalTransferHistory, UniversalTransferResult, WalletBalance,
-    Withdraw,
+    AccountApiTradingStatus, AccountStatus, AssetDividendRecord, CoinInfo, Deposit, DepositAddress,
+    GetWithdrawHistoryParams, UniversalTransferHistory, UniversalTransferResult, UserAsset,
+    WalletBalance, Withdraw, WithdrawResult,
 };
 use serde::de::DeserializeOwned;
 
@@ -43,6 +39,9 @@ fn responses_match_the_specification() {
     parse::<UniversalTransferResult>("user_universal_transfer.json");
     parse::<UniversalTransferHistory>("query_user_universal_transfer_history.json");
     parse::<AccountApiTradingStatus>("account_api_trading_status.json");
+    parse::<Vec<CoinInfo>>("get_all_coins.json");
+    parse::<Vec<UserAsset>>("user_asset.json");
+    parse::<WithdrawResult>("withdraw.json");
 }
 
 #[test]

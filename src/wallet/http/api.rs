@@ -65,6 +65,23 @@ pub struct CoinNetwork {
     pub deposit_dust: Option<Decimal>,
     pub special_tips: Option<String>,
     pub same_address: bool,
+    pub withdraw_integer_multiple: Option<Decimal>,
+    pub withdraw_internal_min: Option<Decimal>,
+    pub deposit_desc: Option<String>,
+    pub withdraw_desc: Option<String>,
+    pub special_withdraw_tips: Option<String>,
+    pub reset_address_status: Option<bool>,
+    pub address_regex: Option<String>,
+    pub memo_regex: Option<String>,
+    pub withdraw_tag: Option<bool>,
+    /// Estimated arrival time in minutes.
+    pub estimated_arrival_time: Option<i64>,
+    /// The network is congested and deposits / withdrawals may be delayed.
+    pub busy: Option<bool>,
+    pub contract_address_url: Option<String>,
+    pub contract_address: Option<String>,
+    /// Unit multiplier of the coin on this network (e.g. `1000000` for 1M-unit tokens).
+    pub denomination: Option<i64>,
 }
 
 // ===== Deposit address =====
