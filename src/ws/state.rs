@@ -21,6 +21,8 @@ pub enum State {
         delay_ms: u64,
     },
     Closing {
+        frame_rx: mpsc::Receiver<FrameResult>,
+        read_task: tokio::task::JoinHandle<()>,
         sink: Sink,
     },
     Done,
