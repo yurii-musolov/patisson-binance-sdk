@@ -1,0 +1,30 @@
+[
+  {
+    "symbol": "BNBBTC",
+    "openPrice": "99.00000000",
+    "highPrice": "100.00000000",
+    "lowPrice": "0.10000000",
+    "lastPrice": "4.00000200",
+    "volume": "8913.30000000",
+    "quoteVolume": "15.30000000",
+    "openTime": 1499783499040,
+    "closeTime": 1499869899040,
+    "firstId": 28385,
+    "lastId": 28460,
+    "count": 76
+  },
+  {
+    "symbol": "LTCBTC",
+    "openPrice": "0.07000000",
+    "highPrice": "0.07000000",
+    "lowPrice": "0.07000000",
+    "lastPrice": "0.07000000",
+    "volume": "11.00000000",
+    "quoteVolume": "0.77000000",
+    "openTime": 1656908192899,
+    "closeTime": 1656994592899,
+    "firstId": 0,
+    "lastId": 10,
+    "count": 11
+  }
+]

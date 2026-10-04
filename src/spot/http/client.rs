@@ -18,7 +18,7 @@ use crate::{
             GetTickerTradingDayParams, Kline, ListenKey, NewOrderRequest, NewOrderResponse, Order,
             OrderBook, OrderRateLimit, PrivateConfig, PublicConfig, QueryOrderParams, RecentTrade,
             Response, ServerTime, SymbolOrderBookTickers, SymbolPriceTickers, TestCommissionRates,
-            TestConnectivity, TickerPriceChangeStatistic,
+            TestConnectivity, TickerPriceChangeStatistic, TickerTradingDay,
         },
     },
 };
@@ -247,12 +247,12 @@ impl PublicClient {
         send_query(&self.http, Method::GET, Path::Ticker24hr, &params, cost).await
     }
 
-    /// Trading Day Ticker. Price change statistics for a trading day, same
-    /// shape as [`Self::ticker_price_change_statistics`].
+    /// Trading Day Ticker. Price change statistics for a trading day; the
+    /// FULL shape has fewer fields than [`Self::ticker_price_change_statistics`].
     pub async fn ticker_trading_day(
         &self,
         params: GetTickerTradingDayParams,
-    ) -> Result<Response<TickerPriceChangeStatistic>, Error> {
+    ) -> Result<Response<TickerTradingDay>, Error> {
         let cost = cost_ticker_trading_day(params.symbol_count());
         send_query(
             &self.http,
