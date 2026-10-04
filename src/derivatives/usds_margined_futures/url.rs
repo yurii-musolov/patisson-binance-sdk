@@ -5,6 +5,9 @@ pub const BASE_URL_API: &str = "https://fapi.binance.com";
 pub const BASE_URL_WEBSOCKET_API: &str = "wss://ws-fapi.binance.com";
 pub const BASE_URL_STREAM: &str = "wss://fstream.binance.com";
 
+// Demo mode (https://demo.binance.com); needs a demo API key.
+pub const BASE_URL_DEMO_API: &str = "https://demo-fapi.binance.com";
+
 // Testnet
 pub const BASE_URL_TESTNET_API: &str = "https://testnet.binancefuture.com";
 pub const BASE_URL_TESTNET_WEBSOCKET_API: &str = "wss://testnet.binancefuture.com";
