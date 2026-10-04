@@ -4,12 +4,11 @@
 //! cargo run --example wallet-system-status
 //! ```
 
+mod support;
+
 use binance::{
     SensitiveString,
-    wallet::{
-        BASE_URL_API,
-        http::{PrivateClient, PrivateConfig},
-    },
+    wallet::http::{PrivateClient, PrivateConfig},
 };
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
@@ -21,12 +20,14 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
+    let api = support::api(support::Product::Wallet)?;
+
     // `system_status` is a public endpoint (no signature required), but the
     // wallet module only exposes `PrivateClient` — any non-empty key/secret
     // works here since they're not actually checked by Binance for this call.
     let api_key = SensitiveString::from("unused");
     let api_secret = SensitiveString::from("unused");
-    let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
+    let cfg = PrivateConfig::new(api, api_key, api_secret);
     let client = PrivateClient::new(cfg)?;
 
     let response = client.system_status().await?;

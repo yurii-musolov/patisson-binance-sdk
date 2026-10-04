@@ -4,9 +4,11 @@
 //! cargo run --example spot-stream-public
 //! ```
 
+mod support;
+
 use binance::{
     spot::{
-        BASE_URL_MARKET_DATA_STREAM1, KlineInterval, Path,
+        KlineInterval, Path,
         ws::{IncomingMessage, OutgoingMessage, StreamName},
     },
     ws::{Config, Event, Stream},
@@ -23,7 +25,9 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let url = format!("{}{}", BASE_URL_MARKET_DATA_STREAM1, Path::Stream);
+    let stream = support::stream(support::Product::Spot)?;
+
+    let url = format!("{}{}", stream, Path::Stream);
     let symbol = String::from("BTCUSDT").to_lowercase(); // All symbols for streams are lowercase
     let mut id = {
         let mut id = id_generator("request-id");

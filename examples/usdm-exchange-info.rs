@@ -4,10 +4,9 @@
 //! cargo run --example usdm-exchange-info
 //! ```
 
-use binance::derivatives::usds_margined_futures::{
-    BASE_URL_API,
-    http::{PublicClient, PublicConfig},
-};
+mod support;
+
+use binance::derivatives::usds_margined_futures::http::{PublicClient, PublicConfig};
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
@@ -18,7 +17,9 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let cfg = PublicConfig::new(BASE_URL_API);
+    let api = support::api(support::Product::UsdmFutures)?;
+
+    let cfg = PublicConfig::new(api);
     let client = PublicClient::new(cfg)?;
 
     let response = client.get_exchange_info().await?;

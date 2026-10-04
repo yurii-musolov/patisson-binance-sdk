@@ -4,9 +4,10 @@
 //! cargo run --example spot-ticker-statistics
 //! ```
 
-use binance::spot::{
-    BASE_URL_API,
-    http::{GetTickerPriceChangeStatisticsParams, PublicClient, PublicConfig, SymbolOrSymbols},
+mod support;
+
+use binance::spot::http::{
+    GetTickerPriceChangeStatisticsParams, PublicClient, PublicConfig, SymbolOrSymbols,
 };
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
@@ -18,7 +19,9 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let cfg = PublicConfig::new(BASE_URL_API);
+    let api = support::api(support::Product::Spot)?;
+
+    let cfg = PublicConfig::new(api);
     let client = PublicClient::new(cfg)?;
 
     let params =

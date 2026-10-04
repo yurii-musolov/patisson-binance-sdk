@@ -14,12 +14,12 @@
 //! In production also schedule `keepalive_listen_key` every 30 minutes — keys
 //! expire after 60 minutes of inactivity.
 
+mod support;
+
 use std::time::Duration;
 
 use binance::{
-    SensitiveString,
     margin::{
-        BASE_URL_API, BASE_URL_STREAM,
         http::{PrivateClient, PrivateConfig},
         ws::{IncomingMessage, OutgoingMessage},
     },
@@ -36,21 +36,19 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let api_key = std::env::var("API_KEY").expect("environment variable API_KEY is required");
-    let api_secret =
-        std::env::var("API_SECRET").expect("environment variable API_SECRET is required");
-    let http_client = PrivateClient::new(PrivateConfig::new(
-        BASE_URL_API,
-        SensitiveString::from(api_key),
-        SensitiveString::from(api_secret),
-    ))?;
+    let api = support::api(support::Product::Margin)?;
+    let stream = support::stream(support::Product::Margin)?;
 
-    // 1. Mint a listenKey.
+    let (api_key, api_secret) = support::credentials()?;
+    let http_client = PrivateClient::new(PrivateConfig::new(api, api_key, api_secret))?;
+
+    // 1. Mint a listenKey. It grants read access to the account's events, so
+    // it is not logged.
     let listen_key = http_client.create_listen_key().await?.result.listen_key;
-    info!(%listen_key, "listen key acquired");
+    info!("listen key acquired");
 
     // 2. Connect the WebSocket. Outgoing is the empty enum — server-push only.
-    let url = format!("{BASE_URL_STREAM}/ws/{listen_key}");
+    let url = format!("{stream}/ws/{listen_key}");
     let (handle, mut events) = Stream::<OutgoingMessage, IncomingMessage>::new(Config::new(url));
     let _ = handle.connect().await;
 

@@ -10,10 +10,12 @@
 //! just forwards diffs and snapshots to it and reacts to the returned
 //! [`ApplyOutcome`].
 
+mod support;
+
 use anyhow::Ok;
 use binance::{
     derivatives::coin_margined_futures::{
-        ApplyOutcome, BASE_URL_API, BASE_URL_STREAM, OrderBookState, Path,
+        ApplyOutcome, OrderBookState, Path,
         http::{GetOrderBookParams, OrderBook, PublicClient, PublicConfig, Response},
         ws::{DepthUpdateMsg, IncomingMessage, OutgoingMessage, StreamMessage, StreamName},
     },
@@ -26,6 +28,8 @@ use tracing_subscriber::FmtSubscriber;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let api = support::api(support::Product::CoinmFutures)?;
+    let stream = support::stream(support::Product::CoinmFutures)?;
     tracing::subscriber::set_global_default(
         FmtSubscriber::builder()
             .with_max_level(Level::INFO)
@@ -36,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
     let symbol_stream = symbol_rest.to_lowercase();
 
     // ----- WS diff stream -----
-    let url = format!("{BASE_URL_STREAM}{}", Path::Stream);
+    let url = format!("{stream}{}", Path::Stream);
     let cfg = Config::futures(url);
     let (handle, mut events) = Stream::<OutgoingMessage, IncomingMessage>::new(cfg);
 
@@ -58,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
     // ----- Snapshot fetcher task: refetch on demand -----
     let (snap_tx, mut snap_rx) = mpsc::channel::<OrderBook>(4);
     let (refetch_tx, mut refetch_rx) = mpsc::channel::<()>(4);
-    let client = PublicClient::new(PublicConfig::new(BASE_URL_API))?;
+    let client = PublicClient::new(PublicConfig::new(api))?;
     let symbol = symbol_rest.to_string();
     tokio::spawn(async move {
         while refetch_rx.recv().await.is_some() {

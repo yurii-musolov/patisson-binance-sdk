@@ -4,10 +4,9 @@
 //! cargo run --example spot-exchange-info
 //! ```
 
-use binance::spot::{
-    BASE_URL_API,
-    http::{GetExchangeInfoParams, PublicClient, PublicConfig},
-};
+mod support;
+
+use binance::spot::http::{GetExchangeInfoParams, PublicClient, PublicConfig};
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
@@ -18,7 +17,9 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let cfg = PublicConfig::new(BASE_URL_API);
+    let api = support::api(support::Product::Spot)?;
+
+    let cfg = PublicConfig::new(api);
     let client = PublicClient::new(cfg)?;
 
     let params = GetExchangeInfoParams::new().symbol("BTCUSDT");

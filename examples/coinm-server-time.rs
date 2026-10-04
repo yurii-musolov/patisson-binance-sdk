@@ -4,12 +4,11 @@
 //! cargo run --example coinm-server-time
 //! ```
 
+mod support;
+
 use std::time::Instant;
 
-use binance::derivatives::coin_margined_futures::{
-    BASE_URL_API,
-    http::{PublicClient, PublicConfig},
-};
+use binance::derivatives::coin_margined_futures::http::{PublicClient, PublicConfig};
 use tracing::{Level, debug, info};
 use tracing_subscriber::FmtSubscriber;
 
@@ -20,7 +19,9 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let cfg = PublicConfig::new(BASE_URL_API);
+    let api = support::api(support::Product::CoinmFutures)?;
+
+    let cfg = PublicConfig::new(api);
     let client = PublicClient::new(cfg)?;
 
     let start = Instant::now();

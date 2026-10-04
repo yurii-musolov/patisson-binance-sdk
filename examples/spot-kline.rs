@@ -4,8 +4,10 @@
 //! cargo run --example spot-kline
 //! ```
 
+mod support;
+
 use binance::spot::{
-    BASE_URL_API, KlineInterval,
+    KlineInterval,
     http::{GetKlineListParams, PublicClient, PublicConfig},
 };
 use tracing::{Level, info};
@@ -18,7 +20,9 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let cfg = PublicConfig::new(BASE_URL_API);
+    let api = support::api(support::Product::Spot)?;
+
+    let cfg = PublicConfig::new(api);
     let client = PublicClient::new(cfg)?;
 
     let params = GetKlineListParams::new("BTCUSDT", KlineInterval::Minute1).limit(2);

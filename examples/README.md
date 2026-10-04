@@ -58,20 +58,41 @@ cargo run --example coinm-stream-public
 
 ## Environment variables
 
-Examples that query private endpoints expect these environment variables:
+### `BINANCE_ENV`: which Binance environment to use
 
-```sh
-export API_KEY="xxxxxxxx"
-export API_SECRET="xxxxxxxx"
-```
+| Value | Environment | Products |
+|---|---|---|
+| unset, `prod`, `mainnet` | production | all |
+| `testnet` | testnet (`testnet.binance.vision`, `testnet.binancefuture.com`) | spot, USD-M, COIN-M |
+| `demo` | [demo mode](https://demo.binance.com) | spot (REST + streams), USD-M (REST only) |
+
+Asking for a product an environment doesn't offer (e.g. `BINANCE_ENV=demo`
+with a `coinm-*` example) fails with an explicit error instead of silently
+falling back to production. Each environment needs its own API key: testnet
+keys come from the testnet site, demo keys from demo.binance.com.
+
+### `API_KEY` / `API_SECRET`: credentials for signed endpoints
 
 Any example that isn't public market data (server time, exchange info,
 klines, order book, public streams, `wallet-system-status`) talks to a
-signed endpoint and needs them — e.g. `*-account-information`,
+signed endpoint and needs them, e.g. `*-account-information`,
 `*-cancel-order`, `*-open-orders`, `spot-all-orders`, `spot-my-trades`,
 `spot-query-order`, `spot-test-new-order`, `margin-borrow-repay`,
-`wallet-withdraw`.
+`wallet-withdraw`. The examples wrap them in `SensitiveString` immediately,
+so they are never printed.
+
+Keep them in a file only you can read and load it in a subshell, so the
+values appear neither on the command line nor in your shell afterwards:
+
+```sh
+mkdir -p ~/.config/binance
+$EDITOR ~/.config/binance/demo.env   # API_KEY=... and API_SECRET=... lines
+chmod 600 ~/.config/binance/demo.env
+
+( set -a; . ~/.config/binance/demo.env; set +a
+  BINANCE_ENV=demo cargo run --example spot-account-information )
+```
 
 `*-cancel-order` and `wallet-withdraw` act on a real account (cancelling a
-live order / submitting a withdrawal) — read them before running against
-mainnet.
+live order / submitting a withdrawal) - read them before running against
+production (`BINANCE_ENV` unset).

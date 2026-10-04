@@ -10,10 +10,12 @@
 //! forwards diffs and snapshots to it and reacts to the returned
 //! [`ApplyOutcome`].
 
+mod support;
+
 use anyhow::Ok;
 use binance::{
     spot::{
-        ApplyOutcome, BASE_URL_API, BASE_URL_STREAM3, OrderBookState, Path,
+        ApplyOutcome, OrderBookState, Path,
         http::{GetOrderBookParams, OrderBook, PublicClient, PublicConfig, Response},
         ws::{DepthUpdateMsg, IncomingMessage, OutgoingMessage, StreamMessage, StreamName},
     },
@@ -31,11 +33,14 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
+    let api = support::api(support::Product::Spot)?;
+    let stream = support::stream(support::Product::Spot)?;
+
     let symbol_rest = "BTCUSDT";
     let symbol_stream = symbol_rest.to_lowercase();
 
     // ----- WS diff stream -----
-    let url = format!("{BASE_URL_STREAM3}{}", Path::Stream);
+    let url = format!("{stream}{}", Path::Stream);
     let cfg = Config::new(url);
     let (handle, mut events) = Stream::<OutgoingMessage, IncomingMessage>::new(cfg);
 
@@ -58,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
     // ----- Snapshot fetcher task: refetch on demand -----
     let (snap_tx, mut snap_rx) = mpsc::channel::<OrderBook>(4);
     let (refetch_tx, mut refetch_rx) = mpsc::channel::<()>(4);
-    let client = PublicClient::new(PublicConfig::new(BASE_URL_API))?;
+    let client = PublicClient::new(PublicConfig::new(api))?;
     let symbol = symbol_rest.to_string();
     tokio::spawn(async move {
         while refetch_rx.recv().await.is_some() {

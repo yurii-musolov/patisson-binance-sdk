@@ -4,13 +4,9 @@
 //! cargo run --example spot-cancel-order
 //! ```
 
-use binance::{
-    SensitiveString,
-    spot::{
-        BASE_URL_API,
-        http::{CancelOrderParams, PrivateClient, PrivateConfig},
-    },
-};
+mod support;
+
+use binance::spot::http::{CancelOrderParams, PrivateClient, PrivateConfig};
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
@@ -21,12 +17,10 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let api_key = std::env::var("API_KEY").expect("environment variable API_KEY is required");
-    let api_key = SensitiveString::from(api_key);
-    let api_secret =
-        std::env::var("API_SECRET").expect("environment variable API_SECRET is required");
-    let api_secret = SensitiveString::from(api_secret);
-    let cfg = PrivateConfig::new(BASE_URL_API, api_key, api_secret);
+    let api = support::api(support::Product::Spot)?;
+
+    let (api_key, api_secret) = support::credentials()?;
+    let cfg = PrivateConfig::new(api, api_key, api_secret);
     let client = PrivateClient::new(cfg)?;
 
     let params = CancelOrderParams::new("BTCUSDT").order_id(123456789);
