@@ -10,9 +10,8 @@
 //! | `demo`                   | demo mode (demo.binance.com)                  |
 //!
 //! Not every product exists everywhere: margin and wallet are production
-//! only, COIN-M has no demo mode and USD-M demo mode has no documented
-//! stream endpoint. Asking for such a combination is an error, not a silent
-//! fallback to production.
+//! only and COIN-M has no demo mode. Asking for such a combination is an
+//! error, not a silent fallback to production.
 //!
 //! Credentials come from `API_KEY` / `API_SECRET` and are wrapped in
 //! `SensitiveString` right away, so they never show up in logs.
@@ -90,6 +89,9 @@ pub fn stream(product: Product) -> anyhow::Result<&'static str> {
         (Product::UsdmFutures, Env::Testnet) => {
             derivatives::usds_margined_futures::BASE_URL_TESTNET_STREAM
         }
+        (Product::UsdmFutures, Env::Demo) => {
+            derivatives::usds_margined_futures::BASE_URL_DEMO_STREAM
+        }
         (Product::CoinmFutures, Env::Production) => {
             derivatives::coin_margined_futures::BASE_URL_STREAM
         }
@@ -97,6 +99,18 @@ pub fn stream(product: Product) -> anyhow::Result<&'static str> {
             derivatives::coin_margined_futures::BASE_URL_TESTNET_STREAM
         }
         (Product::Margin, Env::Production) => binance::margin::BASE_URL_STREAM,
+        _ => unsupported(product, env)?,
+    };
+    Ok(url)
+}
+
+/// WebSocket API base URL (without the `/ws-api/v3` path) of `product`.
+pub fn ws_api(product: Product) -> anyhow::Result<&'static str> {
+    let env = env()?;
+    let url = match (product, env) {
+        (Product::Spot, Env::Production) => spot::BASE_URL_WEBSOCKET_API3,
+        (Product::Spot, Env::Testnet) => spot::BASE_URL_TESTNET_WEBSOCKET_API1,
+        (Product::Spot, Env::Demo) => spot::BASE_URL_DEMO_WEBSOCKET_API1,
         _ => unsupported(product, env)?,
     };
     Ok(url)

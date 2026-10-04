@@ -388,3 +388,28 @@ pub enum CancelRestrictions {
     #[serde(other, skip_serializing)]
     Unknown,
 }
+
+/// Execution type of an `executionReport` event (`x`).
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ExecutionType {
+    /// The order has been accepted into the engine.
+    New,
+    /// The order has been canceled by the user.
+    Canceled,
+    /// The order has been amended.
+    Replaced,
+    /// The order has been rejected and was not processed.
+    Rejected,
+    /// Part of the order or all of the order's quantity has filled.
+    Trade,
+    /// The order was canceled according to the order type's rules or by the
+    /// exchange.
+    Expired,
+    /// The order has expired due to STP.
+    TradePrevention,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
+}

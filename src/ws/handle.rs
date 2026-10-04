@@ -4,12 +4,24 @@ use tokio::sync::mpsc;
 
 use crate::ws;
 
-#[derive(Clone)]
 pub struct Handle<C>
 where
     C: Serialize + Send + Debug + 'static,
 {
     cmd_tx: mpsc::Sender<ws::Command<C>>,
+}
+
+// Not derived: `#[derive(Clone)]` would require `C: Clone`, but only the
+// channel sender is cloned.
+impl<C> Clone for Handle<C>
+where
+    C: Serialize + Send + Debug + 'static,
+{
+    fn clone(&self) -> Self {
+        Self {
+            cmd_tx: self.cmd_tx.clone(),
+        }
+    }
 }
 
 impl<C> Handle<C>

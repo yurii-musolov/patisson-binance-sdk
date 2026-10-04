@@ -16,7 +16,8 @@ This directory contains examples showcasing capabilities of the
 `spot-account-information`, `spot-all-orders`, `spot-cancel-order`,
 `spot-exchange-info`, `spot-kline`, `spot-my-trades`, `spot-open-orders`,
 `spot-order-book`, `spot-query-order`, `spot-server-time`,
-`spot-stream-public`, `spot-test-new-order`, `spot-ticker-statistics`
+`spot-stream-public`, `spot-test-new-order`, `spot-ticker-statistics`,
+`spot-user-data-stream`
 
 ### USDⓈ-M Futures
 
@@ -64,7 +65,7 @@ cargo run --example coinm-stream-public
 |---|---|---|
 | unset, `prod`, `mainnet` | production | all |
 | `testnet` | testnet (`testnet.binance.vision`, `testnet.binancefuture.com`) | spot, USD-M, COIN-M |
-| `demo` | [demo mode](https://demo.binance.com) | spot (REST + streams), USD-M (REST only) |
+| `demo` | [demo mode](https://demo.binance.com) | spot, USD-M |
 
 Asking for a product an environment doesn't offer (e.g. `BINANCE_ENV=demo`
 with a `coinm-*` example) fails with an explicit error instead of silently

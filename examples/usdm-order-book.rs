@@ -40,7 +40,8 @@ async fn main() -> anyhow::Result<()> {
     let symbol_stream = symbol_rest.to_lowercase();
 
     // ----- WS diff stream -----
-    let url = format!("{stream}{}", Path::Stream);
+    // Order book streams are served under `/public`.
+    let url = format!("{stream}{}{}", Path::Public, Path::Stream);
     let cfg = Config::futures(url);
     let (handle, mut events) = Stream::<OutgoingMessage, IncomingMessage>::new(cfg);
 
