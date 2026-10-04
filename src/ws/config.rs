@@ -37,6 +37,9 @@ pub struct Config {
     /// How long to wait for a clean close handshake
     pub close_timeout: Duration,
 
+    /// Time budget for one connection attempt (TCP + TLS + WebSocket handshake)
+    pub connect_timeout: Duration,
+
     /// Expected interval between heartbeat pings from the server.
     /// Per Binance Spot docs, the server sends a ping every 20s. Used as the
     /// initial deadline for the first server ping; if exceeded, the connection
@@ -63,6 +66,7 @@ impl Default for Config {
             reconnect_base_delay: Duration::from_millis(500),
             reconnect_max_delay: Duration::from_secs(30),
             close_timeout: Duration::from_secs(5),
+            connect_timeout: Duration::from_secs(10),
             ping_interval: DEFAULT_PING_INTERVAL,
             pong_timeout: DEFAULT_PONG_TIMEOUT,
             connection_ttl: DEFAULT_CONNECTION_TTL,
@@ -122,6 +126,11 @@ impl Config {
 
     pub fn close_timeout(mut self, d: Duration) -> Self {
         self.close_timeout = d;
+        self
+    }
+
+    pub fn connect_timeout(mut self, d: Duration) -> Self {
+        self.connect_timeout = d;
         self
     }
 
