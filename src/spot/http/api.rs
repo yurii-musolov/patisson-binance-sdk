@@ -5,9 +5,10 @@ use crate::{
     Timestamp,
     serde::serialize_option_as_json,
     spot::{
-        AccountType, ContingencyType, ExchangeFilter, KlineInterval, OrderListOrderStatus,
-        OrderListStatus, OrderResponseType, OrderSide, OrderStatus, OrderType, RateLimitInterval,
-        RateLimiter, STPMode, SymbolStatus, TimeInForce, WorkingFloor,
+        AccountType, CancelRestrictions, ContingencyType, ExchangeFilter, ExpiryReason,
+        KlineInterval, OrderListOrderStatus, OrderListStatus, OrderResponseType, OrderSide,
+        OrderStatus, OrderType, PegOffsetType, PegPriceType, RateLimitInterval, RateLimiter,
+        STPMode, SymbolStatus, TimeInForce, WorkingFloor,
     },
 };
 
@@ -104,7 +105,8 @@ pub struct SymbolInfo {
     pub base_asset: String,
     pub base_asset_precision: u8, // value range: [0:8]
     pub quote_asset: String,
-    // INFO: 'quote_precision' will be removed in future api versions (v4+)
+    /// Same as `quote_asset_precision`; Binance will remove it in API v4.
+    pub quote_precision: Option<u8>,
     pub quote_asset_precision: u8,      // value range: [0:8]
     pub base_commission_precision: u8,  // value range: [0:8]
     pub quote_commission_precision: u8, // value range: [0:8]
@@ -112,10 +114,14 @@ pub struct SymbolInfo {
     pub iceberg_allowed: bool,
     pub oco_allowed: bool,
     pub oto_allowed: bool,
+    /// One-Pays-the-Other order lists are supported.
+    pub opo_allowed: Option<bool>,
     pub quote_order_qty_market_allowed: bool,
     pub allow_trailing_stop: bool,
     pub cancel_replace_allowed: bool,
     pub amend_allowed: bool,
+    /// Pegged orders (`pegPriceType`, ...) are supported.
+    pub peg_instructions_allowed: Option<bool>,
     pub is_spot_trading_allowed: bool,
     pub is_margin_trading_allowed: bool,
     pub filters: Vec<Filter>,
@@ -181,6 +187,18 @@ pub enum Filter {
     MaxNumIcebergOrders { max_num_iceberg_orders: u64 },
     #[serde(rename = "MAX_POSITION", rename_all = "camelCase")]
     MaxPosition { max_position: Decimal },
+    #[serde(rename = "PERCENT_PRICE", rename_all = "camelCase")]
+    PercentPrice {
+        multiplier_up: Decimal,
+        multiplier_down: Decimal,
+        avg_price_mins: u64,
+    },
+    #[serde(rename = "MAX_NUM_ORDER_AMENDS", rename_all = "camelCase")]
+    MaxNumOrderAmends { max_num_order_amends: u64 },
+    #[serde(rename = "MAX_NUM_ORDER_LISTS", rename_all = "camelCase")]
+    MaxNumOrderLists { max_num_order_lists: u64 },
+    #[serde(rename = "MAX_ASSET", rename_all = "camelCase")]
+    MaxAsset { asset: String, limit: Decimal },
     #[serde(rename = "TRAILING_DELTA", rename_all = "camelCase")]
     TrailingDelta {
         min_trailing_above_delta: u64,
@@ -209,6 +227,9 @@ pub struct GetOrderBookParams {
     /// Default: 100; Maximum: 5000.
     /// If limit > 5000, only 5000 entries will be returned.
     pub(super) limit: Option<u64>,
+    /// Fail with `-1220` unless the symbol has this status
+    /// (`TRADING`, `HALT` or `BREAK`).
+    symbol_status: Option<SymbolStatus>,
 }
 
 impl GetOrderBookParams {
@@ -216,11 +237,17 @@ impl GetOrderBookParams {
         Self {
             symbol: symbol.into(),
             limit: None,
+            symbol_status: None,
         }
     }
 
     pub fn limit(mut self, limit: u64) -> Self {
         self.limit = Some(limit);
+        self
+    }
+
+    pub fn symbol_status(mut self, value: SymbolStatus) -> Self {
+        self.symbol_status = Some(value);
         self
     }
 }
@@ -707,6 +734,12 @@ pub struct NewOrderRequest {
     self_trade_prevention_mode: Option<STPMode>,
     /// The value cannot be greater than 60000
     recv_window: Option<u64>,
+    /// Pegged orders: `PRIMARY_PEG` or `MARKET_PEG`.
+    peg_price_type: Option<PegPriceType>,
+    /// Pegged orders: price level to peg to (max 100).
+    peg_offset_value: Option<i64>,
+    /// Pegged orders: only `PRICE_LEVEL` is supported.
+    peg_offset_type: Option<PegOffsetType>,
     /// Only for test endpoint to place a new order.
     compute_commission_rates: Option<bool>,
 }
@@ -735,8 +768,26 @@ impl NewOrderRequest {
             iceberg_qty: None,
             self_trade_prevention_mode: None,
             recv_window: None,
+            peg_price_type: None,
+            peg_offset_value: None,
+            peg_offset_type: None,
             compute_commission_rates: None,
         }
+    }
+
+    pub fn peg_price_type(mut self, value: PegPriceType) -> Self {
+        self.peg_price_type = Some(value);
+        self
+    }
+
+    pub fn peg_offset_value(mut self, value: i64) -> Self {
+        self.peg_offset_value = Some(value);
+        self
+    }
+
+    pub fn peg_offset_type(mut self, value: PegOffsetType) -> Self {
+        self.peg_offset_type = Some(value);
+        self
     }
 
     pub fn time_in_force(mut self, value: TimeInForce) -> Self {
@@ -956,6 +1007,16 @@ pub struct NewOrderResponseResult {
     /// Field that determines whether the order is being filled by the SOR or by the order book the order was submitted to.
     /// Appears when placing orders using SOR
     pub working_floor: Option<WorkingFloor>,
+    /// Only for expired orders.
+    pub expiry_reason: Option<ExpiryReason>,
+    /// Only for pegged orders.
+    pub peg_price_type: Option<PegPriceType>,
+    /// Only for pegged orders, if requested.
+    pub peg_offset_type: Option<PegOffsetType>,
+    /// Only for pegged orders, if requested.
+    pub peg_offset_value: Option<i64>,
+    /// Only for pegged orders, once determined.
+    pub pegged_price: Option<Decimal>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -1010,6 +1071,16 @@ pub struct NewOrderResponseFull {
     /// Field that determines whether the order is being filled by the SOR or by the order book the order was submitted to.
     /// Appears when placing orders using SOR
     pub working_floor: Option<WorkingFloor>,
+    /// Only for expired orders.
+    pub expiry_reason: Option<ExpiryReason>,
+    /// Only for pegged orders.
+    pub peg_price_type: Option<PegPriceType>,
+    /// Only for pegged orders, if requested.
+    pub peg_offset_type: Option<PegOffsetType>,
+    /// Only for pegged orders, if requested.
+    pub peg_offset_value: Option<i64>,
+    /// Only for pegged orders, once determined.
+    pub pegged_price: Option<Decimal>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -1195,6 +1266,16 @@ pub struct Order {
     pub working_time: Timestamp,
     pub orig_quote_order_qty: Decimal,
     pub self_trade_prevention_mode: STPMode,
+    /// Only for expired orders.
+    pub expiry_reason: Option<ExpiryReason>,
+    /// Only for pegged orders.
+    pub peg_price_type: Option<PegPriceType>,
+    /// Only for pegged orders, if requested.
+    pub peg_offset_type: Option<PegOffsetType>,
+    /// Only for pegged orders, if requested.
+    pub peg_offset_value: Option<i64>,
+    /// Only for pegged orders, once determined.
+    pub pegged_price: Option<Decimal>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -1206,6 +1287,8 @@ pub struct CancelOrderParams {
     new_client_order_id: Option<String>,
     /// The value cannot be greater than 60000
     recv_window: Option<u64>,
+    /// Cancel only if the order is in the given status.
+    cancel_restrictions: Option<CancelRestrictions>,
 }
 
 impl CancelOrderParams {
@@ -1216,7 +1299,13 @@ impl CancelOrderParams {
             orig_client_order_id: None,
             new_client_order_id: None,
             recv_window: None,
+            cancel_restrictions: None,
         }
+    }
+
+    pub fn cancel_restrictions(mut self, value: CancelRestrictions) -> Self {
+        self.cancel_restrictions = Some(value);
+        self
     }
 
     pub fn order_id(mut self, value: i64) -> Self {
@@ -1256,6 +1345,8 @@ pub struct CanceledOrder {
     pub price: Decimal,
     pub orig_qty: Decimal,
     pub executed_qty: Decimal,
+    /// Present in current responses; older ones may omit it.
+    pub orig_quote_order_qty: Option<Decimal>,
     pub cummulative_quote_qty: Decimal,
     pub status: OrderStatus,
     pub time_in_force: TimeInForce,
@@ -1584,6 +1675,8 @@ impl GetAccountCommissionParams {
 pub struct AccountCommission {
     pub symbol: String,
     pub standard_commission: CommissionRates,
+    /// Additional commission for special symbols; absent for regular ones.
+    pub special_commission: Option<CommissionRates>,
     pub tax_commission: CommissionRates,
     pub discount: Discount,
 }
@@ -1759,6 +1852,9 @@ mod tests {
             rate_limits: vec![],
             exchange_filters: vec![],
             symbols: vec![SymbolInfo {
+                quote_precision: Some(8),
+                opo_allowed: None,
+                peg_instructions_allowed: None,
                 symbol: String::from("ETHBTC"),
                 status: SymbolStatus::Trading,
                 base_asset: String::from("ETH"),
@@ -1884,6 +1980,11 @@ mod tests {
             "selfTradePreventionMode": "NONE"
         }"#;
         let response = NewOrderResponseResult {
+            expiry_reason: None,
+            peg_price_type: None,
+            peg_offset_type: None,
+            peg_offset_value: None,
+            pegged_price: None,
             symbol: String::from("BTCUSDT"),
             order_id: 28,
             order_list_id: -1,
@@ -1976,6 +2077,11 @@ mod tests {
             ]
         }"#;
         let response = NewOrderResponseFull {
+            expiry_reason: None,
+            peg_price_type: None,
+            peg_offset_type: None,
+            peg_offset_value: None,
+            pegged_price: None,
             symbol: String::from("BTCUSDT"),
             order_id: 28,
             order_list_id: -1,
@@ -2202,6 +2308,11 @@ mod tests {
             "selfTradePreventionMode": "NONE"
         }"#;
         let expected = Order {
+            expiry_reason: None,
+            peg_price_type: None,
+            peg_offset_type: None,
+            peg_offset_value: None,
+            pegged_price: None,
             symbol: String::from("LTCBTC"),
             order_id: 1,
             order_list_id: -1,
@@ -2336,6 +2447,7 @@ mod tests {
             "selfTradePreventionMode": "NONE"
         }"#;
         let expected = CanceledOrder {
+            orig_quote_order_qty: None,
             symbol: String::from("LTCBTC"),
             orig_client_order_id: String::from("myOrder1"),
             order_id: 4,
@@ -2472,6 +2584,7 @@ mod tests {
             }
         }"#;
         let expected = AccountCommission {
+            special_commission: None,
             symbol: String::from("BTCUSDT"),
             standard_commission: CommissionRates {
                 maker: dec!(0.00000010),
