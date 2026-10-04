@@ -77,6 +77,7 @@ impl PublicClient {
             cfg.base_url,
             cfg.headers.unwrap_or_default(),
             cfg.rate_limiter,
+            cfg.timeouts,
         )?;
         Ok(Self { http })
     }
@@ -284,7 +285,7 @@ pub struct PrivateClient {
 impl PrivateClient {
     pub fn new(cfg: PrivateConfig) -> Result<Self, Error> {
         let headers = build_private_headers(&cfg)?;
-        let http = HttpClient::new(cfg.base_url, headers, cfg.rate_limiter)?;
+        let http = HttpClient::new(cfg.base_url, headers, cfg.rate_limiter, cfg.timeouts)?;
         Ok(Self {
             http,
             api_secret: cfg.api_secret,
@@ -610,5 +611,21 @@ mod tests {
         let value = headers.get(HEADER_X_MBX_APIKEY).unwrap();
         assert!(value.is_sensitive());
         assert!(!format!("{headers:?}").contains("my-api-key"));
+    }
+
+    #[test]
+    fn config_carries_default_and_overridden_timeouts() {
+        use std::time::Duration;
+
+        let cfg = PublicConfig::new("https://example.com");
+        assert_eq!(cfg.timeouts, crate::Timeouts::default());
+        assert_eq!(cfg.timeouts.request, crate::DEFAULT_HTTP_TIMEOUT);
+
+        let cfg = cfg
+            .timeout(Duration::from_secs(3))
+            .connect_timeout(Duration::from_secs(1));
+        assert_eq!(cfg.timeouts.request, Duration::from_secs(3));
+        assert_eq!(cfg.timeouts.connect, Duration::from_secs(1));
+        PublicClient::new(cfg).expect("client builds with custom timeouts");
     }
 }

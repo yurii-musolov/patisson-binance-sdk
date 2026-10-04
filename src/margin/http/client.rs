@@ -60,7 +60,7 @@ pub struct PrivateClient {
 impl PrivateClient {
     pub fn new(cfg: PrivateConfig) -> Result<Self, Error> {
         let headers = build_private_headers(&cfg)?;
-        let http = HttpClient::new(cfg.base_url, headers, cfg.rate_limiter)?;
+        let http = HttpClient::new(cfg.base_url, headers, cfg.rate_limiter, cfg.timeouts)?;
         Ok(Self {
             http,
             api_secret: cfg.api_secret,
