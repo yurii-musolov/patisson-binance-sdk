@@ -30,6 +30,22 @@ pub struct ExchangeInfo {
     pub server_time: Timestamp,
     pub rate_limits: Vec<RateLimit>,
     pub symbols: Vec<SymbolInfo>,
+    /// Exchange-wide filters, as raw JSON (not modelled yet).
+    #[serde(default)]
+    pub exchange_filters: Vec<serde_json::Value>,
+    /// Margin assets (Multi-Assets mode).
+    #[serde(default)]
+    pub assets: Vec<ExchangeAsset>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExchangeAsset {
+    pub asset: String,
+    /// Whether the asset can be used as margin in Multi-Assets mode.
+    pub margin_available: bool,
+    /// Auto-exchange threshold in Multi-Assets margin mode.
+    pub auto_asset_exchange: Option<Decimal>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -57,6 +73,23 @@ pub struct SymbolInfo {
     pub quote_precision: u8,
     pub order_types: Vec<OrderType>,
     pub time_in_force: Vec<TimeInForce>,
+    pub delivery_date: Option<Timestamp>,
+    pub onboard_date: Option<Timestamp>,
+    pub maint_margin_percent: Option<Decimal>,
+    pub required_margin_percent: Option<Decimal>,
+    pub underlying_type: Option<String>,
+    #[serde(default)]
+    pub underlying_sub_type: Vec<String>,
+    pub settle_plan: Option<i64>,
+    /// Threshold for algo order with `priceProtect`.
+    pub trigger_protect: Option<Decimal>,
+    pub liquidation_fee: Option<Decimal>,
+    /// Max price difference rate (from mark price) a market order can make.
+    pub market_take_bound: Option<Decimal>,
+    /// Symbol filters (`PRICE_FILTER`, `LOT_SIZE`, ...), as raw JSON: the
+    /// specification's example is malformed, so they are not typed yet.
+    #[serde(default)]
+    pub filters: Vec<serde_json::Value>,
 }
 
 // ===== Market Data =====
@@ -341,10 +374,14 @@ pub struct NewOrderResponse {
     pub side: OrderSide,
     pub position_side: PositionSide,
     pub price: Decimal,
-    pub avg_price: Decimal,
+    /// Absent from some responses (e.g. cancel).
+    #[serde(default)]
+    pub avg_price: Option<Decimal>,
     pub orig_qty: Decimal,
     pub executed_qty: Decimal,
-    pub cum_quote: Decimal,
+    /// Absent from some responses (e.g. new order, cancel).
+    #[serde(default)]
+    pub cum_quote: Option<Decimal>,
     pub time_in_force: TimeInForce,
     pub reduce_only: bool,
     pub close_position: bool,
@@ -358,6 +395,8 @@ pub struct NewOrderResponse {
     /// Present when `price_match` was set (non-`NONE`).
     pub price_match: Option<PriceMatch>,
     pub self_trade_prevention_mode: Option<STPMode>,
+    #[serde(default)]
+    pub cum_qty: Option<Decimal>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -401,10 +440,14 @@ pub struct Order {
     pub client_order_id: String,
     pub status: OrderStatus,
     pub price: Decimal,
-    pub avg_price: Decimal,
+    /// Absent from some responses (e.g. cancel).
+    #[serde(default)]
+    pub avg_price: Option<Decimal>,
     pub orig_qty: Decimal,
     pub executed_qty: Decimal,
-    pub cum_quote: Decimal,
+    /// Absent from some responses (e.g. new order, cancel).
+    #[serde(default)]
+    pub cum_quote: Option<Decimal>,
     pub time_in_force: TimeInForce,
     #[serde(rename = "type")]
     pub order_type: OrderType,
@@ -440,6 +483,8 @@ pub struct Order {
     /// Present when `time_in_force = GTD`.
     #[serde(default)]
     pub good_till_date: Option<Timestamp>,
+    #[serde(default)]
+    pub cum_qty: Option<Decimal>,
 }
 
 // ===== Trading (order management) =====
@@ -798,8 +843,6 @@ pub struct Position {
     #[serde(default)]
     pub ask_notional: Option<Decimal>,
     pub update_time: Timestamp,
-    pub leverage: Decimal,
-    pub isolated: bool,
 }
 
 // ===== Account =====
@@ -861,17 +904,14 @@ pub struct AccountAsset {
 #[serde(rename_all = "camelCase")]
 pub struct AccountPosition {
     pub symbol: String,
-    pub initial_margin: Decimal,
-    pub maint_margin: Decimal,
-    pub unrealized_profit: Decimal,
-    pub position_initial_margin: Decimal,
-    pub open_order_initial_margin: Decimal,
-    pub leverage: Decimal,
-    pub isolated: bool,
-    pub entry_price: Decimal,
-    pub max_notional: Decimal,
     pub position_side: PositionSide,
     pub position_amt: Decimal,
+    pub unrealized_profit: Decimal,
+    pub isolated_margin: Decimal,
+    pub notional: Decimal,
+    pub isolated_wallet: Decimal,
+    pub initial_margin: Decimal,
+    pub maint_margin: Decimal,
     pub update_time: Timestamp,
 }
 
