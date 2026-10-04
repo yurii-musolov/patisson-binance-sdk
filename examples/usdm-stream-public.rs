@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
         ]
     };
 
-    let cfg = Config::new(url);
+    let cfg = Config::futures(url);
     let (handle, mut events) = Stream::<OutgoingMessage, IncomingMessage>::new(cfg);
 
     tokio::spawn(async move {

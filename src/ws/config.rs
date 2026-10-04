@@ -1,8 +1,18 @@
 use std::time::Duration;
 
+/// Spot / margin streams: the server pings every 20s.
 pub const DEFAULT_PING_INTERVAL: Duration = Duration::from_secs(20);
+/// Spot / margin streams: the server drops the connection if no pong
+/// arrives within a minute.
 pub const DEFAULT_PONG_TIMEOUT: Duration = Duration::from_secs(60);
 pub const DEFAULT_CONNECTION_TTL: Duration = Duration::from_hours(24);
+
+/// USD-M / COIN-M futures streams: the server pings every 3 minutes. The
+/// deadline for the first ping leaves room for one late ping.
+pub const FUTURES_PING_INTERVAL: Duration = Duration::from_mins(5);
+/// USD-M / COIN-M futures streams: the server drops the connection if no
+/// pong arrives within 10 minutes.
+pub const FUTURES_PONG_TIMEOUT: Duration = Duration::from_mins(10);
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -61,11 +71,28 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Config with Spot heartbeat defaults (same as [`Config::spot`]). Use
+    /// [`Config::futures`] for USD-M / COIN-M futures streams: with Spot
+    /// timings a futures connection is declared dead long before the first
+    /// server ping arrives.
     pub fn new(url: impl Into<String>) -> Self {
         Self {
             url: url.into(),
             ..Default::default()
         }
+    }
+
+    /// Config for Spot and margin streams (`stream.binance.com`).
+    pub fn spot(url: impl Into<String>) -> Self {
+        Self::new(url)
+    }
+
+    /// Config for USD-M and COIN-M futures streams (`fstream.binance.com`,
+    /// `dstream.binance.com`), whose server pings only every 3 minutes.
+    pub fn futures(url: impl Into<String>) -> Self {
+        Self::new(url)
+            .ping_interval(FUTURES_PING_INTERVAL)
+            .pong_timeout(FUTURES_PONG_TIMEOUT)
     }
 
     pub fn command_queue_size(mut self, n: usize) -> Self {
@@ -111,5 +138,26 @@ impl Config {
     pub fn connection_ttl(mut self, d: Duration) -> Self {
         self.connection_ttl = d;
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn spot_preset_matches_spot_heartbeat() {
+        let cfg = Config::spot("wss://example.com");
+        assert_eq!(cfg.ping_interval, DEFAULT_PING_INTERVAL);
+        assert_eq!(cfg.pong_timeout, DEFAULT_PONG_TIMEOUT);
+    }
+
+    #[test]
+    fn futures_preset_tolerates_three_minute_pings() {
+        let cfg = Config::futures("wss://example.com");
+        assert_eq!(cfg.url, "wss://example.com");
+        assert!(cfg.ping_interval > Duration::from_mins(3));
+        assert!(cfg.pong_timeout > Duration::from_mins(3));
+        assert_eq!(cfg.connection_ttl, DEFAULT_CONNECTION_TTL);
     }
 }

@@ -37,9 +37,7 @@ async fn main() -> anyhow::Result<()> {
 
     // ----- WS diff stream -----
     let url = format!("{BASE_URL_STREAM}{}", Path::Stream);
-    let cfg = Config::new(url)
-        .ping_interval(Duration::from_secs(180))
-        .pong_timeout(Duration::from_secs(600));
+    let cfg = Config::futures(url);
     let (handle, mut events) = Stream::<OutgoingMessage, IncomingMessage>::new(cfg);
 
     let stream = StreamName::Depth {
