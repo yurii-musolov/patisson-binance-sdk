@@ -8,11 +8,12 @@ use crate::{
 };
 use futures_util::{SinkExt, StreamExt};
 use serde::{Serialize, de::DeserializeOwned};
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::time::Duration;
 use tokio::{
     sync::mpsc,
-    time::{Instant, sleep, timeout},
+    time::{Instant, sleep, sleep_until, timeout},
 };
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use tracing::{debug, error, info, warn};
@@ -32,6 +33,9 @@ where
     config: Config,
     cmd_rx: mpsc::Receiver<Command<C>>,
     evt_tx: mpsc::Sender<Event<M>>,
+    /// Outgoing messages accepted while a reconnect was pending; flushed in
+    /// order right after the next successful connect.
+    pending: VecDeque<C>,
 }
 
 impl<C, M> Stream<C, M>
@@ -48,6 +52,7 @@ where
             config,
             cmd_rx,
             evt_tx,
+            pending: VecDeque::new(),
         };
 
         tokio::spawn(stream.run());
@@ -117,7 +122,11 @@ where
                 info!("websocket connected");
                 self.emit(Event::Connected);
 
-                let (sink, stream) = ws_stream.split();
+                let (mut sink, stream) = ws_stream.split();
+                if let Err(e) = self.flush_pending(&mut sink).await {
+                    error!(error = %e, "sending queued messages failed");
+                    return self.next_reconnect_state(1, e.to_string());
+                }
                 let (frame_tx, frame_rx) =
                     mpsc::channel::<FrameResult>(self.config.event_queue_size);
 
@@ -264,19 +273,58 @@ where
         warn!(attempt, delay_ms, "waiting before reconnect");
         self.emit(Event::Reconnecting { attempt, delay_ms });
 
-        let cancelled = tokio::select! {
-            _ = sleep(Duration::from_millis(delay_ms)) => false,
-            cmd = self.cmd_rx.recv() => matches!(cmd, None | Some(Command::Disconnect)),
-        };
-
-        if cancelled {
-            self.emit(Event::Disconnected {
-                reason: DisconnectReason::Requested,
-            });
-            State::Idle
-        } else {
-            State::Connecting { attempt }
+        // Keep serving commands for the whole back-off: a Send must not cut
+        // the delay short nor be lost, it is queued and flushed once the
+        // connection is back.
+        let wake_at = sleep_until(Instant::now() + Duration::from_millis(delay_ms));
+        tokio::pin!(wake_at);
+        loop {
+            tokio::select! {
+                _ = &mut wake_at => return State::Connecting { attempt },
+                cmd = self.cmd_rx.recv() => match cmd {
+                    None | Some(Command::Disconnect) => {
+                        self.pending.clear();
+                        self.emit(Event::Disconnected {
+                            reason: DisconnectReason::Requested,
+                        });
+                        return State::Idle;
+                    }
+                    Some(Command::Connect) => debug!("Connect ignored - reconnect already scheduled"),
+                    Some(Command::Send(msg)) => self.queue_pending(msg),
+                },
+            }
         }
+    }
+
+    /// Remember an outgoing message until the connection is re-established.
+    /// The queue is bounded by `command_queue_size`; the oldest message is
+    /// dropped when it overflows.
+    fn queue_pending(&mut self, msg: C) {
+        if self.pending.len() >= self.config.command_queue_size.max(1)
+            && let Some(dropped) = self.pending.pop_front()
+        {
+            warn!(
+                ?dropped,
+                "pending queue full, dropping oldest outgoing message"
+            );
+        }
+        self.pending.push_back(msg);
+    }
+
+    /// Send every queued message in order. On failure the unsent message is
+    /// put back at the front so it is retried after the next reconnect.
+    async fn flush_pending<S>(&mut self, sink: &mut S) -> Result<(), S::Error>
+    where
+        S: futures_util::Sink<Message> + Unpin,
+    {
+        while let Some(msg) = self.pending.pop_front() {
+            let json = serialize_json(&msg).expect("serialize outgoing message failed");
+            if let Err(e) = sink.send(Message::Text(json.into())).await {
+                self.pending.push_front(msg);
+                return Err(e);
+            }
+        }
+        Ok(())
     }
 
     async fn step_closing(&mut self, mut sink: Sink) -> State {
@@ -293,10 +341,11 @@ where
         State::Idle
     }
 
-    fn next_reconnect_state(&self, next_attempt: u32, reason: String) -> State {
+    fn next_reconnect_state(&mut self, next_attempt: u32, reason: String) -> State {
         if self.config.max_reconnect_attempts == 0
             || next_attempt > self.config.max_reconnect_attempts
         {
+            self.pending.clear();
             self.emit(Event::Disconnected {
                 reason: DisconnectReason::Error(String::from(
                     "all reconnection attempts have failed",
@@ -322,4 +371,131 @@ const FAR_FUTURE: Duration = Duration::from_secs(u64::MAX / 4);
 #[inline]
 fn far_future_instant() -> Instant {
     Instant::now() + FAR_FUTURE
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde::Deserialize;
+    use serde_json::{Value, json};
+    use tokio::net::TcpListener;
+
+    #[derive(Debug, Deserialize)]
+    struct TestMsg(#[allow(dead_code)] Value);
+
+    impl ReceivedMessage for TestMsg {
+        fn server_shutdown_event_time(&self) -> Option<u64> {
+            None
+        }
+    }
+
+    /// What the test server does with the n-th accepted connection.
+    #[derive(Clone, Copy)]
+    enum Behaviour {
+        /// Complete the handshake, then drop the socket at once.
+        CloseImmediately,
+        /// Read frames until the client goes away, reporting each one.
+        Record,
+    }
+
+    #[derive(Debug)]
+    enum ServerEvent {
+        Accepted(usize, Instant),
+        Text(usize, String),
+        #[allow(dead_code)]
+        Closed(usize),
+    }
+
+    /// Spawn a local WebSocket server. Connection `n` follows `behaviours[n]`
+    /// (the last entry repeats). Returns the `ws://` URL and the event feed.
+    async fn spawn_server(
+        behaviours: Vec<Behaviour>,
+    ) -> (String, mpsc::UnboundedReceiver<ServerEvent>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("ws://{}", listener.local_addr().unwrap());
+        let (tx, rx) = mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            let mut n = 0;
+            while let Ok((tcp, _)) = listener.accept().await {
+                let behaviour = behaviours[n.min(behaviours.len() - 1)];
+                let tx = tx.clone();
+                let Ok(mut ws) = tokio_tungstenite::accept_async(tcp).await else {
+                    continue;
+                };
+                let _ = tx.send(ServerEvent::Accepted(n, Instant::now()));
+                let id = n;
+                tokio::spawn(async move {
+                    if let Behaviour::Record = behaviour {
+                        while let Some(Ok(msg)) = ws.next().await {
+                            if let Message::Text(text) = msg {
+                                let _ = tx.send(ServerEvent::Text(id, text.to_string()));
+                            }
+                        }
+                    }
+                    drop(ws);
+                    let _ = tx.send(ServerEvent::Closed(id));
+                });
+                n += 1;
+            }
+        });
+        (url, rx)
+    }
+
+    fn test_config(url: String) -> Config {
+        Config::new(url)
+            .reconnect_base_delay(Duration::from_millis(150))
+            .close_timeout(Duration::from_millis(500))
+    }
+
+    async fn next_event(rx: &mut mpsc::Receiver<Event<TestMsg>>) -> Event<TestMsg> {
+        timeout(Duration::from_secs(5), rx.recv())
+            .await
+            .expect("timed out waiting for a driver event")
+            .expect("driver event channel closed")
+    }
+
+    async fn next_server_event(rx: &mut mpsc::UnboundedReceiver<ServerEvent>) -> ServerEvent {
+        timeout(Duration::from_secs(5), rx.recv())
+            .await
+            .expect("timed out waiting for a server event")
+            .expect("server event channel closed")
+    }
+
+    #[tokio::test]
+    async fn send_during_backoff_is_delivered_after_reconnect() {
+        let (url, mut server) =
+            spawn_server(vec![Behaviour::CloseImmediately, Behaviour::Record]).await;
+        let (handle, mut events) = Stream::<Value, TestMsg>::new(test_config(url));
+        handle.connect().await.unwrap();
+
+        assert!(matches!(next_event(&mut events).await, Event::Connected));
+        let closed_at = loop {
+            if let Event::Reconnecting { .. } = next_event(&mut events).await {
+                break Instant::now();
+            }
+        };
+
+        // Arrives while the driver is sleeping before the reconnect.
+        let subscribe = json!({"method": "SUBSCRIBE", "params": ["btcusdt@trade"], "id": 1});
+        handle.send_command(subscribe.clone()).await.unwrap();
+        // A Connect during back-off must not cut the delay short either.
+        handle.connect().await.unwrap();
+
+        let mut second_accept = None;
+        let text = loop {
+            match next_server_event(&mut server).await {
+                ServerEvent::Accepted(1, at) => second_accept = Some(at),
+                ServerEvent::Text(1, text) => break text,
+                _ => {}
+            }
+        };
+        assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), subscribe);
+        let waited = second_accept.unwrap() - closed_at;
+        assert!(
+            waited >= Duration::from_millis(100),
+            "back-off was cut short: reconnected after {waited:?}"
+        );
+
+        handle.disconnect().await.unwrap();
+    }
 }
