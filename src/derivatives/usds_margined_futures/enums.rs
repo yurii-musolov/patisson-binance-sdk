@@ -275,3 +275,16 @@ impl std::fmt::Display for KlineInterval {
         write!(f, "{value}")
     }
 }
+
+/// Algo order family (`algoType`).
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AlgoType {
+    /// Conditional orders: `STOP`, `TAKE_PROFIT`, `STOP_MARKET`,
+    /// `TAKE_PROFIT_MARKET`, `TRAILING_STOP_MARKET`.
+    Conditional,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
+}

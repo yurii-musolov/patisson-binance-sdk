@@ -76,3 +76,36 @@ fn live_exchange_info_filters_are_all_typed() {
             .any(|f| matches!(f, SymbolFilter::PriceFilter(p) if !p.tick_size.is_zero()))
     );
 }
+
+mod algo {
+    use super::parse;
+    use binance::derivatives::usds_margined_futures::{
+        AlgoType, OrderType,
+        http::{AlgoOrder, CanceledAlgoOrder},
+    };
+    use rust_decimal::Decimal;
+
+    #[test]
+    fn algo_order_responses_parse() {
+        let placed: AlgoOrder = parse("new_algo_order.json");
+        assert_eq!(placed.algo_type, AlgoType::Conditional);
+        assert_eq!(placed.order_type, OrderType::TakeProfit);
+        // Binance's "not set" placeholders: "" and the string "null".
+        assert_eq!(placed.activate_price, None);
+        assert_eq!(placed.iceberg_quantity, None);
+        assert_eq!(placed.trigger_price, Decimal::new(750_000, 3));
+
+        let queried: AlgoOrder = parse("query_algo_order.json");
+        assert_eq!(queried.algo_status, "CANCELED");
+        assert_eq!(queried.actual_order_id, None);
+        assert_eq!(queried.actual_type.as_deref(), Some("LIMIT"));
+
+        let open: Vec<AlgoOrder> = parse("current_all_algo_open_orders.json");
+        assert!(!open.is_empty());
+        let all: Vec<AlgoOrder> = parse("query_all_algo_orders.json");
+        assert!(!all.is_empty());
+
+        let canceled: CanceledAlgoOrder = parse("cancel_algo_order.json");
+        assert_eq!(canceled.code, 200);
+    }
+}
