@@ -294,7 +294,8 @@ impl PrivateClient {
 
 fn build_private_headers(cfg: &PrivateConfig) -> Result<HeaderMap, Error> {
     let mut headers = HeaderMap::new();
-    let api_key = cfg.api_key.expose().parse()?;
+    let mut api_key: reqwest::header::HeaderValue = cfg.api_key.expose().parse()?;
+    api_key.set_sensitive(true);
     headers.append(HEADER_X_MBX_APIKEY, api_key);
     if let Some(extra) = &cfg.headers {
         headers.extend(extra.clone());
@@ -592,4 +593,22 @@ where
     T: serde::de::DeserializeOwned,
 {
     http::send_query::<T, P, ApiError, Error>(http_client, method, path, params, cost).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn api_key_header_is_marked_sensitive() {
+        let cfg = PrivateConfig::new(
+            "https://example.com",
+            SensitiveString::from("my-api-key"),
+            SensitiveString::from("my-api-secret"),
+        );
+        let headers = build_private_headers(&cfg).unwrap();
+        let value = headers.get(HEADER_X_MBX_APIKEY).unwrap();
+        assert!(value.is_sensitive());
+        assert!(!format!("{headers:?}").contains("my-api-key"));
+    }
 }

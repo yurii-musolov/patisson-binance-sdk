@@ -176,7 +176,8 @@ impl PrivateClient {
 
 fn build_private_headers(cfg: &PrivateConfig) -> Result<HeaderMap, Error> {
     let mut headers = HeaderMap::new();
-    let api_key = cfg.api_key.expose().parse()?;
+    let mut api_key: reqwest::header::HeaderValue = cfg.api_key.expose().parse()?;
+    api_key.set_sensitive(true);
     headers.append(HEADER_X_MBX_APIKEY, api_key);
     if let Some(extra) = &cfg.headers {
         headers.extend(extra.clone());

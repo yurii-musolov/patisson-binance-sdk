@@ -4,12 +4,25 @@ use std::fmt::{self, Display, Formatter};
 
 use crate::Timestamp;
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+/// A secret (API key, API secret) that never leaks through formatting.
+///
+/// Both `Display` and `Debug` print `REDACTED`; use [`SensitiveString::expose`]
+/// to get the raw value. `Serialize` is intentionally not implemented so a
+/// secret can't be written to JSON or logs by accident; `Deserialize` is kept
+/// so secrets can still be loaded from a config file.
+#[derive(Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(transparent)]
 pub struct SensitiveString(String);
 
 impl Display for SensitiveString {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "REDACTED")
+    }
+}
+
+impl fmt::Debug for SensitiveString {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("SensitiveString").field(&"REDACTED").finish()
     }
 }
 
@@ -83,6 +96,33 @@ mod tests {
         let signed_query = sign_query(&api_secret, timestamp, query);
 
         assert_eq!(expected, signed_query);
+    }
+
+    #[test]
+    fn sensitive_string_is_redacted_in_debug_and_display() {
+        let secret = SensitiveString::from("top-secret-value");
+        assert_eq!(format!("{secret}"), "REDACTED");
+        let debug = format!("{secret:?}");
+        assert!(!debug.contains("top-secret-value"), "got {debug}");
+        assert_eq!(secret.expose(), "top-secret-value");
+    }
+
+    #[test]
+    fn private_config_debug_does_not_leak_secrets() {
+        let cfg = crate::spot::http::PrivateConfig::new(
+            "https://example.com",
+            SensitiveString::from("my-api-key"),
+            SensitiveString::from("my-api-secret"),
+        );
+        let debug = format!("{cfg:?}");
+        assert!(!debug.contains("my-api-key"), "got {debug}");
+        assert!(!debug.contains("my-api-secret"), "got {debug}");
+    }
+
+    #[test]
+    fn sensitive_string_deserializes_from_plain_string() {
+        let s: SensitiveString = serde_json::from_str(r#""abc""#).unwrap();
+        assert_eq!(s.expose(), "abc");
     }
 
     #[test]
