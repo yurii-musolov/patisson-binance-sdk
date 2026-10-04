@@ -32,18 +32,18 @@ impl From<i64> for MessageID {
 /// Subset of stream names supported by USDⓈ-M Futures market data streams.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StreamName {
-    /// "<symbol>@aggTrade"
+    /// `<symbol>@aggTrade`
     AggTrade { symbol: String },
-    /// "<symbol>@kline_<interval>"
+    /// `<symbol>@kline_<interval>`
     Kline {
         symbol: String,
         interval: KlineInterval,
     },
-    /// "<symbol>@markPrice" — 1s update
+    /// `<symbol>@markPrice` — 1s update
     MarkPrice { symbol: String },
-    /// "<symbol>@depth"
+    /// `<symbol>@depth`
     Depth { symbol: String },
-    /// "<symbol>@forceOrder" — liquidation order
+    /// `<symbol>@forceOrder` — liquidation order
     ForceOrder { symbol: String },
     /// "!forceOrder@arr" — all-symbol liquidation
     ForceOrderAll,
