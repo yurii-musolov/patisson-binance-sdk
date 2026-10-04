@@ -1,0 +1,44 @@
+# cargo-deny policy: https://embarkstudios.github.io/cargo-deny/
+#
+# Run locally with `cargo deny check`. CI runs it on every pull request and
+# on a weekly schedule, so a new RustSec advisory against a dependency is
+# reported even when the code itself does not change.
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+# Yanked versions are usually yanked for a reason (bugs, security).
+yanked = "deny"
+# Advisories accepted on purpose, each with the reason, e.g.:
+# { id = "RUSTSEC-0000-0000", reason = "not reachable: we never call X" },
+ignore = []
+
+[licenses]
+version = 2
+# Permissive licenses compatible with distributing this MIT crate.
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "CC0-1.0",
+  "CDLA-Permissive-2.0",
+  "ISC",
+  "MIT",
+  "MIT-0",
+  "Unicode-3.0",
+  "Unlicense",
+]
+confidence-threshold = 0.9
+
+[bans]
+# Duplicate versions are common in the async/TLS ecosystem; report, don't fail.
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
