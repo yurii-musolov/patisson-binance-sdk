@@ -5,17 +5,18 @@ use crate::{
     derivatives::usds_margined_futures::{
         ApiError, Error, HEADER_X_MBX_APIKEY, Path,
         http::{
-            AccountBalance, AccountInformation, AccountTrade, ActionResult,
-            CancelAllOpenOrdersParams, CancelOrderParams, ChangeInitialLeverageParams,
+            AccountBalance, AccountInformation, AccountTrade, ActionResult, AlgoActionResult,
+            AlgoOrder, AlgoOrderIdParams, CancelAllAlgoOpenOrdersParams, CancelAllOpenOrdersParams,
+            CancelOrderParams, CanceledAlgoOrder, ChangeInitialLeverageParams,
             ChangeMarginTypeParams, ChangePositionModeParams, EmptyResponse, ExchangeInfo,
             GetAccountBalanceParams, GetAccountInformationParams, GetAccountTradeListParams,
-            GetAllOrdersParams, GetCurrentPositionModeParams, GetKlineListParams,
-            GetMarkPriceParams, GetOpenOrdersParams, GetOrderBookParams,
-            GetPositionInformationParams, GetSymbolOrderBookTickerParams,
-            GetSymbolPriceTickerParams, Kline, Leverage, ListenKey, MarkPrice, NewOrderRequest,
-            NewOrderResponse, Order, OrderBook, Position, PositionMode, PrivateConfig,
-            PublicConfig, QueryOrderParams, Response, ServerTime, SymbolOrderBookTicker,
-            SymbolPriceTicker, TestConnectivity,
+            GetAllAlgoOrdersParams, GetAllOrdersParams, GetCurrentPositionModeParams,
+            GetKlineListParams, GetMarkPriceParams, GetOpenAlgoOrdersParams, GetOpenOrdersParams,
+            GetOrderBookParams, GetPositionInformationParams, GetSymbolOrderBookTickerParams,
+            GetSymbolPriceTickerParams, Kline, Leverage, ListenKey, MarkPrice, NewAlgoOrderRequest,
+            NewOrderRequest, NewOrderResponse, Order, OrderBook, Position, PositionMode,
+            PrivateConfig, PublicConfig, QueryOrderParams, Response, ServerTime,
+            SymbolOrderBookTicker, SymbolPriceTicker, TestConnectivity,
         },
     },
     http::{self, HttpClient, RawResponse, SendError},
@@ -193,10 +194,9 @@ impl PrivateClient {
     /// Send a new order (`POST /fapi/v1/order`).
     ///
     /// The current API specification lists additional mandatory parameters
-    /// only for `LIMIT` and `MARKET`: conditional orders (`STOP`,
-    /// `TAKE_PROFIT`, `*_MARKET`, `TRAILING_STOP_MARKET`) are placed through
-    /// the Algo Order API (`POST /fapi/v1/algoOrder`), which this SDK does
-    /// not cover yet.
+    /// only for `LIMIT` and `MARKET`: place conditional orders (`STOP`,
+    /// `TAKE_PROFIT`, `*_MARKET`, `TRAILING_STOP_MARKET`) with
+    /// [`Self::new_algo_order`].
     pub async fn new_order(
         &self,
         params: NewOrderRequest,
@@ -451,6 +451,119 @@ impl PrivateClient {
     }
 }
 
+// Algo (conditional) orders. Weights from the API specification; placing
+// an algo order costs no IP weight, only order count.
+const COST_NEW_ALGO_ORDER: Cost = Cost::weight_and_orders(0, 1);
+const COST_ALGO_ORDER: Cost = Cost::weight(1);
+const COST_ALL_ALGO_ORDERS: Cost = Cost::weight(5);
+
+/// `/openAlgoOrders`: 1 for one symbol, 40 for every symbol.
+fn cost_open_algo_orders(has_symbol: bool) -> Cost {
+    Cost::weight(if has_symbol { 1 } else { 40 })
+}
+
+impl PrivateClient {
+    /// Place a conditional order (`STOP`, `TAKE_PROFIT`, `STOP_MARKET`,
+    /// `TAKE_PROFIT_MARKET`, `TRAILING_STOP_MARKET`) through the Algo Order
+    /// API (`POST /fapi/v1/algoOrder`).
+    pub async fn new_algo_order(
+        &self,
+        params: NewAlgoOrderRequest,
+    ) -> Result<Response<AlgoOrder>, Error> {
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::POST,
+            Path::AlgoOrder,
+            &params,
+            COST_NEW_ALGO_ORDER,
+        )
+        .await
+    }
+
+    /// Cancel one algo order (`DELETE /fapi/v1/algoOrder`).
+    pub async fn cancel_algo_order(
+        &self,
+        params: AlgoOrderIdParams,
+    ) -> Result<Response<CanceledAlgoOrder>, Error> {
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::DELETE,
+            Path::AlgoOrder,
+            &params,
+            COST_ALGO_ORDER,
+        )
+        .await
+    }
+
+    /// Look up one algo order (`GET /fapi/v1/algoOrder`).
+    pub async fn query_algo_order(
+        &self,
+        params: AlgoOrderIdParams,
+    ) -> Result<Response<AlgoOrder>, Error> {
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::AlgoOrder,
+            &params,
+            COST_ALGO_ORDER,
+        )
+        .await
+    }
+
+    /// Open algo orders (`GET /fapi/v1/openAlgoOrders`).
+    pub async fn get_open_algo_orders(
+        &self,
+        params: GetOpenAlgoOrdersParams,
+    ) -> Result<Response<Vec<AlgoOrder>>, Error> {
+        let cost = cost_open_algo_orders(params.symbol.is_some());
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::OpenAlgoOrders,
+            &params,
+            cost,
+        )
+        .await
+    }
+
+    /// Algo orders of a symbol, open or not (`GET /fapi/v1/allAlgoOrders`).
+    pub async fn get_all_algo_orders(
+        &self,
+        params: GetAllAlgoOrdersParams,
+    ) -> Result<Response<Vec<AlgoOrder>>, Error> {
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::GET,
+            Path::AllAlgoOrders,
+            &params,
+            COST_ALL_ALGO_ORDERS,
+        )
+        .await
+    }
+
+    /// Cancel every open algo order of a symbol
+    /// (`DELETE /fapi/v1/algoOpenOrders`).
+    pub async fn cancel_all_algo_open_orders(
+        &self,
+        params: CancelAllAlgoOpenOrdersParams,
+    ) -> Result<Response<AlgoActionResult>, Error> {
+        send_signed(
+            &self.http,
+            &self.api_secret,
+            Method::DELETE,
+            Path::AlgoOpenOrders,
+            &params,
+            COST_ALGO_ORDER,
+        )
+        .await
+    }
+}
+
 /// Thin pins of the shared `crate::http` primitives (see `src/http.rs`) onto
 /// this product's own `ApiError`/`Error` types, so every endpoint above can
 /// call `decode`/`send_signed`/`send_query` directly instead of hand-copying
@@ -490,4 +603,39 @@ where
     T: serde::de::DeserializeOwned,
 {
     http::send_query::<T, P, ApiError, Error>(http_client, method, path, params, cost).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn algo_order_request_and_weights() {
+        use crate::{
+            derivatives::usds_margined_futures::{OrderSide, OrderType, WorkingType},
+            serde::serialize_query,
+        };
+        use rust_decimal::dec;
+
+        let order =
+            NewAlgoOrderRequest::conditional("BNBUSDT", OrderSide::SELL, OrderType::TakeProfit)
+                .quantity(dec!(0.01))
+                .price(dec!(750))
+                .trigger_price(dec!(750))
+                .working_type(WorkingType::ContractPrice)
+                .reduce_only(false)
+                .client_algo_id("tp-1");
+        assert_eq!(
+            serialize_query(&order).unwrap(),
+            "algoType=CONDITIONAL&symbol=BNBUSDT&side=SELL&type=TAKE_PROFIT&quantity=0.01\
+             &price=750&triggerPrice=750&workingType=CONTRACT_PRICE&reduceOnly=false\
+             &clientAlgoId=tp-1"
+        );
+        assert_eq!(
+            serialize_query(&AlgoOrderIdParams::by_client_algo_id("tp-1")).unwrap(),
+            "clientAlgoId=tp-1"
+        );
+        assert_eq!(cost_open_algo_orders(true), Cost::weight(1));
+        assert_eq!(cost_open_algo_orders(false), Cost::weight(40));
+    }
 }

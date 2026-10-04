@@ -39,6 +39,12 @@ pub enum Path {
     PositionSideDual,
     PositionRiskV3,
 
+    // Algo (conditional) orders
+    AlgoOrder,
+    OpenAlgoOrders,
+    AllAlgoOrders,
+    AlgoOpenOrders,
+
     // Account
     AccountV2,
     AccountV3,
@@ -70,6 +76,10 @@ impl std::fmt::Display for Path {
             Self::TickerBookTicker => "/fapi/v1/ticker/bookTicker",
             Self::PremiumIndex => "/fapi/v1/premiumIndex",
             Self::Order => "/fapi/v1/order",
+            Self::AlgoOrder => "/fapi/v1/algoOrder",
+            Self::OpenAlgoOrders => "/fapi/v1/openAlgoOrders",
+            Self::AllAlgoOrders => "/fapi/v1/allAlgoOrders",
+            Self::AlgoOpenOrders => "/fapi/v1/algoOpenOrders",
             Self::OpenOrders => "/fapi/v1/openOrders",
             Self::AllOpenOrders => "/fapi/v1/allOpenOrders",
             Self::AllOrders => "/fapi/v1/allOrders",

@@ -106,6 +106,50 @@ where
     deserializer.deserialize_any(U64Visitor)
 }
 
+/// Optional decimal that Binance may send as a number, a numeric string, or
+/// as a placeholder for "no value": `null`, `""` or even the string
+/// `"null"` (seen in the Algo Order API). Placeholders become `None`.
+pub fn decimal_opt_lenient<'de, D>(
+    deserializer: D,
+) -> Result<Option<rust_decimal::Decimal>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use std::str::FromStr;
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    match value {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::String(s)) if s.is_empty() || s == "null" => Ok(None),
+        Some(serde_json::Value::String(s)) => rust_decimal::Decimal::from_str(&s)
+            .map(Some)
+            .map_err(serde::de::Error::custom),
+        Some(serde_json::Value::Number(n)) => rust_decimal::Decimal::from_str(&n.to_string())
+            .map(Some)
+            .map_err(serde::de::Error::custom),
+        Some(other) => Err(serde::de::Error::custom(format!(
+            "expected a decimal, got {other}"
+        ))),
+    }
+}
+
+/// Optional string where `null`, `""` and `"null"` mean "no value"; numbers
+/// are kept as their decimal text.
+pub fn string_opt_lenient<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    match value {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::String(s)) if s.is_empty() || s == "null" => Ok(None),
+        Some(serde_json::Value::String(s)) => Ok(Some(s)),
+        Some(serde_json::Value::Number(n)) => Ok(Some(n.to_string())),
+        Some(other) => Err(serde::de::Error::custom(format!(
+            "expected a string, got {other}"
+        ))),
+    }
+}
+
 /// Serializer for use with `#[serde(serialize_with = ...)]` on fields that
 /// Binance expects as a JSON-array literal in a URL query — e.g.
 /// `symbols=["BTC","ETH"]` rather than the repeated `symbols=BTC&symbols=ETH`
@@ -173,6 +217,33 @@ mod tests {
                 ExchangeFilter::Unknown,
             ]
         );
+    }
+
+    #[test]
+    fn lenient_optional_values() {
+        #[derive(Deserialize)]
+        struct L {
+            #[serde(default, deserialize_with = "decimal_opt_lenient")]
+            d: Option<rust_decimal::Decimal>,
+            #[serde(default, deserialize_with = "string_opt_lenient")]
+            s: Option<String>,
+        }
+        let parse = |json: &str| deserialize_json::<L>(json).unwrap();
+        for json in [
+            r#"{"d":"","s":""}"#,
+            r#"{"d":"null","s":"null"}"#,
+            r#"{"d":null,"s":null}"#,
+            r#"{}"#,
+        ] {
+            let l = parse(json);
+            assert_eq!((l.d, l.s), (None, None), "{json}");
+        }
+        let l = parse(r#"{"d":"750.000","s":"LIMIT"}"#);
+        assert_eq!(l.d, Some(dec!(750.000)));
+        assert_eq!(l.s.as_deref(), Some("LIMIT"));
+        let l = parse(r#"{"d":1.5,"s":123}"#);
+        assert_eq!(l.d, Some(dec!(1.5)));
+        assert_eq!(l.s.as_deref(), Some("123"));
     }
 
     #[test]
