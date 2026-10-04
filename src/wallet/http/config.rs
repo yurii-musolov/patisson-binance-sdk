@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use reqwest::header::HeaderMap;
 
-use crate::{SensitiveString, http::Timeouts, rate_limit::RateLimiter};
+use crate::{SensitiveString, TimeOffset, http::Timeouts, rate_limit::RateLimiter};
 
 /// Configuration for [`super::PrivateClient`].
 ///
@@ -17,6 +17,8 @@ pub struct PrivateConfig {
     pub headers: Option<HeaderMap>,
     pub rate_limiter: Option<Arc<RateLimiter>>,
     pub timeouts: Timeouts,
+    /// Clock correction applied to signed requests; see [`TimeOffset`].
+    pub time_offset: TimeOffset,
 }
 
 impl PrivateConfig {
@@ -32,6 +34,7 @@ impl PrivateConfig {
             headers: None,
             rate_limiter: None,
             timeouts: Timeouts::default(),
+            time_offset: TimeOffset::default(),
         }
     }
 
@@ -63,6 +66,13 @@ impl PrivateConfig {
     /// [`crate::DEFAULT_HTTP_CONNECT_TIMEOUT`].
     pub fn connect_timeout(mut self, timeout: Duration) -> Self {
         self.timeouts.connect = timeout;
+        self
+    }
+
+    /// Correct the timestamp of signed requests for local clock drift. Share
+    /// the same [`TimeOffset`] across clients and refresh it periodically.
+    pub fn time_offset(mut self, time_offset: TimeOffset) -> Self {
+        self.time_offset = time_offset;
         self
     }
 }
