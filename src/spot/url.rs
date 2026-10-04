@@ -76,9 +76,6 @@ pub enum Path {
     MyTrades,
     RateLimitOrder,
 
-    // User data stream lifecycle
-    UserDataStream,
-
     // Websocket endpoints
     WebSocketApiV3,
     WebSocket,
@@ -128,7 +125,6 @@ impl std::fmt::Display for Path {
             Self::RateLimitOrder => "/api/v3/rateLimit/order",
 
             // User data stream lifecycle
-            Self::UserDataStream => "/api/v3/userDataStream",
 
             // Websocket endpoints
             Self::WebSocketApiV3 => "/ws-api/v3",

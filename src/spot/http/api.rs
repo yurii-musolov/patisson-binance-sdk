@@ -1588,17 +1588,6 @@ pub struct AccountCommission {
     pub discount: Discount,
 }
 
-/// Response of `POST /api/v3/userDataStream`.
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct ListenKey {
-    pub listen_key: String,
-}
-
-/// Response of `PUT`/`DELETE /api/v3/userDataStream` — Binance returns `{}`.
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct EmptyResponse {}
-
 /// Supported values: FULL or MINI. If none provided, the default is FULL.
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
@@ -2507,14 +2496,6 @@ mod tests {
         let current = deserialize_json(json).unwrap();
 
         assert_eq!(expected, current);
-    }
-
-    #[test]
-    fn deserialize_response_listen_key() {
-        let json =
-            r#"{"listenKey":"pqia91ma19a5s61cv6a81va65sdf19v8a65a1a5s61cv6a81va65sdf19v8a65a1"}"#;
-        let parsed: ListenKey = deserialize_json(json).unwrap();
-        assert_eq!(parsed.listen_key.len(), 64);
     }
 
     #[test]
