@@ -4,11 +4,13 @@
 //! cargo run --example usdm-stream-public
 //! ```
 
+mod support;
+
 use std::time::Duration;
 
 use binance::{
     derivatives::usds_margined_futures::{
-        BASE_URL_STREAM, KlineInterval,
+        KlineInterval,
         ws::{IncomingMessage, OutgoingMessage, StreamName},
     },
     ws::{Config, Event, Stream},
@@ -24,7 +26,9 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let url = format!("{BASE_URL_STREAM}/stream");
+    let stream = support::stream(support::Product::UsdmFutures)?;
+
+    let url = format!("{stream}/stream");
     let symbol = String::from("BTCUSDT").to_lowercase();
     let messages = {
         let kline = StreamName::Kline {

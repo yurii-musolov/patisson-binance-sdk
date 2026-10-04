@@ -4,11 +4,13 @@
 //! cargo run --example coinm-stream-public
 //! ```
 
+mod support;
+
 use std::time::Duration;
 
 use binance::{
     derivatives::coin_margined_futures::{
-        BASE_URL_STREAM, KlineInterval,
+        KlineInterval,
         ws::{IncomingMessage, OutgoingMessage, StreamName},
     },
     ws::{Config, Event, Stream},
@@ -24,7 +26,9 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let url = format!("{BASE_URL_STREAM}/stream");
+    let stream = support::stream(support::Product::CoinmFutures)?;
+
+    let url = format!("{stream}/stream");
     // COIN-M symbols carry a contract suffix (e.g. perpetual is "_PERP").
     let symbol = String::from("BTCUSD_PERP").to_lowercase();
     let messages = {

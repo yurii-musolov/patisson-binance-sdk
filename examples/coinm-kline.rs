@@ -4,8 +4,10 @@
 //! cargo run --example coinm-kline
 //! ```
 
+mod support;
+
 use binance::derivatives::coin_margined_futures::{
-    BASE_URL_API, KlineInterval,
+    KlineInterval,
     http::{GetKlineListParams, PublicClient, PublicConfig},
 };
 use tracing::{Level, info};
@@ -18,7 +20,9 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let cfg = PublicConfig::new(BASE_URL_API);
+    let api = support::api(support::Product::CoinmFutures)?;
+
+    let cfg = PublicConfig::new(api);
     let client = PublicClient::new(cfg)?;
 
     // COIN-M symbols carry a contract suffix (e.g. perpetual is "_PERP").

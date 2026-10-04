@@ -4,10 +4,9 @@
 //! cargo run --example spot-server-time
 //! ```
 
-use binance::spot::{
-    BASE_URL_API,
-    http::{PublicClient, PublicConfig},
-};
+mod support;
+
+use binance::spot::http::{PublicClient, PublicConfig};
 use std::time::Instant;
 use tracing::{Level, debug, info};
 use tracing_subscriber::FmtSubscriber;
@@ -19,7 +18,9 @@ async fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
-    let cfg = PublicConfig::new(BASE_URL_API);
+    let api = support::api(support::Product::Spot)?;
+
+    let cfg = PublicConfig::new(api);
     let client = PublicClient::new(cfg)?;
 
     let start = Instant::now();
