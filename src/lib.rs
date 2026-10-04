@@ -14,4 +14,5 @@ pub mod ws;
 pub use common::*;
 pub use crypto::{SensitiveString, timestamp};
 pub use error_code::ErrorCode;
+pub use http::{DEFAULT_HTTP_CONNECT_TIMEOUT, DEFAULT_HTTP_TIMEOUT, Timeouts};
 pub use rate_limit::{BucketKind, BucketSpec, Cost, RateLimitSource, RateLimited, RateLimiter};

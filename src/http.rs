@@ -104,6 +104,32 @@ impl From<RateLimited> for SendError {
     }
 }
 
+/// Default total time budget for one REST request.
+pub const DEFAULT_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
+/// Default time budget for establishing the TCP/TLS connection.
+pub const DEFAULT_HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// HTTP timeouts applied to every request a product client sends.
+///
+/// Without a timeout a stalled connection would leave a call (e.g.
+/// `new_order`) pending forever, so both are always set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Timeouts {
+    /// Total time for a single request: connect + send + read the response.
+    pub request: Duration,
+    /// Time for establishing the TCP/TLS connection.
+    pub connect: Duration,
+}
+
+impl Default for Timeouts {
+    fn default() -> Self {
+        Self {
+            request: DEFAULT_HTTP_TIMEOUT,
+            connect: DEFAULT_HTTP_CONNECT_TIMEOUT,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct HttpClient {
     inner: reqwest::Client,
@@ -117,8 +143,12 @@ impl HttpClient {
         base_url: String,
         headers: HeaderMap,
         rate_limiter: Option<Arc<RateLimiter>>,
+        timeouts: Timeouts,
     ) -> Result<Self, reqwest::Error> {
-        let inner = reqwest::Client::builder().build()?;
+        let inner = reqwest::Client::builder()
+            .timeout(timeouts.request)
+            .connect_timeout(timeouts.connect)
+            .build()?;
         Ok(Self {
             inner,
             base_url,

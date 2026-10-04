@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use reqwest::header::HeaderMap;
 
-use crate::{SensitiveString, rate_limit::RateLimiter};
+use crate::{SensitiveString, http::Timeouts, rate_limit::RateLimiter};
 
 /// Configuration for [`super::PrivateClient`].
 ///
@@ -16,6 +16,7 @@ pub struct PrivateConfig {
     pub api_secret: SensitiveString,
     pub headers: Option<HeaderMap>,
     pub rate_limiter: Option<Arc<RateLimiter>>,
+    pub timeouts: Timeouts,
 }
 
 impl PrivateConfig {
@@ -30,6 +31,7 @@ impl PrivateConfig {
             api_secret,
             headers: None,
             rate_limiter: None,
+            timeouts: Timeouts::default(),
         }
     }
 
@@ -47,6 +49,20 @@ impl PrivateConfig {
     /// share one `Arc<RateLimiter>` across `spot::http::*Client` and this client.
     pub fn rate_limiter(mut self, rate_limiter: Arc<RateLimiter>) -> Self {
         self.rate_limiter = Some(rate_limiter);
+        self
+    }
+
+    /// Total time budget for a single request (connect + send + read the
+    /// whole response). Defaults to [`crate::DEFAULT_HTTP_TIMEOUT`].
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeouts.request = timeout;
+        self
+    }
+
+    /// Time budget for establishing the TCP/TLS connection. Defaults to
+    /// [`crate::DEFAULT_HTTP_CONNECT_TIMEOUT`].
+    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
+        self.timeouts.connect = timeout;
         self
     }
 }
