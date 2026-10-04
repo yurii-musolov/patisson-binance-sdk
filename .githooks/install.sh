@@ -11,6 +11,6 @@ git config core.hooksPath .githooks
 
 echo "Git hooks installed."
 echo "  pre-commit: cargo fmt --check + cargo check"
-echo "  pre-push:   cargo fmt --check + cargo clippy + cargo test"
+echo "  pre-push:   no pushes to main + cargo fmt --check + cargo clippy + cargo test"
 echo
 echo "Skip individual runs with --no-verify when needed."

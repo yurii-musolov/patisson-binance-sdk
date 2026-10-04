@@ -9,6 +9,17 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
+# main only changes through pull requests (the server-side ruleset enforces
+# this too; this check just fails earlier and with a clearer message).
+# git passes one line per ref: <local ref> <local oid> <remote ref> <remote oid>
+while read -r _local_ref _local_oid remote_ref _remote_oid; do
+    if [ "$remote_ref" = "refs/heads/main" ]; then
+        echo "[pre-push] refusing to push to main: push a branch and open a pull request" >&2
+        echo "[pre-push] e.g. git switch -c fix/<short-description> && git push -u origin HEAD" >&2
+        exit 1
+    fi
+done
+
 echo "[pre-push] cargo fmt --check"
 cargo fmt --all -- --check
 
