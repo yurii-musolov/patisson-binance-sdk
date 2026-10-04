@@ -11,6 +11,12 @@ pub use crate::ErrorCode;
 #[derive(Debug)]
 pub enum Error {
     Api(ApiError),
+    /// Non-2xx response whose body is not Binance's `{"code":...,"msg":...}`
+    /// error, e.g. an HTML page from a proxy or CDN on 502/503.
+    Http {
+        status: reqwest::StatusCode,
+        body: String,
+    },
     Io(std::io::Error),
     /// The configured API key isn't a valid HTTP header value (e.g. contains
     /// a newline or non-ASCII byte).
@@ -36,6 +42,11 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::Api(error) => write!(f, "API error: code: {}, msg: {}", error.code, error.msg),
+            Error::Http { status, body } => write!(
+                f,
+                "HTTP error: status: {status}, body: {}",
+                crate::http::body_excerpt(body)
+            ),
             Error::Io(error) => write!(f, "I/O error: {error}"),
             Error::InvalidApiKey(error) => write!(f, "invalid API key: {error}"),
             Error::Msg(msg) => write!(f, "{msg}"),
@@ -85,6 +96,31 @@ impl From<SendError> for Error {
 }
 
 impl std::error::Error for Error {}
+
+impl Error {
+    /// The request may have been executed by Binance even though no
+    /// successful response arrived: `-1006`/`-1007` error codes, a 5xx
+    /// response without an error body, or a timeout after the request was
+    /// sent. For order placement or cancellation, query the order before
+    /// retrying.
+    pub fn is_execution_status_unknown(&self) -> bool {
+        match self {
+            Error::Api(error) => error.code.is_execution_status_unknown(),
+            Error::Http { status, .. } => status.is_server_error(),
+            Error::Reqwest(error) => error.is_timeout() && !error.is_connect(),
+            _ => false,
+        }
+    }
+}
+
+impl From<crate::http::UnexpectedResponse> for Error {
+    fn from(err: crate::http::UnexpectedResponse) -> Self {
+        Error::Http {
+            status: err.status,
+            body: err.body,
+        }
+    }
+}
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct ApiError {

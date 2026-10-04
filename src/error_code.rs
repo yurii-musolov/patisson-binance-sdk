@@ -169,6 +169,14 @@ impl ErrorCode {
         )
     }
 
+    /// `UNEXPECTED_RESP` (-1006) or `TIMEOUT` (-1007): the request reached
+    /// Binance but the outcome is unknown. For order placement or cancel the
+    /// action may or may not have been executed; query the order before
+    /// retrying.
+    pub fn is_execution_status_unknown(self) -> bool {
+        self == Self::UNEXPECTED_RESP || self == Self::TIMEOUT
+    }
+
     /// Server-side problem; the request itself may have been valid.
     ///
     /// Covers: `UNKNOWN` (-1000), `DISCONNECTED` (-1001), `UNEXPECTED_RESP`
