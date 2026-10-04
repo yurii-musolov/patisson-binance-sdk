@@ -1,0 +1,140 @@
+# Release: runs after every push to main (i.e. after a pull request is
+# merged). When the version in Cargo.toml is not on crates.io yet, it
+# publishes the crate and then tags the published commit as v<version> with
+# a GitHub Release. Merges without a version bump do nothing.
+#
+# The tag is created here, on the commit that actually landed on main, so
+# any merge method (merge commit, squash, rebase) is safe. Do not tag release
+# branches by hand.
+#
+# Publishing uses crates.io Trusted Publishing: crates.io issues a short-lived
+# token for this workflow and the `release` environment, no secret is stored.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Run every check and `cargo publish --dry-run`; publish nothing, create no tag
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
+
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      name: ${{ steps.plan.outputs.name }}
+      version: ${{ steps.plan.outputs.version }}
+      release: ${{ steps.plan.outputs.release }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Decide whether this commit is a release
+        id: plan
+        run: |
+          meta="$(cargo metadata --no-deps --format-version 1)"
+          name="$(jq -r '.packages[0].name' <<<"$meta")"
+          version="$(jq -r '.packages[0].version' <<<"$meta")"
+          tag="v$version"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          status="$(curl -sS -o /dev/null -w '%{http_code}' \
+            -A "$name release workflow (https://github.com/$GITHUB_REPOSITORY)" \
+            "https://crates.io/api/v1/crates/$name/$version")"
+          case "$status" in
+            200) published=true ;;
+            404) published=false ;;
+            *) echo "::error::crates.io answered HTTP $status"; exit 1 ;;
+          esac
+
+          if [ "$published" = true ] && [ "$DRY_RUN" != true ]; then
+            echo "$name $version is already on crates.io - nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A tag for this version must not already point at another commit.
+          # Annotated tags are listed twice; the peeled `^{}` entry is the commit.
+          refs="$(git ls-remote origin "refs/tags/$tag" "refs/tags/$tag^{}")"
+          tagged="$(awk -v ref="refs/tags/$tag^{}" '$2 == ref { print $1 }' <<<"$refs")"
+          if [ -z "$tagged" ]; then
+            tagged="$(awk -v ref="refs/tags/$tag" '$2 == ref { print $1 }' <<<"$refs")"
+          fi
+          if [ -n "$tagged" ] && [ "$tagged" != "$GITHUB_SHA" ]; then
+            echo "::error::tag $tag already exists on $tagged, not on $GITHUB_SHA. Bump the version or delete the stale tag."
+            exit 1
+          fi
+
+          # The pinned version in README.md must match the released one.
+          if ! grep -q "patisson-binance-sdk = \"=$version\"" README.md; then
+            echo "::error file=README.md::README.md does not pin =$version"
+            exit 1
+          fi
+
+          echo "Releasing $name $version as $tag (dry run: $DRY_RUN)."
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: publish
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: release
+      url: https://crates.io/crates/${{ needs.plan.outputs.name }}/${{ needs.plan.outputs.version }}
+    permissions:
+      contents: write # create the tag and the GitHub Release
+      id-token: write # crates.io Trusted Publishing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: stable
+      # No build cache in the release job: what gets published is built
+      # from scratch.
+      - name: Test
+        run: cargo test --all-targets --all-features
+      - name: Authenticate with crates.io
+        if: env.DRY_RUN != 'true'
+        id: auth
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          if [ "$DRY_RUN" = true ]; then
+            cargo publish --dry-run
+          else
+            cargo publish
+          fi
+      - name: Tag and GitHub Release
+        if: env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          gh release create "v$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "v$VERSION" \
+            --generate-notes

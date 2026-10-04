@@ -2,6 +2,7 @@
 name = "patisson-binance-sdk"
 version = "0.1.10"
 edition = "2024"
+rust-version = "1.91"
 authors = ["Yurii Musolov <yurii.musolov@gmail.com>"]
 description = "Unofficial Rust SDK for the Binance exchange API"
 keywords = ["binance", "sdk", "crypto", "trading", "cryptocurrency"]

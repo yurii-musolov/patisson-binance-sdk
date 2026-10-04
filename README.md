@@ -3,6 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/patisson-binance-sdk.svg)](https://crates.io/crates/patisson-binance-sdk)
 [![Documentation](https://docs.rs/patisson-binance-sdk/badge.svg)](https://docs.rs/patisson-binance-sdk)
 [![MIT licensed](https://img.shields.io/crates/l/patisson-binance-sdk.svg)](LICENSE)
+[![CI](https://github.com/yurii-musolov/patisson-binance-sdk/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yurii-musolov/patisson-binance-sdk/actions/workflows/ci.yml)
 
 Unofficial Rust SDK for the [Binance exchange API](https://developers.binance.com/en).
 

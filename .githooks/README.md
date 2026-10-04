@@ -42,6 +42,13 @@ git push --no-verify
 
 Use sparingly — they're there to keep `main` green.
 
+## CI
+
+The same checks (and more: tests on macOS/Windows, MSRV, rustdoc,
+`cargo publish --dry-run`, `cargo deny`) run in GitHub Actions on every pull
+request, see `.github/workflows/ci.yml`. The hooks only give faster feedback;
+CI is what gates merges into `main`.
+
 ## Strictness
 
 The pre-push hook passes `-D warnings` to clippy — any new clippy warning
