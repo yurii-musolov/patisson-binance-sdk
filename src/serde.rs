@@ -100,6 +100,43 @@ mod tests {
     }
 
     #[test]
+    fn test_unknown_enum_values_do_not_break_deserialization() {
+        use crate::spot::{OrderStatus, STPMode, SymbolStatus};
+        let statuses: Vec<OrderStatus> =
+            deserialize_json(r#"["FILLED","SOME_FUTURE_STATUS"]"#).unwrap();
+        assert_eq!(statuses, vec![OrderStatus::Filled, OrderStatus::Unknown]);
+
+        let modes: Vec<STPMode> = deserialize_json(r#"["EXPIRE_MAKER","TRANSFER"]"#).unwrap();
+        assert_eq!(modes, vec![STPMode::ExpireMaker, STPMode::Unknown]);
+
+        let status: SymbolStatus = deserialize_json(r#""PRE_TRADING""#).unwrap();
+        assert_eq!(status, SymbolStatus::Unknown);
+
+        let order_type: crate::derivatives::usds_margined_futures::OrderType =
+            deserialize_json(r#""NEW_ORDER_KIND""#).unwrap();
+        assert_eq!(
+            order_type,
+            crate::derivatives::usds_margined_futures::OrderType::Unknown
+        );
+    }
+
+    #[test]
+    fn test_unknown_enum_value_is_never_serialized() {
+        #[derive(Serialize)]
+        struct Q {
+            side: crate::spot::OrderSide,
+        }
+        let q = Q {
+            side: crate::spot::OrderSide::Unknown,
+        };
+        assert!(serialize_query(&q).is_err());
+        let q = Q {
+            side: crate::spot::OrderSide::BUY,
+        };
+        assert_eq!(serialize_query(&q).unwrap(), "side=BUY");
+    }
+
+    #[test]
     fn test_serialize_option_as_json_for_query_arrays() {
         #[derive(Serialize)]
         struct Q {

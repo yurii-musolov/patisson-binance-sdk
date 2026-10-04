@@ -789,6 +789,8 @@ impl NewOrderRequest {
                 // This is also known as a POST-ONLY order.
                 self.quantity.is_some() && self.price.is_some()
             }
+            // Can't be sent: `Unknown` only exists for responses.
+            OrderType::Unknown => false,
         }
     }
 }

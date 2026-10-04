@@ -720,6 +720,10 @@ pub enum BorrowRepayStatus {
     Confirmed,
     Pending,
     Failed,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Serialize, PartialEq)]

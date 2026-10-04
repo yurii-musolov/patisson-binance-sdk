@@ -8,6 +8,10 @@ use serde::{Deserialize, Serialize};
 pub enum OrderSide {
     BUY,
     SELL,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Position side. In Hedge Mode use LONG/SHORT; in One-Way Mode use BOTH.
@@ -17,6 +21,10 @@ pub enum PositionSide {
     Both,
     Long,
     Short,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -29,6 +37,10 @@ pub enum OrderType {
     TakeProfit,
     TakeProfitMarket,
     TrailingStopMarket,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -41,17 +53,29 @@ pub enum TimeInForce {
     FOK,
     /// Good Til Crossing (post-only).
     GTX,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum UnderlyingType {
     #[serde(rename = "COIN")]
     COIN,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum PermissionSets {
     GRID,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -65,12 +89,20 @@ pub enum OrderStatus {
     Expired,
     NewInsurance,
     NewAdl,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub enum OrderResponseType {
     ACK,
     RESULT,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 /// Trigger price source for STOP / TAKE_PROFIT orders.
@@ -79,6 +111,10 @@ pub enum OrderResponseType {
 pub enum WorkingType {
     MarkPrice,
     ContractPrice,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -86,6 +122,10 @@ pub enum WorkingType {
 pub enum MarginType {
     Isolated,
     Crossed,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -98,6 +138,10 @@ pub enum ContractType {
     CurrentQuarterDelivering,
     #[serde(rename = "PERPETUAL DELIVERING")]
     PerpetualDelivering,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -111,6 +155,10 @@ pub enum SymbolStatus {
     PreSettle,
     Settling,
     Close,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -118,6 +166,10 @@ pub enum SymbolStatus {
 pub enum RateLimiter {
     RequestWeight,
     Orders,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -126,6 +178,10 @@ pub enum RateLimitInterval {
     Second,
     Minute,
     Day,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
