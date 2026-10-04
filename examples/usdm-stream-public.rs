@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use binance::{
     derivatives::usds_margined_futures::{
-        KlineInterval,
+        KlineInterval, Path,
         ws::{IncomingMessage, OutgoingMessage, StreamName},
     },
     ws::{Config, Event, Stream},
@@ -28,7 +28,8 @@ async fn main() -> anyhow::Result<()> {
 
     let stream = support::stream(support::Product::UsdmFutures)?;
 
-    let url = format!("{stream}/stream");
+    // kline and aggTrade are market streams, served under `/market`.
+    let url = format!("{stream}{}{}", Path::Market, Path::Stream);
     let symbol = String::from("BTCUSDT").to_lowercase();
     let messages = {
         let kline = StreamName::Kline {

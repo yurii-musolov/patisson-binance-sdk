@@ -7,12 +7,14 @@ pub const BASE_URL_STREAM: &str = "wss://fstream.binance.com";
 
 // Demo mode (https://demo.binance.com); needs a demo API key.
 pub const BASE_URL_DEMO_API: &str = "https://demo-fapi.binance.com";
+pub const BASE_URL_DEMO_STREAM: &str = "wss://demo-fstream.binance.com";
 
 // Testnet
 pub const BASE_URL_TESTNET_API: &str = "https://testnet.binancefuture.com";
 pub const BASE_URL_TESTNET_WEBSOCKET_API: &str = "wss://testnet.binancefuture.com";
 pub const BASE_URL_TESTNET_STREAM: &str = "wss://fstream.binancefuture.com";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Path {
     // General
     Ping,
@@ -48,8 +50,11 @@ pub enum Path {
     // WebSocket
     WebSocketApi,
     Stream,
+    /// Order book streams (`depth`, `bookTicker`); see `ws::StreamName::path`.
     Public,
+    /// All other market streams (`aggTrade`, `kline`, `markPrice`, ...).
     Market,
+    /// User data streams: `<BASE_URL_STREAM>/private/ws/<listenKey>`.
     Private,
 }
 
