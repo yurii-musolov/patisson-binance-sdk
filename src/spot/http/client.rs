@@ -9,15 +9,15 @@ use crate::{
         http::{
             AccountCommission, AccountInformation, AccountTrade, AggregateTrade,
             CancelOpenOrdersParams, CancelOrderParams, CanceledOrder, CanceledOrderOrList,
-            CurrentAveragePrice, EmptyResponse, ExchangeInfo, GetAccountCommissionParams,
+            CurrentAveragePrice, ExchangeInfo, GetAccountCommissionParams,
             GetAccountInformationParams, GetAccountTradeListParams, GetAggregateTradesParams,
             GetAllOrdersParams, GetCurrentAveragePriceParams, GetExchangeInfoParams,
             GetKlineListParams, GetOlderTradesParams, GetOpenOrdersParams, GetOrderBookParams,
             GetOrderRateLimitParams, GetRecentTradesParams, GetSymbolOrderBookTickerParams,
             GetSymbolPriceTickerParams, GetTickerPriceChangeStatisticsParams,
-            GetTickerTradingDayParams, Kline, ListenKey, NewOrderRequest, NewOrderResponse, Order,
-            OrderBook, OrderRateLimit, PrivateConfig, PublicConfig, QueryOrderParams, RecentTrade,
-            Response, ServerTime, SymbolOrderBookTickers, SymbolPriceTickers, TestCommissionRates,
+            GetTickerTradingDayParams, Kline, NewOrderRequest, NewOrderResponse, Order, OrderBook,
+            OrderRateLimit, PrivateConfig, PublicConfig, QueryOrderParams, RecentTrade, Response,
+            ServerTime, SymbolOrderBookTickers, SymbolPriceTickers, TestCommissionRates,
             TestConnectivity, TickerPriceChangeStatistic, TickerTradingDay,
         },
     },
@@ -47,7 +47,6 @@ const COST_TICKER_BOOK_SINGLE: Cost = Cost::weight(2);
 const COST_TICKER_BOOK_ALL: Cost = Cost::weight(4);
 const COST_ACCOUNT_COMMISSION: Cost = Cost::weight(20);
 const COST_ORDER_RATE_LIMIT: Cost = Cost::weight(40);
-const COST_LISTEN_KEY: Cost = Cost::weight(2);
 
 /// `/ticker/24hr`: 2 for 1-20 symbols, 40 for 21-100, 80 for more or for
 /// all symbols.
@@ -517,54 +516,6 @@ impl PrivateClient {
             Path::RateLimitOrder,
             &params,
             COST_ORDER_RATE_LIMIT,
-        )
-        .await
-    }
-}
-
-// User data stream lifecycle. Unlike trading/account endpoints, listenKey
-// operations are authenticated by API key alone (`X-MBX-APIKEY` header) —
-// they do NOT take `timestamp` / `signature`, so these methods go through
-// `send_query` (unsigned) rather than `send_signed`.
-impl PrivateClient {
-    /// Create a new listenKey for the spot user data stream.
-    ///
-    /// Returns a key that can be used to connect to
-    /// `wss://stream.binance.com:9443/ws/<listenKey>`. The key expires after
-    /// 60 minutes — extend via [`Self::keepalive_listen_key`] every 30 min.
-    pub async fn create_listen_key(&self) -> Result<Response<ListenKey>, Error> {
-        let req = self.http.request(Method::POST, Path::UserDataStream);
-        decode(self.http.send_raw(req, COST_LISTEN_KEY).await)
-    }
-
-    /// Extend a listenKey's lifetime by 60 minutes. Idempotent; safe to call
-    /// on a schedule (recommended every 30 min).
-    pub async fn keepalive_listen_key(
-        &self,
-        listen_key: &str,
-    ) -> Result<Response<EmptyResponse>, Error> {
-        send_query(
-            &self.http,
-            Method::PUT,
-            Path::UserDataStream,
-            &[("listenKey", listen_key)],
-            COST_LISTEN_KEY,
-        )
-        .await
-    }
-
-    /// Close a listenKey. The WebSocket connection associated with the key
-    /// will be dropped by the server.
-    pub async fn close_listen_key(
-        &self,
-        listen_key: &str,
-    ) -> Result<Response<EmptyResponse>, Error> {
-        send_query(
-            &self.http,
-            Method::DELETE,
-            Path::UserDataStream,
-            &[("listenKey", listen_key)],
-            COST_LISTEN_KEY,
         )
         .await
     }
