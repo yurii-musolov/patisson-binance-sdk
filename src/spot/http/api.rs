@@ -525,21 +525,37 @@ pub enum GetTickerPriceChangeStatisticsParams {
     Full(SymbolOrSymbols),
 }
 
+impl GetTickerPriceChangeStatisticsParams {
+    /// Number of symbols requested; `None` means all symbols.
+    pub(crate) fn symbol_count(&self) -> Option<usize> {
+        match self {
+            Self::Mini(s) | Self::Full(s) => s.symbol_count(),
+        }
+    }
+}
+
 #[derive(Debug, Default, Serialize, PartialEq)]
 pub struct SymbolOrSymbols {
     /// Parameter symbol and symbols cannot be used in combination.
     /// If neither parameter is sent, tickers for all symbols will be returned in an array.
     symbol: Option<String>,
-    /// Examples of accepted format for the symbols parameter: ["BTCUSDT","BNBUSDT"]
-    /// TODO: check serialization
-    /// or
-    /// %5B%22BTCUSDT%22,%22BNBUSDT%22%5D
+    /// Sent as a JSON array: `symbols=["BTCUSDT","BNBUSDT"]` (URL-encoded).
+    #[serde(serialize_with = "serialize_option_as_json")]
     symbols: Option<Vec<String>>,
 }
 
 impl SymbolOrSymbols {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Number of symbols requested; `None` means all symbols.
+    pub(crate) fn symbol_count(&self) -> Option<usize> {
+        match (&self.symbol, &self.symbols) {
+            (Some(_), _) => Some(1),
+            (None, Some(symbols)) => Some(symbols.len()),
+            (None, None) => None,
+        }
     }
 
     pub fn symbol(mut self, symbol: impl Into<String>) -> Self {
@@ -745,6 +761,10 @@ impl NewOrderRequest {
     pub fn compute_commission_rates(mut self, value: bool) -> Self {
         self.compute_commission_rates = Some(value);
         self
+    }
+
+    pub(crate) fn computes_commission_rates(&self) -> bool {
+        self.compute_commission_rates == Some(true)
     }
 
     pub fn is_valid(&self) -> bool {
@@ -1357,6 +1377,10 @@ pub struct GetAccountTradeListParams {
 }
 
 impl GetAccountTradeListParams {
+    pub(crate) fn has_order_id(&self) -> bool {
+        self.order_id.is_some()
+    }
+
     pub fn new(symbol: impl Into<String>) -> Self {
         Self {
             symbol: symbol.into(),
@@ -1540,6 +1564,19 @@ pub struct EmptyResponse {}
 pub enum GetTickerTradingDayParams {
     Mini(TickerTradingDaySymbols),
     Full(TickerTradingDaySymbols),
+}
+
+impl GetTickerTradingDayParams {
+    /// Number of symbols requested (`symbol` or `symbols` is mandatory).
+    pub(crate) fn symbol_count(&self) -> usize {
+        let s = match self {
+            Self::Mini(s) | Self::Full(s) => s,
+        };
+        match (&s.symbol, &s.symbols) {
+            (None, Some(symbols)) => symbols.len(),
+            _ => 1,
+        }
+    }
 }
 
 #[derive(Debug, Default, Serialize, PartialEq)]

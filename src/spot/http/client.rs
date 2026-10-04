@@ -23,10 +23,8 @@ use crate::{
     },
 };
 
-// Per-endpoint weights (Binance Spot REST docs). The single-symbol path for
-// /ticker/24hr and friends is the common case; without a symbol the cost
-// scales with the symbol count — caller can install a custom RateLimiter or
-// override globally if they care about the fine-grained variant.
+// Per-endpoint weights (Binance Spot REST docs). Weights that depend on the
+// request parameters are computed by the `cost_*` functions below.
 const COST_PING: Cost = Cost::weight(1);
 const COST_TIME: Cost = Cost::weight(1);
 const COST_EXCHANGE_INFO: Cost = Cost::weight(20);
@@ -35,25 +33,46 @@ const COST_HISTORICAL_TRADES: Cost = Cost::weight(25);
 const COST_AGG_TRADES: Cost = Cost::weight(4);
 const COST_KLINES: Cost = Cost::weight(2);
 const COST_AVG_PRICE: Cost = Cost::weight(2);
-const COST_TICKER_24H_SINGLE: Cost = Cost::weight(4);
 const COST_ACCOUNT: Cost = Cost::weight(20);
 const COST_QUERY_ORDER: Cost = Cost::weight(4);
 const COST_NEW_ORDER: Cost = Cost::weight_and_orders(1, 1);
-const COST_TEST_ORDER: Cost = Cost::weight(1);
 const COST_CANCEL_ORDER: Cost = Cost::weight(1);
 const COST_CANCEL_OPEN_ORDERS: Cost = Cost::weight(1);
 const COST_OPEN_ORDERS_SYMBOL: Cost = Cost::weight(6);
 const COST_OPEN_ORDERS_ALL: Cost = Cost::weight(80);
 const COST_ALL_ORDERS: Cost = Cost::weight(20);
-const COST_MY_TRADES: Cost = Cost::weight(20);
 const COST_TICKER_PRICE_SINGLE: Cost = Cost::weight(2);
 const COST_TICKER_PRICE_ALL: Cost = Cost::weight(4);
 const COST_TICKER_BOOK_SINGLE: Cost = Cost::weight(2);
 const COST_TICKER_BOOK_ALL: Cost = Cost::weight(4);
-const COST_TICKER_TRADING_DAY_SINGLE: Cost = Cost::weight(4);
 const COST_ACCOUNT_COMMISSION: Cost = Cost::weight(20);
 const COST_ORDER_RATE_LIMIT: Cost = Cost::weight(40);
 const COST_LISTEN_KEY: Cost = Cost::weight(2);
+
+/// `/ticker/24hr`: 2 for 1-20 symbols, 40 for 21-100, 80 for more or for
+/// all symbols.
+fn cost_ticker_24h(symbol_count: Option<usize>) -> Cost {
+    Cost::weight(match symbol_count {
+        Some(0..=20) => 2,
+        Some(21..=100) => 40,
+        _ => 80,
+    })
+}
+
+/// `/ticker/tradingDay`: 4 per symbol, capped at 200.
+fn cost_ticker_trading_day(symbol_count: usize) -> Cost {
+    Cost::weight((4 * symbol_count.max(1)).min(200) as u32)
+}
+
+/// `/order/test`: 1, or 20 when commission rates are computed.
+fn cost_test_order(computes_commission_rates: bool) -> Cost {
+    Cost::weight(if computes_commission_rates { 20 } else { 1 })
+}
+
+/// `/myTrades`: 5 with `orderId`, 20 without.
+fn cost_my_trades(has_order_id: bool) -> Cost {
+    Cost::weight(if has_order_id { 5 } else { 20 })
+}
 
 /// Depth-endpoint weight scales with the requested level count.
 fn cost_depth(limit: Option<u64>) -> Cost {
@@ -224,14 +243,8 @@ impl PublicClient {
         &self,
         params: GetTickerPriceChangeStatisticsParams,
     ) -> Result<Response<TickerPriceChangeStatistic>, Error> {
-        send_query(
-            &self.http,
-            Method::GET,
-            Path::Ticker24hr,
-            &params,
-            COST_TICKER_24H_SINGLE,
-        )
-        .await
+        let cost = cost_ticker_24h(params.symbol_count());
+        send_query(&self.http, Method::GET, Path::Ticker24hr, &params, cost).await
     }
 
     /// Trading Day Ticker. Price change statistics for a trading day, same
@@ -240,12 +253,13 @@ impl PublicClient {
         &self,
         params: GetTickerTradingDayParams,
     ) -> Result<Response<TickerPriceChangeStatistic>, Error> {
+        let cost = cost_ticker_trading_day(params.symbol_count());
         send_query(
             &self.http,
             Method::GET,
             Path::TickerTradingDay,
             &params,
-            COST_TICKER_TRADING_DAY_SINGLE,
+            cost,
         )
         .await
     }
@@ -346,7 +360,7 @@ impl PrivateClient {
             Method::POST,
             Path::OrderTest,
             &params,
-            COST_TEST_ORDER,
+            cost_test_order(params.computes_commission_rates()),
         )
         .await
     }
@@ -470,7 +484,7 @@ impl PrivateClient {
             Method::GET,
             Path::MyTrades,
             &params,
-            COST_MY_TRADES,
+            cost_my_trades(params.has_order_id()),
         )
         .await
     }
@@ -628,5 +642,38 @@ mod tests {
         assert_eq!(cfg.timeouts.request, Duration::from_secs(3));
         assert_eq!(cfg.timeouts.connect, Duration::from_secs(1));
         PublicClient::new(cfg).expect("client builds with custom timeouts");
+    }
+
+    #[test]
+    fn parameter_dependent_weights_follow_binance_docs() {
+        assert_eq!(cost_ticker_24h(Some(1)), Cost::weight(2));
+        assert_eq!(cost_ticker_24h(Some(20)), Cost::weight(2));
+        assert_eq!(cost_ticker_24h(Some(21)), Cost::weight(40));
+        assert_eq!(cost_ticker_24h(Some(101)), Cost::weight(80));
+        assert_eq!(cost_ticker_24h(None), Cost::weight(80));
+
+        assert_eq!(cost_ticker_trading_day(1), Cost::weight(4));
+        assert_eq!(cost_ticker_trading_day(10), Cost::weight(40));
+        assert_eq!(cost_ticker_trading_day(51), Cost::weight(200));
+
+        assert_eq!(cost_test_order(false), Cost::weight(1));
+        assert_eq!(cost_test_order(true), Cost::weight(20));
+        assert_eq!(cost_my_trades(true), Cost::weight(5));
+        assert_eq!(cost_my_trades(false), Cost::weight(20));
+    }
+
+    #[test]
+    fn ticker_params_expose_symbol_count_and_serialize_symbols() {
+        use crate::spot::http::{GetTickerPriceChangeStatisticsParams, SymbolOrSymbols};
+        let all = GetTickerPriceChangeStatisticsParams::Full(SymbolOrSymbols::new());
+        assert_eq!(all.symbol_count(), None);
+        let many = GetTickerPriceChangeStatisticsParams::Mini(
+            SymbolOrSymbols::new().symbols(vec!["BTCUSDT".into(), "BNBBTC".into()]),
+        );
+        assert_eq!(many.symbol_count(), Some(2));
+        assert_eq!(
+            crate::serde::serialize_query(&many).unwrap(),
+            "type=MINI&symbols=%5B%22BTCUSDT%22%2C%22BNBBTC%22%5D"
+        );
     }
 }
