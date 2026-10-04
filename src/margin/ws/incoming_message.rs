@@ -10,7 +10,7 @@ use serde::Deserialize;
 
 use crate::{
     Timestamp,
-    margin::{OrderSide, OrderStatus, OrderType, TimeInForce},
+    margin::{OrderSide, OrderStatus, OrderType, STPMode, TimeInForce},
     ws::ReceivedMessage,
 };
 
@@ -26,6 +26,21 @@ pub enum IncomingMessage {
     BalanceUpdate(BalanceUpdateEvent),
     #[serde(rename = "executionReport")]
     ExecutionReport(ExecutionReportEvent),
+    /// The listenKey expired: the stream stops delivering events until a
+    /// new key is created and a new connection opened.
+    #[serde(rename = "listenKeyExpired")]
+    ListenKeyExpired(ListenKeyExpiredEvent),
+}
+
+#[derive(PartialEq, Deserialize, Debug)]
+pub struct ListenKeyExpiredEvent {
+    #[serde(
+        rename = "E",
+        deserialize_with = "crate::serde::u64_from_number_or_string"
+    )]
+    pub event_time: Timestamp,
+    #[serde(rename = "listenKey")]
+    pub listen_key: String,
 }
 
 impl ReceivedMessage for IncomingMessage {
@@ -166,6 +181,18 @@ pub struct ExecutionReportEvent {
     /// to. Absent (== None) for cross-margin orders.
     #[serde(rename = "isolatedSymbol", default)]
     pub isolated_symbol: Option<String>,
+    /// Order list id (`-1` when the order is not part of a list).
+    #[serde(rename = "g", default)]
+    pub order_list_id: Option<i64>,
+    /// Working time; only once the order is on the book.
+    #[serde(rename = "W", default)]
+    pub working_time: Option<Timestamp>,
+    /// Self-trade prevention mode.
+    #[serde(rename = "V", default)]
+    pub self_trade_prevention_mode: Option<STPMode>,
+    /// Prevented match id; only when the order expired due to STP.
+    #[serde(rename = "v", default)]
+    pub prevented_match_id: Option<i64>,
 }
 
 #[cfg(test)]
@@ -302,5 +329,35 @@ mod tests {
         assert_eq!(event.isolated_symbol.as_deref(), Some("ETHBTC"));
         assert_eq!(event.commission_asset.as_deref(), Some("BTC"));
         assert!(event.is_maker);
+    }
+
+    #[test]
+    fn deserialize_listen_key_expired_with_string_or_number_time() {
+        for json in [
+            r#"{"e":"listenKeyExpired","E":"1699596037418","listenKey":"OfYGbUzi3PraNagEkdKuFwUHn48brFsItTdsuiIXrucEvD0rhRXZ7I6URWfE8YE8"}"#,
+            r#"{"e":"listenKeyExpired","E":1699596037418,"listenKey":"OfYGbUzi3PraNagEkdKuFwUHn48brFsItTdsuiIXrucEvD0rhRXZ7I6URWfE8YE8"}"#,
+        ] {
+            match deserialize_json::<IncomingMessage>(json).unwrap() {
+                IncomingMessage::ListenKeyExpired(event) => {
+                    assert_eq!(event.event_time, 1699596037418);
+                    assert_eq!(event.listen_key.len(), 64);
+                }
+                other => panic!("unexpected {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn execution_report_reads_order_list_working_time_and_stp() {
+        let json = r#"{"e":"executionReport","E":1499405658658,"s":"ETHBTC","c":"mUvoqJxFIILMdfAW5iGSOW","S":"BUY","o":"LIMIT","f":"GTC","q":"1.00000000","p":"0.10264410","P":"0.00000000","F":"0.00000000","g":-1,"C":"","x":"NEW","X":"NEW","r":"NONE","i":4293153,"l":"0.00000000","z":"0.00000000","L":"0.00000000","n":"0","N":null,"T":1499405658657,"t":-1,"I":8641984,"w":true,"m":false,"M":false,"O":1499405658657,"Z":"0.00000000","Y":"0.00000000","Q":"0.00000000","W":1499405658657,"V":"NONE"}"#;
+        match deserialize_json::<IncomingMessage>(json).unwrap() {
+            IncomingMessage::ExecutionReport(report) => {
+                assert_eq!(report.order_list_id, Some(-1));
+                assert_eq!(report.working_time, Some(1499405658657));
+                assert_eq!(report.self_trade_prevention_mode, Some(STPMode::None));
+                assert_eq!(report.prevented_match_id, None);
+            }
+            other => panic!("unexpected {other:?}"),
+        }
     }
 }

@@ -72,6 +72,40 @@ where
     deserializer.deserialize_any(DecimalVisitor)
 }
 
+/// Deserializer for integer fields Binance sends either as a JSON number or
+/// as a numeric string (e.g. the event time of `listenKeyExpired`).
+pub fn u64_from_number_or_string<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{Error, Visitor};
+    use std::fmt;
+
+    struct U64Visitor;
+
+    impl Visitor<'_> for U64Visitor {
+        type Value = u64;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("an unsigned integer or a numeric string")
+        }
+
+        fn visit_u64<E: Error>(self, v: u64) -> Result<u64, E> {
+            Ok(v)
+        }
+
+        fn visit_i64<E: Error>(self, v: i64) -> Result<u64, E> {
+            u64::try_from(v).map_err(E::custom)
+        }
+
+        fn visit_str<E: Error>(self, v: &str) -> Result<u64, E> {
+            v.parse().map_err(E::custom)
+        }
+    }
+
+    deserializer.deserialize_any(U64Visitor)
+}
+
 /// Serializer for use with `#[serde(serialize_with = ...)]` on fields that
 /// Binance expects as a JSON-array literal in a URL query — e.g.
 /// `symbols=["BTC","ETH"]` rather than the repeated `symbols=BTC&symbols=ETH`
