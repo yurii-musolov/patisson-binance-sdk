@@ -36,6 +36,8 @@ where
     /// Outgoing messages accepted while a reconnect was pending; flushed in
     /// order right after the next successful connect.
     pending: VecDeque<C>,
+    /// Data events dropped since the last `Event::Lagged` was delivered.
+    lagged: u64,
 }
 
 impl<C, M> Stream<C, M>
@@ -53,6 +55,7 @@ where
             cmd_rx,
             evt_tx,
             pending: VecDeque::new(),
+            lagged: 0,
         };
 
         tokio::spawn(stream.run());
@@ -88,16 +91,47 @@ where
         info!("stream shut down");
     }
 
-    fn emit(&self, event: Event<M>) {
-        if let Err(e) = self.evt_tx.try_send(event) {
-            match e {
-                mpsc::error::TrySendError::Full(dropped) => {
-                    warn!("event queue full, dropping event: {:?}", dropped);
-                }
-                mpsc::error::TrySendError::Closed(_) => {
-                    debug!("event receiver dropped");
-                }
+    /// Deliver a lifecycle event (`Connected`, `Reconnecting`,
+    /// `Disconnected`). These are never dropped: the driver waits for room in
+    /// the event queue, so a consumer that stops reading also stalls the
+    /// driver.
+    async fn emit(&mut self, event: Event<M>) {
+        if self.lagged > 0 {
+            let dropped = std::mem::take(&mut self.lagged);
+            if self.evt_tx.send(Event::Lagged { dropped }).await.is_err() {
+                return;
             }
+        }
+        if self.evt_tx.send(event).await.is_err() {
+            debug!("event receiver dropped");
+        }
+    }
+
+    /// Deliver a data event (`Message`, `ParseError`) without blocking the
+    /// socket. When the queue is full the event is dropped and counted; the
+    /// count is reported as `Event::Lagged` as soon as there is room again.
+    fn emit_data(&mut self, event: Event<M>) {
+        if self.lagged > 0 {
+            match self.evt_tx.try_send(Event::Lagged {
+                dropped: self.lagged,
+            }) {
+                Ok(()) => self.lagged = 0,
+                Err(mpsc::error::TrySendError::Full(_)) => {
+                    self.lagged += 1;
+                    return;
+                }
+                Err(mpsc::error::TrySendError::Closed(_)) => return,
+            }
+        }
+        match self.evt_tx.try_send(event) {
+            Ok(()) => {}
+            Err(mpsc::error::TrySendError::Full(_)) => {
+                if self.lagged == 0 {
+                    warn!("event queue full, dropping events until the consumer catches up");
+                }
+                self.lagged += 1;
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => debug!("event receiver dropped"),
         }
     }
 
@@ -124,12 +158,12 @@ where
         match connect_async(&self.config.url).await {
             Ok((ws_stream, _)) => {
                 info!("websocket connected");
-                self.emit(Event::Connected);
+                self.emit(Event::Connected).await;
 
                 let (mut sink, stream) = ws_stream.split();
                 if let Err(e) = self.flush_pending(&mut sink).await {
                     error!(error = %e, "sending queued messages failed");
-                    return self.next_reconnect_state(1, e.to_string());
+                    return self.next_reconnect_state(1, e.to_string()).await;
                 }
                 let (frame_tx, frame_rx) =
                     mpsc::channel::<FrameResult>(self.config.event_queue_size);
@@ -151,7 +185,7 @@ where
             }
             Err(e) => {
                 error!(error = %e, attempt, "connection failed");
-                self.next_reconnect_state(attempt + 1, e.to_string())
+                self.next_reconnect_state(attempt + 1, e.to_string()).await
             }
         }
     }
@@ -184,12 +218,12 @@ where
                     None => {
                         info!("remote closed the connection");
                         read_task.abort();
-                        return self.next_reconnect_state(1, "remote closed".into());
+                        return self.next_reconnect_state(1, "remote closed".into()).await;
                     }
                     Some(Err(e)) => {
                         error!(error = %e, "websocket read error");
                         read_task.abort();
-                        return self.next_reconnect_state(1, e.to_string());
+                        return self.next_reconnect_state(1, e.to_string()).await;
                     }
                     Some(Ok(msg)) => match msg {
                         Message::Ping(bytes) => {
@@ -197,7 +231,7 @@ where
                             if let Err(e) = sink.send(Message::Pong(bytes)).await {
                                 error!(error = %e, "send protocol pong failed");
                                 read_task.abort();
-                                return self.next_reconnect_state(1, e.to_string());
+                                return self.next_reconnect_state(1, e.to_string()).await;
                             }
                             hb = HeartbeatState::PongSent;
                             ping_timer.as_mut().reset(far_future_instant());
@@ -208,16 +242,16 @@ where
                                 Ok(msg) => {
                                     if msg.server_shutdown_event_time().is_some() {
                                         info!("server shutdown notice received, initiating reconnect");
-                                        self.emit(Event::Message(msg));
+                                        self.emit_data(Event::Message(msg));
                                         read_task.abort();
-                                        return self.next_reconnect_state(1, "server shutdown".into());
+                                        return self.next_reconnect_state(1, "server shutdown".into()).await;
                                     } else {
-                                        self.emit(Event::Message(msg))
+                                        self.emit_data(Event::Message(msg))
                                     }
                                 }
                                 Err(e) => {
                                     warn!(error = %e, "parsing IncomingMessage failed");
-                                    self.emit(Event::ParseError(e.to_string()));
+                                    self.emit_data(Event::ParseError(e.to_string()));
                                 }
                             }
                         }
@@ -226,7 +260,7 @@ where
                         Message::Close(close_frame) => {
                             debug!(?close_frame, "close frame received");
                             read_task.abort();
-                            return self.next_reconnect_state(1, "remote close frame".into());
+                            return self.next_reconnect_state(1, "remote close frame".into()).await;
                         }
                         Message::Frame(frame) => debug!("frame received ({}B)", frame.len()),
                     },
@@ -245,7 +279,7 @@ where
                         if let Err(e) = sink.send(msg).await {
                             error!(error = %e, "send error");
                             read_task.abort();
-                            return self.next_reconnect_state(1, e.to_string());
+                            return self.next_reconnect_state(1, e.to_string()).await;
                         }
                     }
                     Some(Command::Connect) => warn!("Connect ignored - already connected")
@@ -253,22 +287,22 @@ where
 
                 _ = ping_timer.as_mut(), if matches!(hb, HeartbeatState::Idle) => {
                     warn!("no ping received within ping_interval - connection assumed dead");
-                    self.emit(Event::Disconnected { reason: DisconnectReason::PongTimeout });
+                    self.emit(Event::Disconnected { reason: DisconnectReason::PongTimeout }).await;
                     read_task.abort();
-                    return self.next_reconnect_state(1, "ping interval exceeded".into());
+                    return self.next_reconnect_state(1, "ping interval exceeded".into()).await;
                 }
 
                 _ = pong_timeout.as_mut(), if matches!(hb, HeartbeatState::PongSent) => {
                     warn!("no ping received within pong_timeout after last pong - connection assumed dead");
-                    self.emit(Event::Disconnected { reason: DisconnectReason::PongTimeout });
+                    self.emit(Event::Disconnected { reason: DisconnectReason::PongTimeout }).await;
                     read_task.abort();
-                    return self.next_reconnect_state(1, "pong timeout".into());
+                    return self.next_reconnect_state(1, "pong timeout".into()).await;
                 }
 
                 _ = ttl_timer.as_mut() => {
                     info!("connection TTL reached, reconnecting proactively");
                     read_task.abort();
-                    return self.next_reconnect_state(1, "connection TTL reached".into());
+                    return self.next_reconnect_state(1, "connection TTL reached".into()).await;
                 }
             }
         }
@@ -276,7 +310,7 @@ where
 
     async fn step_reconnecting(&mut self, attempt: u32, delay_ms: u64) -> State {
         warn!(attempt, delay_ms, "waiting before reconnect");
-        self.emit(Event::Reconnecting { attempt, delay_ms });
+        self.emit(Event::Reconnecting { attempt, delay_ms }).await;
 
         // Keep serving commands for the whole back-off: a Send must not cut
         // the delay short nor be lost, it is queued and flushed once the
@@ -291,7 +325,7 @@ where
                         self.pending.clear();
                         self.emit(Event::Disconnected {
                             reason: DisconnectReason::Requested,
-                        });
+                        }).await;
                         return State::Idle;
                     }
                     Some(Command::Connect) => debug!("Connect ignored - reconnect already scheduled"),
@@ -361,11 +395,12 @@ where
 
         self.emit(Event::Disconnected {
             reason: DisconnectReason::Requested,
-        });
+        })
+        .await;
         State::Idle
     }
 
-    fn next_reconnect_state(&mut self, next_attempt: u32, reason: String) -> State {
+    async fn next_reconnect_state(&mut self, next_attempt: u32, reason: String) -> State {
         if self.config.max_reconnect_attempts == 0
             || next_attempt > self.config.max_reconnect_attempts
         {
@@ -374,7 +409,8 @@ where
                 reason: DisconnectReason::Error(String::from(
                     "all reconnection attempts have failed",
                 )),
-            });
+            })
+            .await;
             return State::Idle;
         }
 
@@ -420,6 +456,8 @@ mod tests {
         CloseImmediately,
         /// Read frames until the client goes away, reporting each one.
         Record,
+        /// Send this many text messages, then behave like `Record`.
+        Burst(usize),
     }
 
     #[derive(Debug)]
@@ -449,7 +487,15 @@ mod tests {
                 let _ = tx.send(ServerEvent::Accepted(n, Instant::now()));
                 let id = n;
                 tokio::spawn(async move {
-                    if let Behaviour::Record = behaviour {
+                    if let Behaviour::Burst(count) = behaviour {
+                        for i in 0..count {
+                            let text = json!({ "i": i }).to_string();
+                            if ws.send(Message::Text(text.into())).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                    if let Behaviour::Record | Behaviour::Burst(_) = behaviour {
                         while let Some(Ok(msg)) = ws.next().await {
                             if let Message::Text(text) = msg {
                                 let _ = tx.send(ServerEvent::Text(id, text.to_string()));
@@ -551,5 +597,34 @@ mod tests {
         }
 
         handle.disconnect().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn overflow_is_reported_as_lagged_and_lifecycle_events_survive() {
+        const SENT: u64 = 50;
+        let (url, _server) = spawn_server(vec![Behaviour::Burst(SENT as usize)]).await;
+        let cfg = test_config(url).event_queue_size(4);
+        let (handle, mut events) = Stream::<Value, TestMsg>::new(cfg);
+        handle.connect().await.unwrap();
+
+        // Let the burst overflow the queue while nobody reads it, then ask
+        // for a disconnect: its lifecycle event must still get through.
+        sleep(Duration::from_millis(300)).await;
+        handle.disconnect().await.unwrap();
+
+        let (mut received, mut dropped) = (0, 0);
+        loop {
+            match next_event(&mut events).await {
+                Event::Connected => {}
+                Event::Message(_) => received += 1,
+                Event::Lagged { dropped: n } => dropped += n,
+                Event::Disconnected {
+                    reason: DisconnectReason::Requested,
+                } => break,
+                other => panic!("unexpected event {other:?}"),
+            }
+        }
+        assert!(dropped > 0, "the burst should have overflowed the queue");
+        assert_eq!(received + dropped, SENT);
     }
 }
