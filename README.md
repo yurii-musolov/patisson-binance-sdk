@@ -17,7 +17,7 @@ Every version change must be treated as a breaking change, including minor and p
 Users are strongly advised to pin an exact version, for example:
 
 ```rs
-patisson-binance-sdk = "=0.1.8"
+patisson-binance-sdk = "=0.1.9"
 ```
 
 ### Maintenance Policy
@@ -51,7 +51,7 @@ The scope of the package is intentionally limited to the most commonly used func
 
 ```toml
 [dependencies]
-patisson-binance-sdk = "=0.1.6"
+patisson-binance-sdk = "=0.1.9"
 ```
 
 > The package is `patisson-binance-sdk` (Cargo.toml); the library you import is `binance`:
@@ -72,7 +72,7 @@ use binance::spot::{
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let client = PublicClient::new(PublicConfig::new(BASE_URL_API));
+    let client = PublicClient::new(PublicConfig::new(BASE_URL_API))?;
 
     let time = client.get_server_time().await?;
     println!("server time: {}", time.result.server_time);
@@ -104,7 +104,7 @@ use binance::{
 async fn main() -> anyhow::Result<()> {
     let api_key = SensitiveString::from(std::env::var("API_KEY")?);
     let api_secret = SensitiveString::from(std::env::var("API_SECRET")?);
-    let client = PrivateClient::new(PrivateConfig::new(BASE_URL_API, api_key, api_secret));
+    let client = PrivateClient::new(PrivateConfig::new(BASE_URL_API, api_key, api_secret))?;
 
     let account = client
         .account_information(GetAccountInformationParams::new())
@@ -135,15 +135,18 @@ async fn main() -> anyhow::Result<()> {
     let (handle, mut events) = Stream::<OutgoingMessage, IncomingMessage>::new(Config::new(url));
 
     handle.connect().await?;
-    handle
-        .send_command(OutgoingMessage::Subscribe {
-            id: Some("req-1".into()),
-            params: vec![StreamName::Trade { symbol: "btcusdt".into() }],
-        })
-        .await?;
 
     while let Some(event) = events.recv().await {
         match event {
+            // Subscriptions don't survive a reconnect: (re)subscribe on every connect.
+            Event::Connected => {
+                handle
+                    .send_command(OutgoingMessage::Subscribe {
+                        id: Some("req-1".into()),
+                        params: vec![StreamName::Trade { symbol: "btcusdt".into() }],
+                    })
+                    .await?;
+            }
             Event::Message(msg) => println!("{msg:?}"),
             Event::Disconnected { .. } => break,
             other => println!("{other:?}"),
@@ -152,6 +155,10 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 ```
+
+Use `Config::futures(url)` for USD-M / COIN-M streams: their servers ping only
+every 3 minutes, so the Spot heartbeat defaults of `Config::new` would declare
+the connection dead.
 
 ### Error handling
 
