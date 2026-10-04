@@ -95,7 +95,19 @@ impl From<SendError> for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::Io(error) => Some(error),
+            Error::InvalidApiKey(error) => Some(error),
+            Error::Reqwest(error) => Some(error),
+            Error::SerdeJson(error) => Some(error),
+            Error::SerdeUrlEncoded(error) => Some(error),
+            Error::SerdePathToError(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 
 impl Error {
     /// The request may have been executed by Binance even though no

@@ -95,7 +95,19 @@ impl From<SendError> for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::Io(error) => Some(error),
+            Error::InvalidApiKey(error) => Some(error),
+            Error::Reqwest(error) => Some(error),
+            Error::SerdeJson(error) => Some(error),
+            Error::SerdeUrlEncoded(error) => Some(error),
+            Error::SerdePathToError(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 
 impl Error {
     /// The request may have been executed by Binance even though no
@@ -187,6 +199,15 @@ mod tests {
     use crate::serde::deserialize_json;
 
     use super::*;
+
+    #[test]
+    fn error_exposes_its_source() {
+        use std::error::Error as _;
+        let inner = serde_json::from_str::<u8>("x").unwrap_err();
+        let err = Error::SerdeJson(inner);
+        assert!(err.source().is_some());
+        assert!(Error::Msg("plain".into()).source().is_none());
+    }
 
     #[test]
     fn deserialize_api_error_from_wire_format() {

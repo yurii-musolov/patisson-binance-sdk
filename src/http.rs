@@ -365,8 +365,8 @@ fn parse_headers(headers: &HeaderMap) -> ParsedHeaders {
 /// Parse the suffix of `x-mbx-used-weight-(NUM)(UNIT)` style headers — e.g.
 /// `"1m"` → `Duration::from_secs(60)` — together with the header value.
 fn parse_interval_and_count(suffix: &str, value: &str) -> Option<(Duration, u32)> {
+    let suffix = suffix.trim();
     let (digits, unit) = suffix
-        .trim()
         .find(|c: char| c.is_ascii_alphabetic())
         .map(|i| suffix.split_at(i))?;
     let num: u64 = digits.parse().ok()?;
@@ -420,6 +420,14 @@ mod tests {
         ]));
         assert_eq!(h.order_count.get(&Duration::from_secs(10)), Some(&3));
         assert_eq!(h.order_count.get(&Duration::from_secs(86_400)), Some(&1500));
+    }
+
+    #[test]
+    fn interval_suffix_tolerates_surrounding_whitespace() {
+        assert_eq!(
+            parse_interval_and_count(" 1m", "5"),
+            Some((Duration::from_secs(60), 5))
+        );
     }
 
     #[test]
