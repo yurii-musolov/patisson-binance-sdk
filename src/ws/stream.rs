@@ -76,7 +76,11 @@ where
                 State::Reconnecting { attempt, delay_ms } => {
                     self.step_reconnecting(attempt, delay_ms).await
                 }
-                State::Closing { sink } => self.step_closing(sink).await,
+                State::Closing {
+                    frame_rx,
+                    read_task,
+                    sink,
+                } => self.step_closing(frame_rx, read_task, sink).await,
                 State::Done => break,
             };
         }
@@ -231,8 +235,9 @@ where
                 cmd = self.cmd_rx.recv() => match cmd {
                     None | Some(Command::Disconnect) => {
                         info!("disconnect requested");
-                        read_task.abort();
-                        return State::Closing { sink };
+                        // Keep the reader alive: it delivers the server's
+                        // close frame that completes the handshake.
+                        return State::Closing { frame_rx, read_task, sink };
                     }
                     Some(Command::Send(msg)) => {
                         let json = serialize_json(&msg).expect("serialize outgoing message failed");
@@ -327,13 +332,32 @@ where
         Ok(())
     }
 
-    async fn step_closing(&mut self, mut sink: Sink) -> State {
-        if let Err(e) = sink.send(Message::Close(None)).await {
-            error!(error = %e, "send close message failed");
+    /// Send a close frame and wait (up to `close_timeout`) for the server to
+    /// answer with its own close frame. Commands are deliberately not read
+    /// here: anything queued meanwhile (e.g. a `Connect` right after
+    /// `Disconnect`) is handled once the driver is back in `Idle`.
+    async fn step_closing(
+        &mut self,
+        mut frame_rx: mpsc::Receiver<FrameResult>,
+        read_task: tokio::task::JoinHandle<()>,
+        mut sink: Sink,
+    ) -> State {
+        match sink.send(Message::Close(None)).await {
+            Err(e) => error!(error = %e, "send close message failed"),
+            Ok(()) => {
+                let handshake = async {
+                    while let Some(frame) = frame_rx.recv().await {
+                        if matches!(frame, Ok(Message::Close(_)) | Err(_)) {
+                            break;
+                        }
+                    }
+                };
+                if timeout(self.config.close_timeout, handshake).await.is_err() {
+                    warn!("no close frame from the server within close_timeout");
+                }
+            }
         }
-        if let Err(e) = timeout(self.config.close_timeout, self.cmd_rx.recv()).await {
-            error!(error = %e, "waiting for a clean close handshake failed");
-        }
+        read_task.abort();
 
         self.emit(Event::Disconnected {
             reason: DisconnectReason::Requested,
@@ -495,6 +519,36 @@ mod tests {
             waited >= Duration::from_millis(100),
             "back-off was cut short: reconnected after {waited:?}"
         );
+
+        handle.disconnect().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn connect_right_after_disconnect_reconnects() {
+        let (url, mut server) = spawn_server(vec![Behaviour::Record]).await;
+        let (handle, mut events) = Stream::<Value, TestMsg>::new(test_config(url));
+        handle.connect().await.unwrap();
+        assert!(matches!(next_event(&mut events).await, Event::Connected));
+
+        let started = Instant::now();
+        handle.disconnect().await.unwrap();
+        handle.connect().await.unwrap();
+
+        assert!(matches!(
+            next_event(&mut events).await,
+            Event::Disconnected {
+                reason: DisconnectReason::Requested
+            }
+        ));
+        // The server answered the close frame, so the driver must not have
+        // sat out the whole close_timeout.
+        assert!(started.elapsed() < Duration::from_millis(400));
+        assert!(matches!(next_event(&mut events).await, Event::Connected));
+        loop {
+            if let ServerEvent::Accepted(1, _) = next_server_event(&mut server).await {
+                break;
+            }
+        }
 
         handle.disconnect().await.unwrap();
     }
