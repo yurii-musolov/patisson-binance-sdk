@@ -6,6 +6,6 @@ use serde::Serialize;
 /// `Command::Send` call against a margin stream is unrepresentable.
 ///
 /// Keep-alive is performed out-of-band via REST
-/// (`PUT /sapi/v1/userDataStream`), not over the WebSocket.
+/// (`PUT /sapi/v1/margin/listen-key`), not over the WebSocket.
 #[derive(Serialize, Debug)]
 pub enum OutgoingMessage {}
