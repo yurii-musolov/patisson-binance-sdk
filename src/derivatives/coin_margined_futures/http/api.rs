@@ -5,8 +5,8 @@ use crate::{
     Timestamp,
     derivatives::coin_margined_futures::{
         ContractType, KlineInterval, MarginType, OrderResponseType, OrderSide, OrderStatus,
-        OrderType, PermissionSets, PositionSide, RateLimitInterval, RateLimiter, SymbolStatus,
-        TimeInForce, UnderlyingType, WorkingType,
+        OrderType, PermissionSets, PositionSide, PriceMatch, RateLimitInterval, RateLimiter,
+        STPMode, SymbolStatus, TimeInForce, UnderlyingType, WorkingType,
     },
 };
 
@@ -60,10 +60,11 @@ pub struct SymbolInfo {
     pub base_asset_precision: i8,
     pub quote_precision: i8,
     pub equal_qty_precision: i8,
-    pub max_move_order_limit: i32,
+    pub max_move_order_limit: Option<i32>,
     pub maint_margin_percent: Decimal,
     pub required_margin_percent: Decimal,
     pub underlying_type: UnderlyingType,
+    #[serde(default)]
     pub underlying_sub_type: Vec<String>, //  `PoW`, `Layer-1`, `Layer-2`, `Infrastructure`, `Payment`, `Storage`, `Meme`, `DeFi`, `Gaming`, `NFT`, ...
     pub trigger_protect: Decimal,
     pub liquidation_fee: Decimal,
@@ -71,6 +72,8 @@ pub struct SymbolInfo {
     pub filters: Vec<SymbolFilter>,
     pub order_types: Vec<OrderType>,
     pub time_in_force: Vec<TimeInForce>,
+    /// Not present in every response.
+    #[serde(default)]
     pub permission_sets: Vec<PermissionSets>,
 }
 
@@ -270,17 +273,38 @@ impl Kline {
     }
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+/// Either a `symbol`, a `pair` (all its contracts) or neither (all symbols).
+#[derive(Debug, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetSymbolPriceTickerParams {
-    symbol: String,
+    symbol: Option<String>,
+    pair: Option<String>,
 }
 
 impl GetSymbolPriceTickerParams {
+    /// One symbol, e.g. `BTCUSD_PERP`.
     pub fn new(symbol: impl Into<String>) -> Self {
         Self {
-            symbol: symbol.into(),
+            symbol: Some(symbol.into()),
+            pair: None,
         }
+    }
+
+    /// Every contract of a pair, e.g. `BTCUSD`.
+    pub fn for_pair(pair: impl Into<String>) -> Self {
+        Self {
+            symbol: None,
+            pair: Some(pair.into()),
+        }
+    }
+
+    /// Every symbol.
+    pub fn all() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn has_symbol(&self) -> bool {
+        self.symbol.is_some()
     }
 }
 
@@ -293,17 +317,38 @@ pub struct SymbolPriceTicker {
     pub time: Timestamp,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+/// Either a `symbol`, a `pair` (all its contracts) or neither (all symbols).
+#[derive(Debug, Default, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GetSymbolOrderBookTickerParams {
-    symbol: String,
+    symbol: Option<String>,
+    pair: Option<String>,
 }
 
 impl GetSymbolOrderBookTickerParams {
+    /// One symbol, e.g. `BTCUSD_PERP`.
     pub fn new(symbol: impl Into<String>) -> Self {
         Self {
-            symbol: symbol.into(),
+            symbol: Some(symbol.into()),
+            pair: None,
         }
+    }
+
+    /// Every contract of a pair, e.g. `BTCUSD`.
+    pub fn for_pair(pair: impl Into<String>) -> Self {
+        Self {
+            symbol: None,
+            pair: Some(pair.into()),
+        }
+    }
+
+    /// Every symbol.
+    pub fn all() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn has_symbol(&self) -> bool {
+        self.symbol.is_some()
     }
 }
 
@@ -317,6 +362,8 @@ pub struct SymbolOrderBookTicker {
     pub ask_price: Decimal,
     pub ask_qty: Decimal,
     pub time: Timestamp,
+    #[serde(default)]
+    pub last_update_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -391,6 +438,9 @@ pub struct NewOrderRequest {
     price_protect: Option<bool>,
     new_order_resp_type: Option<OrderResponseType>,
     /// Max 60000.
+    /// Price match mode (`OPPONENT`, `QUEUE_5`, ...); not with `price`.
+    price_match: Option<PriceMatch>,
+    self_trade_prevention_mode: Option<STPMode>,
     recv_window: Option<u64>,
 }
 
@@ -413,8 +463,20 @@ impl NewOrderRequest {
             working_type: None,
             price_protect: None,
             new_order_resp_type: None,
+            price_match: None,
+            self_trade_prevention_mode: None,
             recv_window: None,
         }
+    }
+
+    pub fn price_match(mut self, value: PriceMatch) -> Self {
+        self.price_match = Some(value);
+        self
+    }
+
+    pub fn self_trade_prevention_mode(mut self, value: STPMode) -> Self {
+        self.self_trade_prevention_mode = Some(value);
+        self
     }
 
     pub fn position_side(mut self, value: PositionSide) -> Self {
@@ -488,10 +550,13 @@ pub struct NewOrderResponse {
     pub side: OrderSide,
     pub position_side: PositionSide,
     pub price: Decimal,
-    pub avg_price: Decimal,
+    /// Absent from some responses (e.g. new order).
+    #[serde(default)]
+    pub avg_price: Option<Decimal>,
     pub orig_qty: Decimal,
     pub executed_qty: Decimal,
-    pub cum_base: Decimal,
+    #[serde(default)]
+    pub cum_base: Option<Decimal>,
     pub time_in_force: TimeInForce,
     pub reduce_only: bool,
     pub close_position: bool,
@@ -500,6 +565,18 @@ pub struct NewOrderResponse {
     pub price_protect: bool,
     pub orig_type: OrderType,
     pub update_time: Timestamp,
+    #[serde(default)]
+    pub cum_qty: Option<Decimal>,
+    /// Activation price of `TRAILING_STOP_MARKET` orders.
+    #[serde(default)]
+    pub activate_price: Option<Decimal>,
+    /// Callback rate of `TRAILING_STOP_MARKET` orders.
+    #[serde(default)]
+    pub price_rate: Option<Decimal>,
+    #[serde(default)]
+    pub price_match: Option<PriceMatch>,
+    #[serde(default)]
+    pub self_trade_prevention_mode: Option<STPMode>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -544,7 +621,9 @@ pub struct Order {
     pub client_order_id: String,
     pub status: OrderStatus,
     pub price: Decimal,
-    pub avg_price: Decimal,
+    /// Absent from some responses (e.g. new order).
+    #[serde(default)]
+    pub avg_price: Option<Decimal>,
     pub orig_qty: Decimal,
     pub executed_qty: Decimal,
     pub cum_base: Decimal,
@@ -561,6 +640,22 @@ pub struct Order {
     pub close_position: bool,
     pub time: Timestamp,
     pub update_time: Timestamp,
+    #[serde(default)]
+    pub cum_qty: Option<Decimal>,
+    /// Activation price of `TRAILING_STOP_MARKET` orders.
+    #[serde(default)]
+    pub activate_price: Option<Decimal>,
+    /// Callback rate of `TRAILING_STOP_MARKET` orders.
+    #[serde(default)]
+    pub price_rate: Option<Decimal>,
+    #[serde(default)]
+    pub price_match: Option<PriceMatch>,
+    #[serde(default)]
+    pub self_trade_prevention_mode: Option<STPMode>,
+    #[serde(default)]
+    pub cum_quote: Option<Decimal>,
+    #[serde(default)]
+    pub good_till_date: Option<Timestamp>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -622,6 +717,16 @@ pub struct CancelOrderResponse {
     pub reduce_only: bool,
     pub close_position: bool,
     pub update_time: Timestamp,
+    /// Activation price of `TRAILING_STOP_MARKET` orders.
+    #[serde(default)]
+    pub activate_price: Option<Decimal>,
+    /// Callback rate of `TRAILING_STOP_MARKET` orders.
+    #[serde(default)]
+    pub price_rate: Option<Decimal>,
+    #[serde(default)]
+    pub price_match: Option<PriceMatch>,
+    #[serde(default)]
+    pub self_trade_prevention_mode: Option<STPMode>,
 }
 
 #[derive(Debug, Default, Serialize, PartialEq)]
@@ -1040,6 +1145,8 @@ pub struct AccountAsset {
     pub cross_wallet_balance: Decimal,
     pub cross_un_pnl: Decimal,
     pub update_time: Timestamp,
+    #[serde(default)]
+    pub max_withdraw_amount: Option<Decimal>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -1058,6 +1165,10 @@ pub struct AccountPosition {
     pub entry_price: Decimal,
     pub max_qty: Decimal,
     pub update_time: Timestamp,
+    #[serde(default)]
+    pub break_even_price: Option<Decimal>,
+    #[serde(default)]
+    pub notional_value: Option<Decimal>,
 }
 
 #[cfg(test)]
@@ -1242,7 +1353,7 @@ mod tests {
             base_asset_precision: 8,
             quote_precision: 8,
             equal_qty_precision: 4,
-            max_move_order_limit: 10000,
+            max_move_order_limit: Some(10000),
             maint_margin_percent: dec!(2.5000),
             required_margin_percent: dec!(5.0000),
             underlying_type: UnderlyingType::COIN,

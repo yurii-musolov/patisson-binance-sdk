@@ -42,11 +42,15 @@ const COST_CHANGE_POSITION_MODE: Cost = Cost::weight(1);
 const COST_GET_POSITION_MODE: Cost = Cost::weight(30);
 const COST_BALANCE: Cost = Cost::weight(1);
 const COST_LISTEN_KEY: Cost = Cost::weight(1);
-const COST_TICKER_PRICE: Cost = Cost::weight(1);
-const COST_TICKER_BOOK: Cost = Cost::weight(1);
 
 /// `GET /dapi/v1/openOrders` weight: 1 with `symbol`, 40 across the whole
 /// pair/account when omitted.
+/// `/ticker/price` and `/ticker/bookTicker`: 1 for one symbol, 2 otherwise
+/// (a pair or every symbol).
+fn cost_ticker(has_symbol: bool) -> Cost {
+    Cost::weight(if has_symbol { 1 } else { 2 })
+}
+
 fn cost_open_orders(symbol: &Option<String>) -> Cost {
     Cost::weight(if symbol.is_some() { 1 } else { 40 })
 }
@@ -126,28 +130,23 @@ impl PublicClient {
     pub async fn symbol_price_ticker(
         &self,
         params: GetSymbolPriceTickerParams,
-    ) -> Result<Response<SymbolPriceTicker>, Error> {
-        send_query(
-            &self.http,
-            Method::GET,
-            Path::TickerPrice,
-            &params,
-            COST_TICKER_PRICE,
-        )
-        .await
+    ) -> Result<Response<Vec<SymbolPriceTicker>>, Error> {
+        let cost = cost_ticker(params.has_symbol());
+        send_query(&self.http, Method::GET, Path::TickerPrice, &params, cost).await
     }
 
     /// Best price/qty on the order book for a symbol.
     pub async fn symbol_order_book_ticker(
         &self,
         params: GetSymbolOrderBookTickerParams,
-    ) -> Result<Response<SymbolOrderBookTicker>, Error> {
+    ) -> Result<Response<Vec<SymbolOrderBookTicker>>, Error> {
+        let cost = cost_ticker(params.has_symbol());
         send_query(
             &self.http,
             Method::GET,
             Path::TickerBookTicker,
             &params,
-            COST_TICKER_BOOK,
+            cost,
         )
         .await
     }
@@ -486,4 +485,29 @@ where
     T: serde::de::DeserializeOwned,
 {
     http::send_query::<T, P, ApiError, Error>(http_client, method, path, params, cost).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ticker_params_and_weight() {
+        use crate::{
+            derivatives::coin_margined_futures::http::GetSymbolPriceTickerParams,
+            serde::serialize_query,
+        };
+        let one = GetSymbolPriceTickerParams::new("BTCUSD_PERP");
+        assert_eq!(serialize_query(&one).unwrap(), "symbol=BTCUSD_PERP");
+        assert_eq!(cost_ticker(one.has_symbol()), Cost::weight(1));
+
+        let pair = GetSymbolPriceTickerParams::for_pair("BTCUSD");
+        assert_eq!(serialize_query(&pair).unwrap(), "pair=BTCUSD");
+        assert_eq!(cost_ticker(pair.has_symbol()), Cost::weight(2));
+
+        assert_eq!(
+            serialize_query(&GetSymbolPriceTickerParams::all()).unwrap(),
+            ""
+        );
+    }
 }
