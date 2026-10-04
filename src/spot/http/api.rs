@@ -569,13 +569,54 @@ impl SymbolOrSymbols {
     }
 }
 
+/// Response of `GET /api/v3/ticker/24hr`.
+///
+/// The `Full` variants are tried first: serde ignores unknown fields, so a
+/// FULL response would otherwise also match the `Mini` shape and silently
+/// lose the FULL-only fields.
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum TickerPriceChangeStatistic {
-    MiniElement(TickerPriceChangeStatisticMini),
-    MiniList(Vec<TickerPriceChangeStatisticMini>),
     FullElement(TickerPriceChangeStatisticFull),
     FullList(Vec<TickerPriceChangeStatisticFull>),
+    MiniElement(TickerPriceChangeStatisticMini),
+    MiniList(Vec<TickerPriceChangeStatisticMini>),
+}
+
+/// Response of `GET /api/v3/ticker/tradingDay`. Its FULL shape lacks the
+/// `prevClosePrice`, `lastQty` and bid/ask fields of the 24hr ticker; the
+/// MINI shape is the same as the 24hr one. `Full` variants are tried first
+/// for the same reason as in [`TickerPriceChangeStatistic`].
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum TickerTradingDay {
+    FullElement(TickerTradingDayFull),
+    FullList(Vec<TickerTradingDayFull>),
+    MiniElement(TickerPriceChangeStatisticMini),
+    MiniList(Vec<TickerPriceChangeStatisticMini>),
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TickerTradingDayFull {
+    pub symbol: String,
+    pub price_change: Decimal,
+    pub price_change_percent: Decimal,
+    pub weighted_avg_price: Decimal,
+    pub open_price: Decimal,
+    pub high_price: Decimal,
+    pub low_price: Decimal,
+    pub last_price: Decimal,
+    pub volume: Decimal,
+    pub quote_volume: Decimal,
+    pub open_time: Timestamp,
+    pub close_time: Timestamp,
+    /// First trade id
+    pub first_id: i64,
+    /// Last trade id
+    pub last_id: i64,
+    /// Trade count
+    pub count: u64,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
