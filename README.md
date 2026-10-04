@@ -174,6 +174,10 @@ match client.new_order(req).await {
     Err(Error::Api(e)) if e.code == ErrorCode::NO_SUCH_ORDER => {
         // Order already filled / canceled / never placed.
     }
+    Err(e) if e.is_execution_status_unknown() => {
+        // -1006/-1007, a 5xx without an error body, or a timeout after the
+        // request was sent: the order may exist. Query it before retrying.
+    }
     Err(e) => return Err(e.into()),
 }
 ```
@@ -183,6 +187,10 @@ Available predicates: `is_auth`, `is_invalid_timestamp`, `is_invalid_signature`,
 `is_bad_request`, `is_rate_limited`, `is_server_error`, `is_transient`,
 `is_order_rejected`, `is_no_such_order`. Plus `ErrorCode::raw() -> i64` as the
 escape hatch for product-specific codes.
+
+A non-2xx response whose body is not a Binance error (e.g. an HTML page from
+a proxy on 502/503) surfaces as `Error::Http { status, body }`, so the HTTP
+status is never lost.
 
 ## Modules
 

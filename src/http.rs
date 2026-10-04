@@ -213,6 +213,22 @@ impl HttpClient {
     }
 }
 
+/// A non-2xx response whose body is not the product's `ApiError` shape,
+/// e.g. an HTML page a proxy or CDN returns on 502/503. Converted into each
+/// product's `Error::Http`.
+#[derive(Debug)]
+pub struct UnexpectedResponse {
+    pub status: StatusCode,
+    pub body: String,
+}
+
+/// At most the first 200 characters of `body`, for error messages.
+pub fn body_excerpt(body: &str) -> &str {
+    body.char_indices()
+        .nth(200)
+        .map_or(body, |(i, _)| &body[..i])
+}
+
 /// Successful decoded response: the typed result plus the response headers
 /// Binance returned (rate-limit usage, retry-after, …). Every product's
 /// `http` module re-exports this at its own path (`spot::http::Response`,
@@ -231,16 +247,25 @@ pub fn decode<T, A, E>(raw: Result<RawResponse, SendError>) -> Result<Response<T
 where
     T: DeserializeOwned,
     A: DeserializeOwned,
-    E: From<SendError> + From<A> + From<serde_path_to_error::Error<serde_json::Error>>,
+    E: From<SendError>
+        + From<A>
+        + From<UnexpectedResponse>
+        + From<serde_path_to_error::Error<serde_json::Error>>,
 {
     let raw = raw?;
     if !raw.status.is_success() {
         #[cfg(debug_assertions)]
         tracing::debug!(status = ?raw.status, body = ?raw.body, "request failed");
 
-        // Binance returns `{"code":-XXXX,"msg":"..."}` on error.
-        let api_err = deserialize_json::<A>(&raw.body)?;
-        return Err(E::from(api_err));
+        // Binance returns `{"code":-XXXX,"msg":"..."}` on error; anything else
+        // keeps the status so callers can still tell a 503 from a 400.
+        return Err(match serde_json::from_str::<A>(&raw.body) {
+            Ok(api_err) => E::from(api_err),
+            Err(_) => E::from(UnexpectedResponse {
+                status: raw.status,
+                body: raw.body,
+            }),
+        });
     }
     let result = deserialize_json(&raw.body)?;
     Ok(Response {
@@ -267,6 +292,7 @@ where
     A: DeserializeOwned,
     E: From<SendError>
         + From<A>
+        + From<UnexpectedResponse>
         + From<serde_path_to_error::Error<serde_json::Error>>
         + From<serde_urlencoded::ser::Error>,
 {
@@ -291,7 +317,10 @@ where
     P: Serialize,
     T: DeserializeOwned,
     A: DeserializeOwned,
-    E: From<SendError> + From<A> + From<serde_path_to_error::Error<serde_json::Error>>,
+    E: From<SendError>
+        + From<A>
+        + From<UnexpectedResponse>
+        + From<serde_path_to_error::Error<serde_json::Error>>,
 {
     let req = http.request(method, path).query(params);
     decode::<T, A, E>(http.send_raw(req, cost).await)
@@ -398,5 +427,55 @@ mod tests {
         // really about the prefix match; this protects against future changes.
         let h = parse_headers(&header_map(&[("Retry-After", "5")]));
         assert_eq!(h.retry_after, Some(Duration::from_secs(5)));
+    }
+
+    fn raw(status: u16, body: &str) -> Result<RawResponse, SendError> {
+        Ok(RawResponse {
+            status: StatusCode::from_u16(status).unwrap(),
+            headers: ParsedHeaders::default(),
+            body: body.to_string(),
+        })
+    }
+
+    type SpotResult = Result<Response<serde_json::Value>, crate::spot::Error>;
+
+    fn spot_decode(raw: Result<RawResponse, SendError>) -> SpotResult {
+        decode::<serde_json::Value, crate::spot::ApiError, crate::spot::Error>(raw)
+    }
+
+    #[test]
+    fn decode_keeps_status_of_non_json_error_body() {
+        let err = spot_decode(raw(503, "<html>Service Unavailable</html>")).unwrap_err();
+        match &err {
+            crate::spot::Error::Http { status, body } => {
+                assert_eq!(*status, StatusCode::SERVICE_UNAVAILABLE);
+                assert!(body.contains("Service Unavailable"));
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+        assert!(err.is_execution_status_unknown());
+    }
+
+    #[test]
+    fn decode_parses_binance_error_body() {
+        let err = spot_decode(raw(400, r#"{"code":-1102,"msg":"bad param"}"#)).unwrap_err();
+        assert!(matches!(&err, crate::spot::Error::Api(e) if e.code.0 == -1102));
+        assert!(!err.is_execution_status_unknown());
+
+        let err = spot_decode(raw(503, r#"{"code":-1007,"msg":"Timeout"}"#)).unwrap_err();
+        assert!(err.is_execution_status_unknown());
+    }
+
+    #[test]
+    fn decode_success_body() {
+        let ok = spot_decode(raw(200, r#"{"a":1}"#)).unwrap();
+        assert_eq!(ok.result, serde_json::json!({"a": 1}));
+    }
+
+    #[test]
+    fn body_excerpt_is_char_boundary_safe() {
+        let long = "\u{e9}".repeat(300);
+        assert_eq!(body_excerpt(&long).chars().count(), 200);
+        assert_eq!(body_excerpt("short"), "short");
     }
 }
