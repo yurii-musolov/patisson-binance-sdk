@@ -7,7 +7,9 @@
 //! before they reach Binance — the goal is to avoid burning the request on a
 //! response that's already doomed and risking a 429 → 418 IP ban.
 //!
-//! Buckets reset on fixed windows. After every response the limiter folds
+//! Buckets reset on fixed windows aligned to the UTC clock, like Binance's
+//! own (a `1m` window ends at the top of every minute, `1d` at 00:00 UTC), so
+//! local and server counters reset together. After every response the limiter folds
 //! `X-MBX-USED-WEIGHT-*` / `X-MBX-ORDER-COUNT-*` back in via [`observe`], so
 //! transient drift (lost requests, replays) self-heals on the next call.
 //! 429 / 418 responses call [`freeze_until`] with the server's `Retry-After`,
@@ -19,7 +21,7 @@
 use std::{
     collections::BTreeMap,
     sync::Mutex,
-    time::{Duration, Instant},
+    time::{Duration, Instant, UNIX_EPOCH},
 };
 
 /// What an endpoint consumes from the limiter.
@@ -111,6 +113,34 @@ pub struct ObservedUsage {
     pub orders: BTreeMap<Duration, u32>,
 }
 
+/// A point in time on both clocks: `mono` drives the deadlines, `since_epoch`
+/// (wall clock) aligns window boundaries with Binance's UTC windows.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Now {
+    mono: Instant,
+    since_epoch: Duration,
+}
+
+impl Now {
+    fn current() -> Self {
+        Self {
+            mono: Instant::now(),
+            since_epoch: UNIX_EPOCH.elapsed().unwrap_or_default(),
+        }
+    }
+
+    /// The first instant after `self` that falls on a multiple of
+    /// `interval` since the Unix epoch.
+    fn next_boundary(self, interval: Duration) -> Instant {
+        let into_window = self.since_epoch.as_nanos() % interval.as_nanos().max(1);
+        let into_window = Duration::new(
+            (into_window / 1_000_000_000) as u64,
+            (into_window % 1_000_000_000) as u32,
+        );
+        self.mono + interval - into_window
+    }
+}
+
 #[derive(Debug)]
 struct Bucket {
     spec: BucketSpec,
@@ -119,36 +149,25 @@ struct Bucket {
 }
 
 impl Bucket {
-    fn new(spec: BucketSpec, now: Instant) -> Self {
+    fn new(spec: BucketSpec, now: Now) -> Self {
         Self {
             spec,
             used: 0,
-            window_end: now + spec.interval,
+            window_end: now.next_boundary(spec.interval),
         }
     }
 
-    /// Advance to the current window. Binance uses fixed windows, so after
-    /// `window_end` the count resets to 0.
-    fn roll(&mut self, now: Instant) {
-        if now < self.window_end {
+    /// Advance to the current window. Binance uses fixed windows aligned to
+    /// the UTC clock, so after `window_end` the count resets to 0 and the
+    /// next window ends on the next wall-clock boundary. Deriving it from the
+    /// wall clock (instead of stepping from the old boundary) also re-aligns
+    /// after an arbitrarily long idle gap: the remainder is always
+    /// `< interval`, so `window_end` lands strictly after `now`.
+    fn roll(&mut self, now: Now) {
+        if now.mono < self.window_end {
             return;
         }
-        let interval = self.spec.interval;
-        // Time elapsed since the start of the (now-stale) current window.
-        let elapsed = now - (self.window_end - interval);
-        // Land exactly on the next boundary via nanosecond modulo rather than
-        // computing a whole-windows count: that count has no natural ceiling
-        // (an idle gap can be arbitrarily long), so any fixed-width integer
-        // holding it would need clamping — which only approximates the true
-        // boundary and can undershoot it. The modulo approach has no such
-        // ceiling: `remainder` is always `< interval`, so `window_end` always
-        // lands strictly after `now`, by construction.
-        let remainder_nanos = elapsed.as_nanos() % interval.as_nanos();
-        let remainder = Duration::new(
-            (remainder_nanos / 1_000_000_000) as u64,
-            (remainder_nanos % 1_000_000_000) as u32,
-        );
-        self.window_end = now + interval - remainder;
+        self.window_end = now.next_boundary(self.spec.interval);
         self.used = 0;
     }
 
@@ -175,10 +194,10 @@ pub struct RateLimiter {
 
 impl RateLimiter {
     pub fn new(specs: impl IntoIterator<Item = BucketSpec>) -> Self {
-        Self::new_at(specs, Instant::now())
+        Self::new_at(specs, Now::current())
     }
 
-    pub(crate) fn new_at(specs: impl IntoIterator<Item = BucketSpec>, now: Instant) -> Self {
+    pub(crate) fn new_at(specs: impl IntoIterator<Item = BucketSpec>, now: Now) -> Self {
         let buckets = specs.into_iter().map(|s| Bucket::new(s, now)).collect();
         Self {
             inner: Mutex::new(Inner {
@@ -210,16 +229,16 @@ impl RateLimiter {
     /// Try to charge `cost` against every applicable bucket atomically. On
     /// failure no buckets are mutated.
     pub fn try_acquire(&self, cost: Cost) -> Result<(), RateLimited> {
-        self.try_acquire_at(cost, Instant::now())
+        self.try_acquire_at(cost, Now::current())
     }
 
-    pub(crate) fn try_acquire_at(&self, cost: Cost, now: Instant) -> Result<(), RateLimited> {
+    pub(crate) fn try_acquire_at(&self, cost: Cost, now: Now) -> Result<(), RateLimited> {
         let mut inner = self.inner.lock().expect("rate limiter mutex poisoned");
 
         if let Some(until) = inner.frozen_until {
-            if now < until {
+            if now.mono < until {
                 return Err(RateLimited {
-                    retry_after: until - now,
+                    retry_after: until - now.mono,
                     source: RateLimitSource::Server,
                 });
             }
@@ -234,7 +253,7 @@ impl RateLimiter {
                 continue;
             }
             if bucket.used.saturating_add(need) > bucket.spec.limit {
-                let wait = bucket.window_end - now;
+                let wait = bucket.window_end - now.mono;
                 worst_wait = Some(worst_wait.map_or(wait, |w| w.max(wait)));
             }
         }
@@ -255,10 +274,10 @@ impl RateLimiter {
     /// Fold server-authoritative usage back in. Local counts can only be
     /// raised — the limiter is always conservative.
     pub fn observe(&self, headers: &ObservedUsage) {
-        self.observe_at(headers, Instant::now());
+        self.observe_at(headers, Now::current());
     }
 
-    pub(crate) fn observe_at(&self, headers: &ObservedUsage, now: Instant) {
+    pub(crate) fn observe_at(&self, headers: &ObservedUsage, now: Now) {
         let mut inner = self.inner.lock().expect("rate limiter mutex poisoned");
         for bucket in &mut inner.buckets {
             bucket.roll(now);
@@ -290,8 +309,27 @@ impl RateLimiter {
 mod tests {
     use super::*;
 
-    fn limiter() -> (RateLimiter, Instant) {
-        let now = Instant::now();
+    impl Now {
+        fn plus(self, d: Duration) -> Self {
+            Self {
+                mono: self.mono + d,
+                since_epoch: self.since_epoch + d,
+            }
+        }
+    }
+
+    /// 2024-01-01 00:00:00 UTC: the start of a minute and of a day.
+    const MIDNIGHT: Duration = Duration::from_secs(1_704_067_200);
+
+    fn now_at(since_epoch: Duration) -> Now {
+        Now {
+            mono: Instant::now(),
+            since_epoch,
+        }
+    }
+
+    fn limiter() -> (RateLimiter, Now) {
+        let now = now_at(MIDNIGHT);
         let rl = RateLimiter::new_at(
             [
                 BucketSpec::new(BucketKind::Weight, Duration::from_secs(60), 100),
@@ -358,7 +396,7 @@ mod tests {
         let (rl, now) = limiter();
         rl.try_acquire_at(Cost::weight(100), now).unwrap();
         // Fresh window — should be allowed again.
-        rl.try_acquire_at(Cost::weight(100), now + Duration::from_secs(61))
+        rl.try_acquire_at(Cost::weight(100), now.plus(Duration::from_secs(61)))
             .unwrap();
     }
 
@@ -369,13 +407,13 @@ mod tests {
         // past that) must still land `window_end` strictly after `now`.
         let (rl, now) = limiter();
         rl.try_acquire_at(Cost::weight(100), now).unwrap();
-        let much_later = now + Duration::from_secs(60) * u32::MAX * 10;
+        let much_later = now.plus(Duration::from_secs(60) * u32::MAX * 10);
         rl.try_acquire_at(Cost::weight(100), much_later)
             .expect("bucket must have rolled over despite the extreme gap");
 
         let inner = rl.inner.lock().unwrap();
         assert!(
-            inner.buckets[0].window_end > much_later,
+            inner.buckets[0].window_end > much_later.mono,
             "roll() invariant: window_end must be strictly after `now`"
         );
     }
@@ -413,7 +451,7 @@ mod tests {
     #[test]
     fn freeze_blocks_all_acquires() {
         let (rl, now) = limiter();
-        rl.freeze_until(now + Duration::from_secs(30));
+        rl.freeze_until(now.mono + Duration::from_secs(30));
         let err = rl.try_acquire_at(Cost::weight(1), now).unwrap_err();
         assert_eq!(err.source, RateLimitSource::Server);
         assert!(err.retry_after <= Duration::from_secs(30));
@@ -422,19 +460,19 @@ mod tests {
     #[test]
     fn freeze_clears_after_deadline() {
         let (rl, now) = limiter();
-        rl.freeze_until(now + Duration::from_secs(30));
-        rl.try_acquire_at(Cost::weight(1), now + Duration::from_secs(31))
+        rl.freeze_until(now.mono + Duration::from_secs(30));
+        rl.try_acquire_at(Cost::weight(1), now.plus(Duration::from_secs(31)))
             .expect("freeze should have lifted");
     }
 
     #[test]
     fn freeze_only_extends_never_shortens() {
         let (rl, now) = limiter();
-        rl.freeze_until(now + Duration::from_secs(30));
-        rl.freeze_until(now + Duration::from_secs(5));
+        rl.freeze_until(now.mono + Duration::from_secs(30));
+        rl.freeze_until(now.mono + Duration::from_secs(5));
         // The earlier deadline must still be in force.
         let err = rl
-            .try_acquire_at(Cost::weight(1), now + Duration::from_secs(10))
+            .try_acquire_at(Cost::weight(1), now.plus(Duration::from_secs(10)))
             .unwrap_err();
         assert_eq!(err.source, RateLimitSource::Server);
     }
@@ -445,5 +483,54 @@ mod tests {
         rl.try_acquire_at(Cost::weight(100), now).unwrap();
         // Bucket is now full but Cost::FREE charges nothing.
         rl.try_acquire_at(Cost::FREE, now).unwrap();
+    }
+
+    #[test]
+    fn windows_end_on_wall_clock_boundaries() {
+        // Created 30s into a minute and 1h into a day.
+        let now = now_at(MIDNIGHT + Duration::from_secs(3_600 + 30));
+        let rl = RateLimiter::new_at(
+            [
+                BucketSpec::new(BucketKind::Weight, Duration::from_secs(60), 100),
+                BucketSpec::new(BucketKind::Orders, Duration::from_secs(86_400), 5),
+            ],
+            now,
+        );
+        let inner = rl.inner.lock().unwrap();
+        assert_eq!(
+            inner.buckets[0].window_end,
+            now.mono + Duration::from_secs(30)
+        );
+        assert_eq!(
+            inner.buckets[1].window_end,
+            now.mono + Duration::from_secs(86_400 - 3_600 - 30)
+        );
+    }
+
+    #[test]
+    fn local_window_resets_together_with_the_server() {
+        // Created mid-minute; the server reports a nearly full bucket.
+        let now = now_at(MIDNIGHT + Duration::from_secs(30));
+        let rl = RateLimiter::new_at(
+            [BucketSpec::new(
+                BucketKind::Weight,
+                Duration::from_secs(60),
+                100,
+            )],
+            now,
+        );
+        let mut obs = ObservedUsage::default();
+        obs.weight.insert(Duration::from_secs(60), 95);
+        rl.observe_at(&obs, now.plus(Duration::from_secs(25)));
+        assert!(
+            rl.try_acquire_at(Cost::weight(10), now.plus(Duration::from_secs(29)))
+                .is_err()
+        );
+
+        // One second after the top of the minute Binance has reset its
+        // counter; the local window must have reset too instead of waiting
+        // until 60s after the limiter was created.
+        rl.try_acquire_at(Cost::weight(10), now.plus(Duration::from_secs(31)))
+            .expect("window should have reset at the minute boundary");
     }
 }
