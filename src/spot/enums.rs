@@ -12,6 +12,8 @@ pub enum SymbolStatus {
     EndOfDay,
     Halt,
     Break,
+    /// Only order cancellations are accepted.
+    CancelOnly,
     /// A value this SDK version doesn't know yet. Keeps the response
     /// deserializable when Binance adds a new value; never sent in requests.
     #[serde(other, skip_serializing)]
@@ -267,6 +269,7 @@ pub enum STPMode {
     ExpireTaker,
     ExpireBoth,
     Decrement,
+    Transfer,
     /// A value this SDK version doesn't know yet. Keeps the response
     /// deserializable when Binance adds a new value; never sent in requests.
     #[serde(other, skip_serializing)]
@@ -308,6 +311,10 @@ pub enum ExchangeFilter {
     /// symbols.
     #[serde(rename = "EXCHANGE_MAX_NUM_ICEBERG_ORDERS", rename_all = "camelCase")]
     ExchangeMaxNumIcebergOrders { max_num_iceberg_orders: u64 },
+    /// Maximum number of order lists an account may have open across all
+    /// symbols.
+    #[serde(rename = "EXCHANGE_MAX_NUM_ORDER_LISTS", rename_all = "camelCase")]
+    ExchangeMaxNumOrderLists { max_num_order_lists: u64 },
     /// Catch-all for exchange filter types not yet modelled, so a new filter
     /// doesn't break `exchangeInfo` deserialization.
     #[serde(other)]
@@ -318,6 +325,64 @@ pub enum ExchangeFilter {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AccountType {
     Spot,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
+}
+
+/// Why an order expired (`expiryReason`, present only on expired orders).
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ExpiryReason {
+    None,
+    Rejected,
+    ExchangeCanceled,
+    OcoTrigger,
+    OtoPhaseOneExpired,
+    UnfilledIocQuantityExpired,
+    UnfilledFokOrderExpired,
+    InsufficientLiquidity,
+    ExecutionRulePriceRangeExceeded,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
+}
+
+/// Pegged order price type (`pegPriceType`).
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PegPriceType {
+    /// Best price on the same side of the order book as the order.
+    PrimaryPeg,
+    /// Best price on the opposite side of the order book.
+    MarketPeg,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
+}
+
+/// Pegged order offset type (`pegOffsetType`).
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PegOffsetType {
+    PriceLevel,
+    /// A value this SDK version doesn't know yet. Keeps the response
+    /// deserializable when Binance adds a new value; never sent in requests.
+    #[serde(other, skip_serializing)]
+    Unknown,
+}
+
+/// Restricts a cancel to orders in a given status (`cancelRestrictions`).
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum CancelRestrictions {
+    /// Cancel only if the order status is `NEW`.
+    OnlyNew,
+    /// Cancel only if the order status is `PARTIALLY_FILLED`.
+    OnlyPartiallyFilled,
     /// A value this SDK version doesn't know yet. Keeps the response
     /// deserializable when Binance adds a new value; never sent in requests.
     #[serde(other, skip_serializing)]

@@ -5,9 +5,20 @@
 //! here instead of losing data at runtime.
 //!
 //! The fixtures in `tests/fixtures/spot/` are the documentation examples with
-//! comments stripped.
+//! comments stripped. One deliberate change: in `exchange_info.json` the
+//! documentation shows `rateLimits` as an empty placeholder object, replaced
+//! here by a real `REQUEST_WEIGHT` entry.
 
-use binance::spot::http::{TickerPriceChangeStatistic, TickerTradingDay};
+use binance::spot::{
+    ExchangeFilter,
+    http::{
+        AccountCommission, AccountInformation, AccountTrade, AggregateTrade, CanceledOrder,
+        CanceledOrderOrList, CurrentAveragePrice, ExchangeInfo, Filter, Kline, NewOrderResponse,
+        NewOrderResponseAck, NewOrderResponseFull, NewOrderResponseResult, Order, OrderBook,
+        OrderRateLimit, RecentTrade, ServerTime, SymbolOrderBookTickers, SymbolPriceTickers,
+        TestCommissionRates, TestConnectivity, TickerPriceChangeStatistic, TickerTradingDay,
+    },
+};
 use serde::de::DeserializeOwned;
 
 fn fixture(name: &str) -> String {
@@ -28,6 +39,77 @@ fn parse<T: DeserializeOwned>(name: &str) -> T {
         "{name}: fields not modelled: {ignored:?}"
     );
     value
+}
+
+#[test]
+fn rest_responses_match_the_documentation() {
+    parse::<TestConnectivity>("ping.json");
+    parse::<ServerTime>("time.json");
+    parse::<ExchangeInfo>("exchange_info.json");
+    parse::<OrderBook>("depth.json");
+    parse::<Vec<RecentTrade>>("trades.json");
+    parse::<Vec<RecentTrade>>("historical_trades.json");
+    parse::<Vec<AggregateTrade>>("agg_trades.json");
+    parse::<Vec<Kline>>("klines.json");
+    parse::<Vec<Kline>>("ui_klines.json");
+    parse::<CurrentAveragePrice>("avg_price.json");
+    parse::<SymbolPriceTickers>("ticker_price_0.json");
+    parse::<SymbolPriceTickers>("ticker_price_1.json");
+    parse::<SymbolOrderBookTickers>("ticker_book_0.json");
+    parse::<SymbolOrderBookTickers>("ticker_book_1.json");
+    parse::<CanceledOrder>("cancel_order.json");
+    parse::<Vec<CanceledOrderOrList>>("cancel_open_orders.json");
+    parse::<AccountInformation>("account.json");
+    parse::<Order>("query_order.json");
+    parse::<Vec<Order>>("open_orders.json");
+    parse::<Vec<Order>>("all_orders.json");
+    parse::<Vec<AccountTrade>>("my_trades.json");
+    parse::<Vec<OrderRateLimit>>("rate_limit_order.json");
+    parse::<AccountCommission>("account_commission.json");
+}
+
+#[test]
+fn new_order_responses_pick_the_right_shape() {
+    // The concrete structs reveal ignored fields, which the untagged enum hides.
+    parse::<NewOrderResponseAck>("new_order_ack.json");
+    parse::<NewOrderResponseResult>("new_order_result.json");
+    parse::<NewOrderResponseFull>("new_order_full.json");
+    assert!(matches!(
+        parse::<NewOrderResponse>("new_order_ack.json"),
+        NewOrderResponse::Ack(_)
+    ));
+    assert!(matches!(
+        parse::<NewOrderResponse>("new_order_result.json"),
+        NewOrderResponse::Result(_)
+    ));
+    assert!(matches!(
+        parse::<NewOrderResponse>("new_order_full.json"),
+        NewOrderResponse::Full(_)
+    ));
+    assert!(matches!(
+        parse::<TestCommissionRates>("test_order_empty.json"),
+        TestCommissionRates::Empty(_)
+    ));
+    assert!(matches!(
+        parse::<TestCommissionRates>("test_order_commission.json"),
+        TestCommissionRates::Full(_)
+    ));
+}
+
+#[test]
+fn every_documented_filter_is_modelled() {
+    for filter in parse::<Vec<Filter>>("symbol_filters.json") {
+        assert!(
+            !matches!(filter, Filter::Unknown),
+            "unmodelled symbol filter"
+        );
+    }
+    for filter in parse::<Vec<ExchangeFilter>>("exchange_filters.json") {
+        assert!(
+            !matches!(filter, ExchangeFilter::Unknown),
+            "unmodelled exchange filter"
+        );
+    }
 }
 
 #[test]

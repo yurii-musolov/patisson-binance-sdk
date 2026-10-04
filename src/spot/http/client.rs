@@ -627,4 +627,45 @@ mod tests {
             "type=MINI&symbols=%5B%22BTCUSDT%22%2C%22BNBBTC%22%5D"
         );
     }
+
+    #[test]
+    fn new_documented_parameters_serialize() {
+        use crate::{
+            serde::serialize_query,
+            spot::{
+                CancelRestrictions, OrderResponseType, OrderSide, OrderType, PegOffsetType,
+                PegPriceType, SymbolStatus,
+                http::{CancelOrderParams, GetOrderBookParams, NewOrderRequest},
+            },
+        };
+
+        let depth = GetOrderBookParams::new("BTCUSDT").symbol_status(SymbolStatus::Trading);
+        assert_eq!(
+            serialize_query(&depth).unwrap(),
+            "symbol=BTCUSDT&symbolStatus=TRADING"
+        );
+
+        let cancel = CancelOrderParams::new("BTCUSDT")
+            .order_id(1)
+            .cancel_restrictions(CancelRestrictions::OnlyNew);
+        assert_eq!(
+            serialize_query(&cancel).unwrap(),
+            "symbol=BTCUSDT&orderId=1&cancelRestrictions=ONLY_NEW"
+        );
+
+        let order = NewOrderRequest::new(
+            "BTCUSDT",
+            OrderSide::BUY,
+            OrderType::Limit,
+            OrderResponseType::ACK,
+        )
+        .peg_price_type(PegPriceType::PrimaryPeg)
+        .peg_offset_value(3)
+        .peg_offset_type(PegOffsetType::PriceLevel);
+        let query = serialize_query(&order).unwrap();
+        assert!(
+            query.contains("pegPriceType=PRIMARY_PEG&pegOffsetValue=3&pegOffsetType=PRICE_LEVEL"),
+            "{query}"
+        );
+    }
 }

@@ -163,8 +163,12 @@ mod tests {
             deserialize_json(r#"["FILLED","SOME_FUTURE_STATUS"]"#).unwrap();
         assert_eq!(statuses, vec![OrderStatus::Filled, OrderStatus::Unknown]);
 
-        let modes: Vec<STPMode> = deserialize_json(r#"["EXPIRE_MAKER","TRANSFER"]"#).unwrap();
-        assert_eq!(modes, vec![STPMode::ExpireMaker, STPMode::Unknown]);
+        let modes: Vec<STPMode> =
+            deserialize_json(r#"["EXPIRE_MAKER","TRANSFER","SOME_FUTURE_MODE"]"#).unwrap();
+        assert_eq!(
+            modes,
+            vec![STPMode::ExpireMaker, STPMode::Transfer, STPMode::Unknown]
+        );
 
         let status: SymbolStatus = deserialize_json(r#""PRE_TRADING""#).unwrap();
         assert_eq!(status, SymbolStatus::Unknown);
