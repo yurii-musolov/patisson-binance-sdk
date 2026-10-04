@@ -2,7 +2,6 @@
 //!
 //! This will apply for both REST API and WebSocket API.
 
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 /// Symbol status.
@@ -231,12 +230,28 @@ pub enum SecurityType {
     UserStream,
 }
 
+/// Exchange-wide filter from `exchangeInfo.exchangeFilters`.
+///
+/// Symbol-level filters (`PRICE_FILTER`, `LOT_SIZE`, ...) live in
+/// [`crate::spot::http::Filter`].
 #[derive(Debug, Deserialize, PartialEq)]
-#[serde(tag = "filterType", rename_all = "SCREAMING_SNAKE_CASE")]
+#[serde(tag = "filterType")]
 pub enum ExchangeFilter {
-    PriceFilter { tick_size: Decimal },
-    LotSize { step_size: Decimal },
-    // TODO:
+    /// Maximum number of orders an account may have open across all symbols.
+    #[serde(rename = "EXCHANGE_MAX_NUM_ORDERS", rename_all = "camelCase")]
+    ExchangeMaxNumOrders { max_num_orders: u64 },
+    /// Maximum number of algo orders (`STOP_LOSS`, `TAKE_PROFIT`, ...) an
+    /// account may have open across all symbols.
+    #[serde(rename = "EXCHANGE_MAX_NUM_ALGO_ORDERS", rename_all = "camelCase")]
+    ExchangeMaxNumAlgoOrders { max_num_algo_orders: u64 },
+    /// Maximum number of iceberg orders an account may have open across all
+    /// symbols.
+    #[serde(rename = "EXCHANGE_MAX_NUM_ICEBERG_ORDERS", rename_all = "camelCase")]
+    ExchangeMaxNumIcebergOrders { max_num_iceberg_orders: u64 },
+    /// Catch-all for exchange filter types not yet modelled, so a new filter
+    /// doesn't break `exchangeInfo` deserialization.
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]

@@ -73,6 +73,33 @@ mod tests {
     }
 
     #[test]
+    fn test_deserialize_exchange_filter_variants() {
+        use crate::spot::ExchangeFilter;
+        let json = r#"[
+            {"filterType":"EXCHANGE_MAX_NUM_ORDERS","maxNumOrders":1000},
+            {"filterType":"EXCHANGE_MAX_NUM_ALGO_ORDERS","maxNumAlgoOrders":200},
+            {"filterType":"EXCHANGE_MAX_NUM_ICEBERG_ORDERS","maxNumIcebergOrders":10000},
+            {"filterType":"EXCHANGE_SOMETHING_NEW","foo":"bar"}
+        ]"#;
+        let filters: Vec<ExchangeFilter> = deserialize_json(json).unwrap();
+        assert_eq!(
+            filters,
+            vec![
+                ExchangeFilter::ExchangeMaxNumOrders {
+                    max_num_orders: 1000
+                },
+                ExchangeFilter::ExchangeMaxNumAlgoOrders {
+                    max_num_algo_orders: 200
+                },
+                ExchangeFilter::ExchangeMaxNumIcebergOrders {
+                    max_num_iceberg_orders: 10000
+                },
+                ExchangeFilter::Unknown,
+            ]
+        );
+    }
+
+    #[test]
     fn test_serialize_option_as_json_for_query_arrays() {
         #[derive(Serialize)]
         struct Q {
