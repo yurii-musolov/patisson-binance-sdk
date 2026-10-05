@@ -13,6 +13,10 @@ pub struct PublicConfig {
     pub headers: Option<HeaderMap>,
     pub rate_limiter: Option<Arc<RateLimiter>>,
     pub timeouts: Timeouts,
+    /// Proxy for REST requests (`http://`, `https://` or `socks5://`, with
+    /// optional `user:password@`); `None` uses `HTTP(S)_PROXY` / `ALL_PROXY`.
+    /// Kept as a [`SensitiveString`] since it may carry credentials.
+    pub proxy: Option<SensitiveString>,
 }
 
 impl PublicConfig {
@@ -27,6 +31,7 @@ impl PublicConfig {
             headers: None,
             rate_limiter: None,
             timeouts: Timeouts::default(),
+            proxy: None,
         }
     }
 
@@ -61,6 +66,13 @@ impl PublicConfig {
         self.timeouts.connect = timeout;
         self
     }
+
+    /// Send REST requests through a proxy, e.g. `http://127.0.0.1:8080` or
+    /// `socks5://user:password@proxy:1080`.
+    pub fn proxy(mut self, url: impl Into<SensitiveString>) -> Self {
+        self.proxy = Some(url.into());
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -71,6 +83,10 @@ pub struct PrivateConfig {
     pub headers: Option<HeaderMap>,
     pub rate_limiter: Option<Arc<RateLimiter>>,
     pub timeouts: Timeouts,
+    /// Proxy for REST requests (`http://`, `https://` or `socks5://`, with
+    /// optional `user:password@`); `None` uses `HTTP(S)_PROXY` / `ALL_PROXY`.
+    /// Kept as a [`SensitiveString`] since it may carry credentials.
+    pub proxy: Option<SensitiveString>,
     /// Clock correction applied to signed requests; see [`TimeOffset`].
     pub time_offset: TimeOffset,
 }
@@ -97,6 +113,7 @@ impl PrivateConfig {
             headers: None,
             rate_limiter: None,
             timeouts: Timeouts::default(),
+            proxy: None,
             time_offset: TimeOffset::default(),
         }
     }
@@ -127,6 +144,13 @@ impl PrivateConfig {
     /// [`crate::DEFAULT_HTTP_CONNECT_TIMEOUT`].
     pub fn connect_timeout(mut self, timeout: Duration) -> Self {
         self.timeouts.connect = timeout;
+        self
+    }
+
+    /// Send REST requests through a proxy, e.g. `http://127.0.0.1:8080` or
+    /// `socks5://user:password@proxy:1080`.
+    pub fn proxy(mut self, url: impl Into<SensitiveString>) -> Self {
+        self.proxy = Some(url.into());
         self
     }
 

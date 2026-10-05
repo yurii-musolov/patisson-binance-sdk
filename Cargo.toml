@@ -30,7 +30,7 @@ futures-util = { version = "0.3.34", default-features = false, features = [
 ] }
 hex = "0.4.3"
 hmac = "0.13.0"
-reqwest = { version = "0.13.4", features = ["json", "query"] }
+reqwest = { version = "0.13.4", features = ["json", "query", "socks"] }
 rust_decimal = { version = "1.42.1", features = [
   "std",
   "macros",

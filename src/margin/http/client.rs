@@ -55,6 +55,7 @@ const COST_FORCE_LIQUIDATION_REC: Cost = Cost::weight(1);
 /// Margin has no public endpoints — for unauthenticated market data
 /// (klines, depth, tickers) and connectivity (`/api/v3/ping`, `/api/v3/time`),
 /// use [`crate::spot::http::PublicClient`].
+#[derive(Clone)]
 pub struct PrivateClient {
     http: HttpClient,
     api_secret: SensitiveString,
@@ -63,8 +64,14 @@ pub struct PrivateClient {
 impl PrivateClient {
     pub fn new(cfg: PrivateConfig) -> Result<Self, Error> {
         let headers = build_private_headers(&cfg)?;
-        let http = HttpClient::new(cfg.base_url, headers, cfg.rate_limiter, cfg.timeouts)?
-            .with_time_offset(cfg.time_offset);
+        let http = HttpClient::new(
+            cfg.base_url,
+            headers,
+            cfg.rate_limiter,
+            cfg.timeouts,
+            cfg.proxy.as_ref(),
+        )?
+        .with_time_offset(cfg.time_offset);
         Ok(Self {
             http,
             api_secret: cfg.api_secret,
