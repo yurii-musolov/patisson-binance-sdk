@@ -140,6 +140,18 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+### Clock drift
+
+Signed requests fail with `-1021` when the local clock drifts from
+Binance's. Correct it once and let the client resync on its own:
+
+```rust
+let cfg = PrivateConfig::for_env(Environment::Production, api_key, api_secret)?
+    .resync_on_invalid_timestamp(true); // on -1021: resync and resend once
+let client = PrivateClient::new(cfg)?;
+client.sync_time().await?; // offset shared by every clone of the client
+```
+
 ### WebSocket — market data
 
 The shared `Stream<C, M>` driver is generic over the outgoing command and
