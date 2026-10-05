@@ -48,7 +48,7 @@ pub enum Environment {
     /// Spot testnet (`testnet.binance.vision`) and the futures testnet
     /// (`demo-fapi.binance.com`, `demo-dapi.binance.com`).
     Testnet,
-    /// Demo trading (https://demo.binance.com).
+    /// Demo trading (<https://demo.binance.com>).
     Demo,
     /// Any other deployment; the same URLs are used for every product.
     Custom {
