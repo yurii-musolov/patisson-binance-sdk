@@ -37,6 +37,9 @@ pub enum OrderType {
     TakeProfit,
     TakeProfitMarket,
     TrailingStopMarket,
+    /// Liquidation order; only seen in user data stream order updates.
+    #[serde(skip_serializing)]
+    Liquidation,
     /// A value this SDK version doesn't know yet. Keeps the response
     /// deserializable when Binance adds a new value; never sent in requests.
     #[serde(other, skip_serializing)]
@@ -142,7 +145,11 @@ pub enum WorkingType {
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum MarginType {
+    /// The user data stream sends `isolated` in `ACCOUNT_UPDATE`.
+    #[serde(alias = "isolated")]
     Isolated,
+    /// The user data stream sends `cross` in `ACCOUNT_UPDATE`.
+    #[serde(alias = "cross", alias = "crossed")]
     Crossed,
     /// A value this SDK version doesn't know yet. Keeps the response
     /// deserializable when Binance adds a new value; never sent in requests.

@@ -456,6 +456,17 @@ impl PrivateClient {
         decode(self.http.send_raw(req, COST_LISTEN_KEY).await)
     }
 
+    /// Keep the account's listenKey alive in the background (keepalive every
+    /// 30 minutes, see [`crate::KEEPALIVE_INTERVAL`]). Dropping the returned
+    /// keeper stops it.
+    pub fn keep_listen_key_alive(&self) -> crate::ListenKeyKeeper<Error> {
+        let client = self.clone();
+        crate::ListenKeyKeeper::spawn(crate::KEEPALIVE_INTERVAL, move || {
+            let client = client.clone();
+            async move { client.keepalive_listen_key().await }
+        })
+    }
+
     /// Close the listenKey. The WebSocket connection associated with the key
     /// will be dropped by the server.
     pub async fn close_listen_key(&self) -> Result<Response<EmptyResponse>, Error> {

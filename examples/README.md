@@ -23,7 +23,7 @@ This directory contains examples showcasing capabilities of the
 
 `usdm-account-information`, `usdm-cancel-order`, `usdm-change-leverage`,
 `usdm-exchange-info`, `usdm-kline`, `usdm-open-orders`, `usdm-order-book`,
-`usdm-server-time`, `usdm-stream-public`
+`usdm-server-time`, `usdm-stream-public`, `usdm-user-data-stream`
 
 ### COIN-M Futures
 

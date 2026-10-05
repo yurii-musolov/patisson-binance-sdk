@@ -1,0 +1,427 @@
+//! Events pushed over the COIN-M Futures user data stream
+//! (`wss://dstream.binance.com/ws/<listenKey>`).
+//!
+//! Field meanings follow the official "User Data Streams" event pages; the
+//! one-letter wire names are kept in `#[serde(rename)]`.
+
+use rust_decimal::Decimal;
+use serde::Deserialize;
+
+use crate::{
+    Timestamp,
+    derivatives::coin_margined_futures::{
+        MarginType, OrderSide, OrderStatus, OrderType, PositionSide, PriceMatch, STPMode,
+        TimeInForce, WorkingType,
+    },
+    serde::{decimal_opt_lenient, string_opt_lenient},
+    ws::ReceivedMessage,
+};
+
+/// A frame of the user data stream, tagged by the `e` (event type) field.
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(tag = "e")]
+#[allow(clippy::large_enum_variant)]
+pub enum UserDataMessage {
+    /// An order was created, changed, filled, canceled or expired.
+    #[serde(rename = "ORDER_TRADE_UPDATE")]
+    OrderTradeUpdate(OrderTradeUpdateEvent),
+    /// Balances and positions changed.
+    #[serde(rename = "ACCOUNT_UPDATE")]
+    AccountUpdate(AccountUpdateEvent),
+    /// Cross positions are close to liquidation.
+    #[serde(rename = "MARGIN_CALL")]
+    MarginCall(MarginCallEvent),
+    /// Leverage changed.
+    #[serde(rename = "ACCOUNT_CONFIG_UPDATE")]
+    AccountConfigUpdate(AccountConfigUpdateEvent),
+    /// A trading strategy changed state.
+    #[serde(rename = "STRATEGY_UPDATE")]
+    StrategyUpdate(StrategyUpdateEvent),
+    /// A grid strategy's position changed.
+    #[serde(rename = "GRID_UPDATE")]
+    GridUpdate(GridUpdateEvent),
+    /// The listenKey expired: create a new one and reconnect.
+    #[serde(rename = "listenKeyExpired")]
+    ListenKeyExpired(ListenKeyExpiredEvent),
+    /// An event type this SDK version doesn't model yet.
+    #[serde(other)]
+    Unknown,
+}
+
+impl ReceivedMessage for UserDataMessage {
+    fn server_shutdown_event_time(&self) -> Option<u64> {
+        None
+    }
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct OrderTradeUpdateEvent {
+    #[serde(rename = "E")]
+    pub event_time: Timestamp,
+    #[serde(rename = "T")]
+    pub transaction_time: Timestamp,
+    /// Account alias.
+    #[serde(rename = "i")]
+    pub account_alias: String,
+    #[serde(rename = "o")]
+    pub order: OrderUpdate,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct OrderUpdate {
+    #[serde(rename = "s")]
+    pub symbol: String,
+    /// Client order id. `autoclose-...` marks a liquidation order,
+    /// `adl_autoclose` an ADL order, `settlement_autoclose-...` a
+    /// delisting/delivery settlement order.
+    #[serde(rename = "c")]
+    pub client_order_id: String,
+    #[serde(rename = "S")]
+    pub side: OrderSide,
+    #[serde(rename = "o")]
+    pub order_type: OrderType,
+    #[serde(rename = "f")]
+    pub time_in_force: TimeInForce,
+    #[serde(rename = "q")]
+    pub original_quantity: Decimal,
+    #[serde(rename = "p")]
+    pub original_price: Decimal,
+    #[serde(rename = "ap")]
+    pub average_price: Decimal,
+    /// Ignore for `TRAILING_STOP_MARKET`.
+    #[serde(rename = "sp")]
+    pub stop_price: Decimal,
+    #[serde(rename = "x")]
+    pub execution_type: ExecutionType,
+    #[serde(rename = "X")]
+    pub order_status: OrderStatus,
+    #[serde(rename = "i")]
+    pub order_id: u64,
+    /// Only on `AMENDMENT` events when the request carried a modify id.
+    #[serde(rename = "M", default)]
+    pub modify_id: Option<String>,
+    #[serde(rename = "l")]
+    pub last_filled_quantity: Decimal,
+    #[serde(rename = "z")]
+    pub cumulative_filled_quantity: Decimal,
+    #[serde(rename = "L")]
+    pub last_filled_price: Decimal,
+    #[serde(rename = "ma")]
+    pub margin_asset: String,
+    /// Absent when there is no commission.
+    #[serde(rename = "N", default)]
+    pub commission_asset: Option<String>,
+    #[serde(rename = "n", default, deserialize_with = "decimal_opt_lenient")]
+    pub commission: Option<Decimal>,
+    #[serde(rename = "T")]
+    pub trade_time: Timestamp,
+    #[serde(rename = "t")]
+    pub trade_id: u64,
+    #[serde(rename = "b")]
+    pub bids_notional: Decimal,
+    #[serde(rename = "a")]
+    pub ask_notional: Decimal,
+    #[serde(rename = "m")]
+    pub is_maker: bool,
+    #[serde(rename = "R")]
+    pub is_reduce_only: bool,
+    #[serde(rename = "wt")]
+    pub working_type: WorkingType,
+    #[serde(rename = "ot")]
+    pub original_order_type: OrderType,
+    #[serde(rename = "ps")]
+    pub position_side: PositionSide,
+    /// Close-all; pushed with conditional orders.
+    #[serde(rename = "cp", default)]
+    pub close_position: bool,
+    /// Only for `TRAILING_STOP_MARKET`.
+    #[serde(rename = "AP", default, deserialize_with = "decimal_opt_lenient")]
+    pub activation_price: Option<Decimal>,
+    /// Only for `TRAILING_STOP_MARKET`.
+    #[serde(rename = "cr", default, deserialize_with = "decimal_opt_lenient")]
+    pub callback_rate: Option<Decimal>,
+    #[serde(rename = "pP", default)]
+    pub price_protect: bool,
+    #[serde(rename = "rp")]
+    pub realized_profit: Decimal,
+    #[serde(rename = "V", default)]
+    pub self_trade_prevention_mode: Option<STPMode>,
+    #[serde(rename = "pm", default)]
+    pub price_match: Option<PriceMatch>,
+    /// Expiry reason code (`0` = none); see the event documentation.
+    #[serde(rename = "er", default, deserialize_with = "string_opt_lenient")]
+    pub expiry_reason: Option<String>,
+}
+
+/// Execution type (`x`) of an order update.
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ExecutionType {
+    New,
+    Canceled,
+    /// Liquidation execution.
+    Calculated,
+    Expired,
+    Trade,
+    /// The order was modified.
+    Amendment,
+    /// A value this SDK version doesn't know yet.
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct AccountUpdateEvent {
+    #[serde(rename = "E")]
+    pub event_time: Timestamp,
+    #[serde(rename = "T")]
+    pub transaction_time: Timestamp,
+    /// Account alias.
+    #[serde(rename = "i")]
+    pub account_alias: String,
+    #[serde(rename = "a")]
+    pub update: AccountUpdate,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct AccountUpdate {
+    #[serde(rename = "m")]
+    pub reason: AccountUpdateReason,
+    /// Assets whose balance changed.
+    #[serde(rename = "B")]
+    pub balances: Vec<BalanceUpdate>,
+    /// Positions that changed (for `FUNDING_FEE` in a crossed position only
+    /// the balance is pushed).
+    #[serde(rename = "P", default)]
+    pub positions: Vec<PositionUpdate>,
+    /// Symbol, when the update concerns a single symbol.
+    #[serde(rename = "S", default)]
+    pub symbol: Option<String>,
+}
+
+/// Why an `ACCOUNT_UPDATE` was pushed (`m`).
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AccountUpdateReason {
+    Deposit,
+    Withdraw,
+    Order,
+    FundingFee,
+    WithdrawReject,
+    Adjustment,
+    InsuranceClear,
+    AdminDeposit,
+    AdminWithdraw,
+    MarginTransfer,
+    MarginTypeChange,
+    AssetTransfer,
+    OptionsPremiumFee,
+    OptionsSettleProfit,
+    AutoExchange,
+    CoinSwapDeposit,
+    CoinSwapWithdraw,
+    /// A value this SDK version doesn't know yet.
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct BalanceUpdate {
+    #[serde(rename = "a")]
+    pub asset: String,
+    #[serde(rename = "wb")]
+    pub wallet_balance: Decimal,
+    #[serde(rename = "cw")]
+    pub cross_wallet_balance: Decimal,
+    /// Balance change except PnL and commission.
+    #[serde(rename = "bc")]
+    pub balance_change: Decimal,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct PositionUpdate {
+    #[serde(rename = "s")]
+    pub symbol: String,
+    #[serde(rename = "pa")]
+    pub position_amount: Decimal,
+    #[serde(rename = "ep")]
+    pub entry_price: Decimal,
+    #[serde(rename = "bep")]
+    pub breakeven_price: Decimal,
+    /// Accumulated realized PnL (pre-fee).
+    #[serde(rename = "cr")]
+    pub accumulated_realized: Decimal,
+    #[serde(rename = "up")]
+    pub unrealized_pnl: Decimal,
+    #[serde(rename = "mt")]
+    pub margin_type: MarginType,
+    /// Isolated wallet (if isolated position).
+    #[serde(rename = "iw")]
+    pub isolated_wallet: Decimal,
+    #[serde(rename = "ps")]
+    pub position_side: PositionSide,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct MarginCallEvent {
+    #[serde(rename = "E")]
+    pub event_time: Timestamp,
+    /// Account alias.
+    #[serde(rename = "i")]
+    pub account_alias: String,
+    /// Only pushed with crossed positions.
+    #[serde(rename = "cw", default, deserialize_with = "decimal_opt_lenient")]
+    pub cross_wallet_balance: Option<Decimal>,
+    #[serde(rename = "p")]
+    pub positions: Vec<MarginCallPosition>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct MarginCallPosition {
+    #[serde(rename = "s")]
+    pub symbol: String,
+    #[serde(rename = "ps")]
+    pub position_side: PositionSide,
+    #[serde(rename = "pa")]
+    pub position_amount: Decimal,
+    #[serde(rename = "mt")]
+    pub margin_type: MarginType,
+    /// Isolated wallet (if isolated position).
+    #[serde(rename = "iw")]
+    pub isolated_wallet: Decimal,
+    #[serde(rename = "mp")]
+    pub mark_price: Decimal,
+    #[serde(rename = "up")]
+    pub unrealized_pnl: Decimal,
+    /// Maintenance margin required.
+    #[serde(rename = "mm")]
+    pub maintenance_margin: Decimal,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct AccountConfigUpdateEvent {
+    #[serde(rename = "E")]
+    pub event_time: Timestamp,
+    #[serde(rename = "T")]
+    pub transaction_time: Timestamp,
+    /// Leverage of a symbol changed.
+    #[serde(rename = "ac", default)]
+    pub leverage: Option<LeverageUpdate>,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct LeverageUpdate {
+    #[serde(rename = "s")]
+    pub symbol: String,
+    #[serde(rename = "l")]
+    pub leverage: u32,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct StrategyUpdateEvent {
+    #[serde(rename = "E")]
+    pub event_time: Timestamp,
+    #[serde(rename = "T")]
+    pub transaction_time: Timestamp,
+    #[serde(rename = "su")]
+    pub update: StrategyUpdate,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct StrategyUpdate {
+    #[serde(rename = "si")]
+    pub strategy_id: u64,
+    /// e.g. `GRID`.
+    #[serde(rename = "st")]
+    pub strategy_type: String,
+    /// e.g. `NEW`, `WORKING`, `CANCELLED`, `EXPIRED`.
+    #[serde(rename = "ss")]
+    pub strategy_status: String,
+    #[serde(rename = "s")]
+    pub symbol: String,
+    #[serde(rename = "ut")]
+    pub update_time: Timestamp,
+    /// Operation code; see the event documentation.
+    #[serde(rename = "c")]
+    pub op_code: i64,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct GridUpdateEvent {
+    #[serde(rename = "E")]
+    pub event_time: Timestamp,
+    #[serde(rename = "T")]
+    pub transaction_time: Timestamp,
+    #[serde(rename = "gu")]
+    pub update: GridUpdate,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct GridUpdate {
+    #[serde(rename = "si")]
+    pub strategy_id: u64,
+    #[serde(rename = "st")]
+    pub strategy_type: String,
+    #[serde(rename = "ss")]
+    pub strategy_status: String,
+    #[serde(rename = "s")]
+    pub symbol: String,
+    /// Realized PnL.
+    #[serde(rename = "r")]
+    pub realized_pnl: Decimal,
+    /// Unmatched average price.
+    #[serde(rename = "up")]
+    pub unmatched_average_price: Decimal,
+    /// Unmatched quantity.
+    #[serde(rename = "uq")]
+    pub unmatched_quantity: Decimal,
+    /// Unmatched fee.
+    #[serde(rename = "uf")]
+    pub unmatched_fee: Decimal,
+    /// Matched PnL.
+    #[serde(rename = "mp")]
+    pub matched_pnl: Decimal,
+    #[serde(rename = "ut")]
+    pub update_time: Timestamp,
+}
+
+/// `Debug` redacts the listenKey: it grants read access to the account's
+/// events and must not end up in logs.
+#[derive(Deserialize, PartialEq)]
+pub struct ListenKeyExpiredEvent {
+    #[serde(
+        rename = "E",
+        deserialize_with = "crate::serde::u64_from_number_or_string"
+    )]
+    pub event_time: Timestamp,
+    #[serde(rename = "listenKey")]
+    pub listen_key: String,
+}
+
+impl std::fmt::Debug for ListenKeyExpiredEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ListenKeyExpiredEvent")
+            .field("event_time", &self.event_time)
+            .field("listen_key", &"<redacted>")
+            .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unknown_event_types_do_not_fail() {
+        let msg: UserDataMessage =
+            serde_json::from_str(r#"{"e":"SOMETHING_NEW","E":1,"x":{}}"#).unwrap();
+        assert_eq!(msg, UserDataMessage::Unknown);
+    }
+
+    #[test]
+    fn listen_key_expired_accepts_a_string_event_time() {
+        let msg: UserDataMessage =
+            serde_json::from_str(r#"{"e":"listenKeyExpired","E":"1","listenKey":"k"}"#).unwrap();
+        assert!(matches!(msg, UserDataMessage::ListenKeyExpired(e) if e.event_time == 1));
+    }
+}
