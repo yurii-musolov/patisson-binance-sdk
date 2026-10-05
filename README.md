@@ -61,6 +61,15 @@ patisson-binance-sdk = "=0.1.12"
 > use binance::spot::http::PublicClient;
 > ```
 
+### TLS
+
+REST and WebSocket share one TLS implementation, chosen by feature:
+
+| Feature | TLS | Notes |
+|---|---|---|
+| `rustls-tls` (default) | rustls (aws-lc-rs) | no system OpenSSL needed |
+| `native-tls` | platform library (OpenSSL on Linux) | `default-features = false, features = ["native-tls"]` |
+
 ## Quick start
 
 ### Environments
