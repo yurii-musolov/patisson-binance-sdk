@@ -2,6 +2,7 @@ mod config;
 mod error;
 mod handle;
 mod message;
+mod proxy;
 mod state;
 mod stream;
 
