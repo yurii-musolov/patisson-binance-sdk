@@ -1,9 +1,8 @@
 //! Spot user data stream over the WebSocket API:
 //!
 //! 1. Connect to `wss://ws-api.binance.com:9443/ws-api/v3`
-//! 2. On every `Connected`, send a freshly signed
-//!    `userDataStream.subscribe.signature` (subscriptions don't survive a
-//!    reconnect and the signature carries a timestamp)
+//! 2. Register `user_data_stream_on_connect`: the driver sends a freshly
+//!    signed `userDataStream.subscribe.signature` on every (re)connect
 //! 3. Log account events for ~60 s, then unsubscribe and disconnect
 //!
 //! Run with
@@ -20,11 +19,11 @@ mod support;
 use std::time::Duration;
 
 use binance::{
+    TimeOffset,
     spot::{
         Path,
-        ws_api::{IncomingMessage, Request},
+        ws_api::{IncomingMessage, Request, user_data_stream_on_connect},
     },
-    timestamp,
     ws::{Config, Event, Stream},
 };
 use tokio::time::sleep;
@@ -43,6 +42,13 @@ async fn main() -> anyhow::Result<()> {
 
     let url = format!("{ws_api}{}", Path::WebSocketApiV3);
     let (handle, mut events) = Stream::<Request, IncomingMessage>::new(Config::new(url));
+    handle
+        .on_connect(user_data_stream_on_connect(
+            api_key,
+            api_secret,
+            TimeOffset::new(),
+        ))
+        .await?;
     handle.connect().await?;
 
     let stopper = handle.clone();
@@ -57,16 +63,6 @@ async fn main() -> anyhow::Result<()> {
 
     while let Some(event) = events.recv().await {
         match event {
-            Event::Connected => {
-                let request = Request::user_data_stream_subscribe_signature(
-                    "subscribe",
-                    &api_key,
-                    &api_secret,
-                    timestamp(),
-                    None,
-                );
-                handle.send_command(request).await?;
-            }
             Event::Message(IncomingMessage::Response(response)) => match &response.error {
                 None => info!(
                     id = ?response.id,

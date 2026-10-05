@@ -2,18 +2,37 @@ pub trait ReceivedMessage {
     fn server_shutdown_event_time(&self) -> Option<u64>;
 }
 
-#[derive(Debug)]
+/// Builds the messages to send right after every (re)connect; see
+/// [`crate::ws::Handle::on_connect`].
+pub type OnConnect<T> = Box<dyn Fn() -> Vec<T> + Send>;
+
 pub enum Command<T> {
     Connect,
     Send(T),
     Disconnect,
+    /// Replace (or with `None`, clear) the on-connect messages builder.
+    OnConnect(Option<OnConnect<T>>),
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for Command<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Connect => f.write_str("Connect"),
+            Self::Send(msg) => f.debug_tuple("Send").field(msg).finish(),
+            Self::Disconnect => f.write_str("Disconnect"),
+            Self::OnConnect(builder) => f
+                .debug_tuple("OnConnect")
+                .field(&builder.as_ref().map(|_| "<fn>"))
+                .finish(),
+        }
+    }
 }
 
 #[derive(Debug)]
 pub enum Event<T> {
     Message(T),
-    /// A connection was established. Send any `SUBSCRIBE` requests again:
-    /// subscriptions do not survive a reconnect.
+    /// A connection was established (on-connect messages, see
+    /// `Handle::on_connect`, have already been sent).
     Connected,
     /// A WebSocket text frame arrived but could not be deserialized.
     /// The connection stays open — the raw error description is included.
@@ -31,8 +50,7 @@ pub enum Event<T> {
     },
     /// An established connection ended without being asked to. The driver
     /// reconnects on its own (see `Reconnecting`); subscriptions made with
-    /// `SUBSCRIBE` are not restored and must be sent again after the next
-    /// `Connected`. Stateful consumers should resynchronize.
+    /// `SUBSCRIBE` are restored only if registered with `Handle::on_connect`. Stateful consumers should resynchronize.
     ConnectionLost {
         reason: DisconnectReason,
     },
