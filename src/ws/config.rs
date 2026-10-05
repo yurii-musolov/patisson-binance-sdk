@@ -1,3 +1,4 @@
+use crate::SensitiveString;
 use std::time::Duration;
 
 /// Spot / margin streams: the server pings every 20s.
@@ -40,6 +41,11 @@ pub struct Config {
     /// Time budget for one connection attempt (TCP + TLS + WebSocket handshake)
     pub connect_timeout: Duration,
 
+    /// HTTP proxy (`http://[user:password@]host:port`) to tunnel the
+    /// connection through with `CONNECT`. Kept as a [`SensitiveString`]
+    /// since it may carry credentials.
+    pub proxy: Option<SensitiveString>,
+
     /// Expected interval between heartbeat pings from the server.
     /// Per Binance Spot docs, the server sends a ping every 20s. Used as the
     /// initial deadline for the first server ping; if exceeded, the connection
@@ -67,6 +73,7 @@ impl Default for Config {
             reconnect_max_delay: Duration::from_secs(30),
             close_timeout: Duration::from_secs(5),
             connect_timeout: Duration::from_secs(10),
+            proxy: None,
             ping_interval: DEFAULT_PING_INTERVAL,
             pong_timeout: DEFAULT_PONG_TIMEOUT,
             connection_ttl: DEFAULT_CONNECTION_TTL,
@@ -131,6 +138,13 @@ impl Config {
 
     pub fn connect_timeout(mut self, d: Duration) -> Self {
         self.connect_timeout = d;
+        self
+    }
+
+    /// Connect through an HTTP proxy (`CONNECT` tunnel), e.g.
+    /// `http://user:password@proxy:8080`.
+    pub fn proxy(mut self, url: impl Into<SensitiveString>) -> Self {
+        self.proxy = Some(url.into());
         self
     }
 

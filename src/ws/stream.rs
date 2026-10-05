@@ -1,3 +1,4 @@
+use super::proxy::connect_via_proxy;
 use super::{
     Command, Config, DisconnectReason, Event, Handle,
     state::{FrameResult, HeartbeatState, Sink, State},
@@ -167,20 +168,25 @@ where
     async fn step_connecting(&mut self, attempt: u32) -> State {
         debug!(attempt, "connecting");
 
-        let ws_stream =
-            match timeout(self.config.connect_timeout, connect_async(&self.config.url)).await {
-                Ok(Ok((ws_stream, _))) => ws_stream,
-                Ok(Err(e)) => {
-                    error!(error = %e, attempt, "connection failed");
-                    return self.next_reconnect_state(attempt + 1, e.to_string()).await;
-                }
-                Err(_) => {
-                    error!(attempt, "connection attempt timed out");
-                    return self
-                        .next_reconnect_state(attempt + 1, "connect timed out".into())
-                        .await;
-                }
-            };
+        let connect = async {
+            match &self.config.proxy {
+                Some(proxy) => connect_via_proxy(&self.config.url, proxy.expose()).await,
+                None => connect_async(&self.config.url).await,
+            }
+        };
+        let ws_stream = match timeout(self.config.connect_timeout, connect).await {
+            Ok(Ok((ws_stream, _))) => ws_stream,
+            Ok(Err(e)) => {
+                error!(error = %e, attempt, "connection failed");
+                return self.next_reconnect_state(attempt + 1, e.to_string()).await;
+            }
+            Err(_) => {
+                error!(attempt, "connection attempt timed out");
+                return self
+                    .next_reconnect_state(attempt + 1, "connect timed out".into())
+                    .await;
+            }
+        };
 
         info!("websocket connected");
         self.emit(Event::Connected).await;
@@ -767,5 +773,95 @@ mod tests {
         }
 
         handle.disconnect().await.unwrap();
+    }
+
+    /// A CONNECT proxy: records the request header, tunnels to the target.
+    async fn spawn_connect_proxy() -> (String, mpsc::UnboundedReceiver<String>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://user:p%40ss@{}", listener.local_addr().unwrap());
+        let (tx, rx) = mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            while let Ok((mut client, _)) = listener.accept().await {
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    let mut header = Vec::new();
+                    while !header.ends_with(b"\r\n\r\n") {
+                        header.push(client.read_u8().await.unwrap());
+                    }
+                    let header = String::from_utf8(header).unwrap();
+                    let target = header.split_whitespace().nth(1).unwrap().to_string();
+                    let _ = tx.send(header);
+                    let mut upstream = tokio::net::TcpStream::connect(target).await.unwrap();
+                    client
+                        .write_all(b"HTTP/1.1 200 Connection established\r\n\r\n")
+                        .await
+                        .unwrap();
+                    let _ = tokio::io::copy_bidirectional(&mut client, &mut upstream).await;
+                });
+            }
+        });
+        (url, rx)
+    }
+
+    #[tokio::test]
+    async fn connects_through_an_http_connect_proxy() {
+        let (url, mut server) = spawn_server(vec![Behaviour::Record]).await;
+        let (proxy, mut proxy_log) = spawn_connect_proxy().await;
+        let (handle, mut events) =
+            Stream::<Value, TestMsg>::new(test_config(url.clone()).proxy(proxy));
+        handle.connect().await.unwrap();
+        assert!(matches!(next_event(&mut events).await, Event::Connected));
+
+        let header = timeout(Duration::from_secs(5), proxy_log.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let target = url.trim_start_matches("ws://");
+        assert!(
+            header.starts_with(&format!("CONNECT {target} HTTP/1.1")),
+            "{header}"
+        );
+        // "user:p@ss" (the password is percent-encoded in the proxy URL).
+        assert!(
+            header.contains("Proxy-Authorization: Basic dXNlcjpwQHNz"),
+            "{header}"
+        );
+
+        handle.send_command(json!({"id": 1})).await.unwrap();
+        loop {
+            if let ServerEvent::Text(0, text) = next_server_event(&mut server).await {
+                assert_eq!(text, r#"{"id":1}"#);
+                break;
+            }
+        }
+        handle.disconnect().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn refused_connect_is_a_connection_failure() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move {
+            while let Ok((mut client, _)) = listener.accept().await {
+                let mut buf = [0u8; 1024];
+                let _ = client.read(&mut buf).await;
+                let _ = client
+                    .write_all(b"HTTP/1.1 407 Proxy Authentication Required\r\n\r\n")
+                    .await;
+            }
+        });
+        let cfg = test_config("ws://binance.invalid:9443/ws".into())
+            .proxy(proxy)
+            .max_reconnect_attempts(1);
+        let (handle, mut events) = Stream::<Value, TestMsg>::new(cfg);
+        handle.connect().await.unwrap();
+        match next_event(&mut events).await {
+            Event::Disconnected {
+                reason: DisconnectReason::Error(_),
+            } => {}
+            other => panic!("unexpected {other:?}"),
+        }
     }
 }
