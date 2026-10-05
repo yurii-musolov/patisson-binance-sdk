@@ -63,6 +63,22 @@ patisson-binance-sdk = "=0.1.12"
 
 ## Quick start
 
+### Environments
+
+`binance::Environment` (`Production`, `Testnet`, `Demo`, `Custom`) knows the
+base URLs of every product, so configs can be built without picking
+constants by hand:
+
+```rust
+use binance::{Environment, Product, spot::http::{PublicClient, PublicConfig}};
+
+let client = PublicClient::new(PublicConfig::for_env(Environment::Demo)?)?;
+let stream = Environment::Demo.stream_url(Product::Spot)?; // wss://demo-stream.binance.com:9443
+```
+
+Products an environment doesn't offer (margin and wallet are production
+only) return an `Unsupported` error instead of silently using production.
+
 ### Public REST — no API key
 
 ```rust

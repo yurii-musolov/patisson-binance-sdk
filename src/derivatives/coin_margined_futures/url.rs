@@ -5,8 +5,13 @@ pub const BASE_URL_API: &str = "https://dapi.binance.com";
 pub const BASE_URL_WEBSOCKET_API: &str = "wss://ws-dapi.binance.com";
 pub const BASE_URL_STREAM: &str = "wss://dstream.binance.com";
 
-// Testnet
+// Demo mode: the documented COIN-M testnet (general-info page of the docs).
+pub const BASE_URL_DEMO_API: &str = "https://demo-dapi.binance.com";
+pub const BASE_URL_DEMO_STREAM: &str = "wss://demo-dstream.binance.com";
+
+// Testnet (legacy hosts, still answering)
 pub const BASE_URL_TESTNET_API: &str = "https://testnet.binancefuture.com";
+pub const BASE_URL_TESTNET_WEBSOCKET_API: &str = "wss://testnet.binancefuture.com";
 pub const BASE_URL_TESTNET_STREAM: &str = "wss://dstream.binancefuture.com";
 
 pub enum Path {
