@@ -148,11 +148,16 @@ impl HttpClient {
         headers: HeaderMap,
         rate_limiter: Option<Arc<RateLimiter>>,
         timeouts: Timeouts,
+        proxy: Option<&SensitiveString>,
     ) -> Result<Self, reqwest::Error> {
-        let inner = reqwest::Client::builder()
+        let mut builder = reqwest::Client::builder()
             .timeout(timeouts.request)
-            .connect_timeout(timeouts.connect)
-            .build()?;
+            .connect_timeout(timeouts.connect);
+        // Without an explicit proxy reqwest honours HTTP(S)_PROXY / ALL_PROXY.
+        if let Some(proxy) = proxy {
+            builder = builder.proxy(reqwest::Proxy::all(proxy.expose())?);
+        }
+        let inner = builder.build()?;
         Ok(Self {
             inner,
             base_url,
@@ -533,7 +538,7 @@ mod tests {
         let (base_url, request_line) = one_shot_server().await;
         let offset = TimeOffset::new();
         offset.set(-3_600_000);
-        let http = HttpClient::new(base_url, HeaderMap::new(), None, Timeouts::default())
+        let http = HttpClient::new(base_url, HeaderMap::new(), None, Timeouts::default(), None)
             .unwrap()
             .with_time_offset(offset);
 
@@ -563,5 +568,51 @@ mod tests {
             "{ts} not in {before}..={after}"
         );
         assert!(line.contains("&signature="), "{line}");
+    }
+
+    #[tokio::test]
+    async fn requests_go_through_the_configured_proxy() {
+        // The one-shot server plays an HTTP proxy: for a plain-http target
+        // reqwest sends the absolute URL in the request line.
+        let (proxy_url, request_line) = one_shot_server().await;
+        let proxy = SensitiveString::from(proxy_url);
+        let http = HttpClient::new(
+            "http://binance.invalid".to_string(),
+            HeaderMap::new(),
+            None,
+            Timeouts::default(),
+            Some(&proxy),
+        )
+        .unwrap();
+        let _: Response<serde_json::Value> =
+            send_query::<_, _, crate::spot::ApiError, crate::spot::Error>(
+                &http,
+                Method::GET,
+                "/api/v3/ping",
+                &[("a", "1")],
+                Cost::FREE,
+            )
+            .await
+            .unwrap();
+        let line = request_line.await.unwrap();
+        assert!(
+            line.starts_with("GET http://binance.invalid/api/v3/ping?a=1 "),
+            "{line}"
+        );
+    }
+
+    #[test]
+    fn invalid_proxy_url_is_a_construction_error() {
+        let proxy = SensitiveString::from("::not a url::");
+        assert!(
+            HttpClient::new(
+                "http://binance.invalid".to_string(),
+                HeaderMap::new(),
+                None,
+                Timeouts::default(),
+                Some(&proxy),
+            )
+            .is_err()
+        );
     }
 }

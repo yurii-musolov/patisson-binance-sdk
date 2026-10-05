@@ -85,6 +85,7 @@ fn cost_depth(limit: Option<u64>) -> Cost {
     Cost::weight(weight)
 }
 
+#[derive(Clone)]
 pub struct PublicClient {
     http: HttpClient,
 }
@@ -96,6 +97,7 @@ impl PublicClient {
             cfg.headers.unwrap_or_default(),
             cfg.rate_limiter,
             cfg.timeouts,
+            cfg.proxy.as_ref(),
         )?;
         Ok(Self { http })
     }
@@ -290,6 +292,7 @@ impl PublicClient {
     }
 }
 
+#[derive(Clone)]
 pub struct PrivateClient {
     http: HttpClient,
     api_secret: SensitiveString,
@@ -298,8 +301,14 @@ pub struct PrivateClient {
 impl PrivateClient {
     pub fn new(cfg: PrivateConfig) -> Result<Self, Error> {
         let headers = build_private_headers(&cfg)?;
-        let http = HttpClient::new(cfg.base_url, headers, cfg.rate_limiter, cfg.timeouts)?
-            .with_time_offset(cfg.time_offset);
+        let http = HttpClient::new(
+            cfg.base_url,
+            headers,
+            cfg.rate_limiter,
+            cfg.timeouts,
+            cfg.proxy.as_ref(),
+        )?
+        .with_time_offset(cfg.time_offset);
         Ok(Self {
             http,
             api_secret: cfg.api_secret,
@@ -667,5 +676,24 @@ mod tests {
             query.contains("pegPriceType=PRIMARY_PEG&pegOffsetValue=3&pegOffsetType=PRICE_LEVEL"),
             "{query}"
         );
+    }
+
+    #[test]
+    fn clients_are_cheap_to_clone() {
+        fn assert_clone<T: Clone>() {}
+        assert_clone::<PublicClient>();
+        assert_clone::<PrivateClient>();
+        assert_clone::<crate::margin::http::PrivateClient>();
+        assert_clone::<crate::wallet::http::PrivateClient>();
+        assert_clone::<crate::derivatives::usds_margined_futures::http::PublicClient>();
+        assert_clone::<crate::derivatives::usds_margined_futures::http::PrivateClient>();
+        assert_clone::<crate::derivatives::coin_margined_futures::http::PublicClient>();
+        assert_clone::<crate::derivatives::coin_margined_futures::http::PrivateClient>();
+    }
+
+    #[test]
+    fn proxy_credentials_are_redacted_in_debug() {
+        let cfg = PublicConfig::new("https://example.com").proxy("http://user:hunter2@proxy:8080");
+        assert!(!format!("{cfg:?}").contains("hunter2"));
     }
 }
