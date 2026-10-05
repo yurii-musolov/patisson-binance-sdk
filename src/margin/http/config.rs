@@ -2,7 +2,10 @@ use std::{sync::Arc, time::Duration};
 
 use reqwest::header::HeaderMap;
 
-use crate::{SensitiveString, TimeOffset, http::Timeouts, rate_limit::RateLimiter};
+use crate::{
+    Environment, Product, SensitiveString, TimeOffset, Unsupported, http::Timeouts,
+    rate_limit::RateLimiter,
+};
 
 /// Configuration for [`super::PrivateClient`].
 ///
@@ -22,6 +25,19 @@ pub struct PrivateConfig {
 }
 
 impl PrivateConfig {
+    /// Config for the REST API of `env`. API keys are environment-specific.
+    pub fn for_env(
+        env: Environment,
+        api_key: SensitiveString,
+        api_secret: SensitiveString,
+    ) -> Result<Self, Unsupported> {
+        Ok(Self::new(
+            env.api_url(Product::Margin)?,
+            api_key,
+            api_secret,
+        ))
+    }
+
     pub fn new(
         base_url: impl Into<String>,
         api_key: SensitiveString,
