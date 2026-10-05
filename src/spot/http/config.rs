@@ -89,6 +89,9 @@ pub struct PrivateConfig {
     pub proxy: Option<SensitiveString>,
     /// Clock correction applied to signed requests; see [`TimeOffset`].
     pub time_offset: TimeOffset,
+    /// On `-1021` (timestamp outside `recvWindow`) resync the clock and
+    /// resend the request once. Off by default.
+    pub resync_on_invalid_timestamp: bool,
 }
 
 impl PrivateConfig {
@@ -115,6 +118,7 @@ impl PrivateConfig {
             timeouts: Timeouts::default(),
             proxy: None,
             time_offset: TimeOffset::default(),
+            resync_on_invalid_timestamp: false,
         }
     }
 
@@ -158,6 +162,13 @@ impl PrivateConfig {
     /// the same [`TimeOffset`] across clients and refresh it periodically.
     pub fn time_offset(mut self, time_offset: TimeOffset) -> Self {
         self.time_offset = time_offset;
+        self
+    }
+
+    /// Resync the clock and resend once when a signed request fails with
+    /// `-1021`. Safe: Binance rejects such requests before execution.
+    pub fn resync_on_invalid_timestamp(mut self, enabled: bool) -> Self {
+        self.resync_on_invalid_timestamp = enabled;
         self
     }
 }

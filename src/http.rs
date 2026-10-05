@@ -140,6 +140,11 @@ pub struct HttpClient {
     headers: HeaderMap,
     rate_limiter: Option<Arc<RateLimiter>>,
     time_offset: TimeOffset,
+    /// Path of the product's server-time endpoint (`/api/v3/time`, ...).
+    time_path: &'static str,
+    /// Resync the clock and retry once when a signed request fails with
+    /// `-1021` (timestamp outside `recvWindow`).
+    resync_on_invalid_timestamp: bool,
 }
 
 impl HttpClient {
@@ -164,7 +169,21 @@ impl HttpClient {
             headers,
             rate_limiter,
             time_offset: TimeOffset::default(),
+            time_path: "/api/v3/time",
+            resync_on_invalid_timestamp: false,
         })
+    }
+
+    /// Where to read the server time and whether to resync automatically on
+    /// `-1021`; see [`sync_time`].
+    pub fn with_time_sync(
+        mut self,
+        time_path: &'static str,
+        resync_on_invalid_timestamp: bool,
+    ) -> Self {
+        self.time_path = time_path;
+        self.resync_on_invalid_timestamp = resync_on_invalid_timestamp;
+        self
     }
 
     /// Sign requests with the local clock corrected by `time_offset`.
@@ -313,9 +332,55 @@ where
         + From<serde_urlencoded::ser::Error>,
 {
     let query = serialize_query(params).map_err(E::from)?;
-    let query = sign_query(api_secret, http.time_offset.now(), &query);
-    let req = http.request(method, format!("{path}?{query}"));
-    decode::<T, A, E>(http.send_raw(req, cost).await)
+    let path = path.to_string();
+    let signed = |query: &str| {
+        let query = sign_query(api_secret, http.time_offset.now(), query);
+        http.request(method.clone(), format!("{path}?{query}"))
+    };
+    let raw = http.send_raw(signed(&query), cost).await;
+    // `-1021`: the request was rejected before reaching the matching engine
+    // (timestamp outside recvWindow), so it is safe to resync and resend.
+    if http.resync_on_invalid_timestamp
+        && let Ok(response) = &raw
+        && is_invalid_timestamp(response)
+    {
+        sync_time::<A, E>(http).await?;
+        return decode::<T, A, E>(http.send_raw(signed(&query), cost).await);
+    }
+    decode::<T, A, E>(raw)
+}
+
+fn is_invalid_timestamp(response: &RawResponse) -> bool {
+    #[derive(serde::Deserialize)]
+    struct Code {
+        code: i64,
+    }
+    !response.status.is_success()
+        && serde_json::from_str::<Code>(&response.body).is_ok_and(|c| c.code == -1021)
+}
+
+/// Read the server time and update the client's clock offset (shared with
+/// its clones and with the `TimeOffset` given to the config). Returns the
+/// new offset in milliseconds.
+pub async fn sync_time<A, E>(http: &HttpClient) -> Result<i64, E>
+where
+    A: DeserializeOwned,
+    E: From<SendError>
+        + From<A>
+        + From<UnexpectedResponse>
+        + From<serde_path_to_error::Error<serde_json::Error>>,
+{
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct ServerTime {
+        server_time: crate::Timestamp,
+    }
+    let sent_at = crate::timestamp();
+    let req = http.request(Method::GET, http.time_path);
+    let response = decode::<ServerTime, A, E>(http.send_raw(req, Cost::weight(1)).await)?;
+    http.time_offset
+        .update(response.result.server_time, sent_at, crate::timestamp());
+    Ok(http.time_offset.get())
 }
 
 /// Build a `method` request to `path` with `params` attached as a query
@@ -614,5 +679,115 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    /// Serve `responses` one per connection (`Connection: close`) and report
+    /// each request line.
+    async fn scripted_server(
+        responses: Vec<(u16, String)>,
+    ) -> (String, tokio::sync::mpsc::UnboundedReceiver<String>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base_url = format!("http://{}", listener.local_addr().unwrap());
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        tokio::spawn(async move {
+            for (status, body) in responses {
+                let (mut tcp, _) = listener.accept().await.unwrap();
+                let mut head = Vec::new();
+                while !head.ends_with(b"\r\n\r\n") {
+                    head.push(tcp.read_u8().await.unwrap());
+                }
+                let head = String::from_utf8(head).unwrap();
+                let _ = tx.send(head.lines().next().unwrap_or_default().to_string());
+                let reply = format!(
+                    "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                tcp.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        (base_url, rx)
+    }
+
+    fn timestamp_of(request_line: &str) -> u64 {
+        request_line
+            .split(['?', '&', ' '])
+            .find_map(|kv| kv.strip_prefix("timestamp="))
+            .unwrap()
+            .parse()
+            .unwrap()
+    }
+
+    fn client(base_url: String, resync: bool) -> HttpClient {
+        HttpClient::new(base_url, HeaderMap::new(), None, Timeouts::default(), None)
+            .unwrap()
+            .with_time_sync("/api/v3/time", resync)
+    }
+
+    type SpotSigned = Result<Response<serde_json::Value>, crate::spot::Error>;
+
+    async fn signed(http: &HttpClient) -> SpotSigned {
+        send_signed::<_, _, crate::spot::ApiError, crate::spot::Error>(
+            http,
+            &SensitiveString::from("secret"),
+            Method::GET,
+            "/api/v3/account",
+            &[("a", "1")],
+            Cost::FREE,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn sync_time_sets_the_offset() {
+        let server_time = crate::timestamp() + 3_600_000;
+        let (url, mut lines) =
+            scripted_server(vec![(200, format!(r#"{{"serverTime":{server_time}}}"#))]).await;
+        let http = client(url, false);
+        let offset = sync_time::<crate::spot::ApiError, crate::spot::Error>(&http)
+            .await
+            .unwrap();
+        assert!((3_599_000..=3_601_000).contains(&offset), "{offset}");
+        assert!(lines.recv().await.unwrap().starts_with("GET /api/v3/time "));
+    }
+
+    #[tokio::test]
+    async fn invalid_timestamp_triggers_one_resync_and_retry() {
+        let server_time = crate::timestamp() + 10_000;
+        let (url, mut lines) = scripted_server(vec![
+            (
+                400,
+                r#"{"code":-1021,"msg":"Timestamp outside recvWindow."}"#.into(),
+            ),
+            (200, format!(r#"{{"serverTime":{server_time}}}"#)),
+            (200, "{}".into()),
+        ])
+        .await;
+        let http = client(url, true);
+        signed(&http).await.expect("retried request succeeds");
+
+        let first = lines.recv().await.unwrap();
+        assert!(lines.recv().await.unwrap().starts_with("GET /api/v3/time "));
+        let retried = lines.recv().await.unwrap();
+        assert!(retried.starts_with("GET /api/v3/account?a=1&timestamp="));
+        // The resent request carries the corrected (server) time.
+        let shift = timestamp_of(&retried) as i64 - timestamp_of(&first) as i64;
+        assert!((9_000..=11_000).contains(&shift), "{shift}");
+    }
+
+    #[tokio::test]
+    async fn invalid_timestamp_is_returned_when_resync_is_off() {
+        let (url, mut lines) = scripted_server(vec![(
+            400,
+            r#"{"code":-1021,"msg":"Timestamp outside recvWindow."}"#.into(),
+        )])
+        .await;
+        let http = client(url, false);
+        match signed(&http).await {
+            Err(crate::spot::Error::Api(e)) => assert!(e.code.is_invalid_timestamp()),
+            other => panic!("unexpected {other:?}"),
+        }
+        assert!(lines.recv().await.is_some());
+        assert!(lines.try_recv().is_err(), "no retry expected");
     }
 }

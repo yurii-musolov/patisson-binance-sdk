@@ -59,11 +59,20 @@ impl PrivateClient {
             cfg.timeouts,
             cfg.proxy.as_ref(),
         )?
-        .with_time_offset(cfg.time_offset);
+        .with_time_offset(cfg.time_offset)
+        .with_time_sync("/api/v3/time", cfg.resync_on_invalid_timestamp);
         Ok(Self {
             http,
             api_secret: cfg.api_secret,
         })
+    }
+}
+
+impl PrivateClient {
+    /// Read the server time and correct this client's clock (shared with
+    /// its clones and the config's `TimeOffset`). Returns the offset in ms.
+    pub async fn sync_time(&self) -> Result<i64, Error> {
+        http::sync_time::<ApiError, Error>(&self.http).await
     }
 }
 
