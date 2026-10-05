@@ -32,7 +32,9 @@ pub enum IncomingMessage {
     ListenKeyExpired(ListenKeyExpiredEvent),
 }
 
-#[derive(PartialEq, Deserialize, Debug)]
+/// `Debug` redacts the listenKey: it grants read access to the account's
+/// events and must not end up in logs.
+#[derive(Deserialize, PartialEq)]
 pub struct ListenKeyExpiredEvent {
     #[serde(
         rename = "E",
@@ -41,6 +43,15 @@ pub struct ListenKeyExpiredEvent {
     pub event_time: Timestamp,
     #[serde(rename = "listenKey")]
     pub listen_key: String,
+}
+
+impl std::fmt::Debug for ListenKeyExpiredEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ListenKeyExpiredEvent")
+            .field("event_time", &self.event_time)
+            .field("listen_key", &"<redacted>")
+            .finish()
+    }
 }
 
 impl ReceivedMessage for IncomingMessage {
