@@ -64,6 +64,28 @@ where
         })
     }
 
+    /// Send the messages built by `builder` right after every (re)connect,
+    /// and immediately if already connected. Use it for subscriptions, which
+    /// don't survive a reconnect; the builder runs on each connect, so it can
+    /// sign requests with a fresh timestamp. Replaces any previous builder.
+    pub async fn on_connect<F>(&self, builder: F) -> Result<(), ws::Error>
+    where
+        F: Fn() -> Vec<C> + Send + 'static,
+    {
+        self.cmd_tx
+            .send(ws::Command::OnConnect(Some(Box::new(builder))))
+            .await
+            .map_err(|_| ws::Error::DriverGone)
+    }
+
+    /// Stop sending on-connect messages.
+    pub async fn clear_on_connect(&self) -> Result<(), ws::Error> {
+        self.cmd_tx
+            .send(ws::Command::OnConnect(None))
+            .await
+            .map_err(|_| ws::Error::DriverGone)
+    }
+
     pub async fn send_command(&self, msg: C) -> Result<(), ws::Error> {
         let cmd = ws::Command::Send(msg);
         self.cmd_tx

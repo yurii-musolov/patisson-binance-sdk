@@ -1,6 +1,6 @@
 use super::proxy::connect_via_proxy;
 use super::{
-    Command, Config, DisconnectReason, Event, Handle,
+    Command, Config, DisconnectReason, Event, Handle, OnConnect,
     state::{FrameResult, HeartbeatState, Sink, State},
 };
 use crate::{
@@ -34,10 +34,11 @@ use tracing::{debug, error, info, warn};
 /// `Event::Reconnecting`) and renews the connection before the 24h limit.
 /// `Event::Disconnected` is only emitted once the driver has stopped.
 ///
-/// Subscriptions are **not** restored after a reconnect: send the
-/// `SUBSCRIBE` requests again on every `Event::Connected` (or use a URL that
-/// carries the stream names). Messages sent while a reconnect is pending are
-/// queued and delivered once the connection is back.
+/// Subscriptions don't survive a reconnect on Binance's side. Register them
+/// with [`Handle::on_connect`]: the driver sends them again after every
+/// (re)connect (the builder runs each time, so signed requests get a fresh
+/// timestamp). Messages sent while a reconnect is pending are queued and
+/// delivered once the connection is back.
 pub struct Stream<C, M>
 where
     C: Serialize + Send + Debug + 'static,
@@ -51,6 +52,8 @@ where
     pending: VecDeque<C>,
     /// Data events dropped since the last `Event::Lagged` was delivered.
     lagged: u64,
+    /// Messages to send right after every (re)connect.
+    on_connect: Option<OnConnect<C>>,
 }
 
 impl<C, M> Stream<C, M>
@@ -69,6 +72,7 @@ where
             evt_tx,
             pending: VecDeque::new(),
             lagged: 0,
+            on_connect: None,
         };
 
         tokio::spawn(stream.run());
@@ -161,6 +165,7 @@ where
                 Some(Command::Send(_)) => {
                     warn!("Send ignored - not connected");
                 }
+                Some(Command::OnConnect(builder)) => self.on_connect = builder,
             }
         }
     }
@@ -203,6 +208,12 @@ where
             }
         });
 
+        if let Err(e) = self.send_on_connect(&mut sink).await {
+            error!(error = %e, "sending on-connect messages failed");
+            return self
+                .connection_lost(read_task, DisconnectReason::Error(e.to_string()))
+                .await;
+        }
         if let Err(e) = self.flush_pending(&mut sink).await {
             error!(error = %e, "sending queued messages failed");
             return self
@@ -307,7 +318,16 @@ where
                             break DisconnectReason::Error(e.to_string());
                         }
                     }
-                    Some(Command::Connect) => warn!("Connect ignored - already connected")
+                    Some(Command::Connect) => warn!("Connect ignored - already connected"),
+                    Some(Command::OnConnect(builder)) => {
+                        // Apply to the current connection too, not only to
+                        // the next one.
+                        self.on_connect = builder;
+                        if let Err(e) = self.send_on_connect(&mut sink).await {
+                            error!(error = %e, "send error");
+                            break DisconnectReason::Error(e.to_string());
+                        }
+                    }
                 },
 
                 _ = ping_timer.as_mut(), if matches!(hb, HeartbeatState::Idle) => {
@@ -365,6 +385,7 @@ where
                     }
                     Some(Command::Connect) => debug!("Connect ignored - reconnect already scheduled"),
                     Some(Command::Send(msg)) => self.queue_pending(msg),
+                    Some(Command::OnConnect(builder)) => self.on_connect = builder,
                 },
             }
         }
@@ -383,6 +404,25 @@ where
             );
         }
         self.pending.push_back(msg);
+    }
+
+    /// Send the on-connect messages (re-subscriptions, signed user data
+    /// subscriptions with a fresh timestamp, ...).
+    async fn send_on_connect(
+        &mut self,
+        sink: &mut Sink,
+    ) -> Result<(), tokio_tungstenite::tungstenite::Error> {
+        let messages = match &self.on_connect {
+            Some(builder) => builder(),
+            None => return Ok(()),
+        };
+        for msg in messages {
+            match encode(&msg) {
+                Ok(frame) => sink.send(frame).await?,
+                Err(error) => self.emit(Event::SendFailed { error }).await,
+            }
+        }
+        Ok(())
     }
 
     /// Send every queued message in order. On failure the unsent message is
@@ -863,5 +903,66 @@ mod tests {
             } => {}
             other => panic!("unexpected {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn on_connect_messages_are_resent_after_every_reconnect() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicU32, Ordering},
+        };
+        let (url, mut server) =
+            spawn_server(vec![Behaviour::CloseImmediately, Behaviour::Record]).await;
+        let (handle, mut events) = Stream::<Value, TestMsg>::new(test_config(url));
+
+        // The builder runs on every connect (e.g. to sign with a fresh time).
+        let calls = Arc::new(AtomicU32::new(0));
+        let counter = calls.clone();
+        handle
+            .on_connect(move || {
+                let n = counter.fetch_add(1, Ordering::SeqCst) + 1;
+                vec![json!({"method": "SUBSCRIBE", "params": ["btcusdt@trade"], "id": n})]
+            })
+            .await
+            .unwrap();
+        handle.connect().await.unwrap();
+
+        // Connection 0 is closed by the server; connection 1 must receive the
+        // subscription without the caller doing anything.
+        let text = loop {
+            if let ServerEvent::Text(1, text) = next_server_event(&mut server).await {
+                break text;
+            }
+        };
+        let msg: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(msg["method"], "SUBSCRIBE");
+        assert!(
+            calls.load(Ordering::SeqCst) >= 2,
+            "builder runs per connect"
+        );
+        assert_eq!(msg["id"], calls.load(Ordering::SeqCst));
+
+        let _ = next_event(&mut events).await;
+        handle.disconnect().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn on_connect_applies_to_the_current_connection() {
+        let (url, mut server) = spawn_server(vec![Behaviour::Record]).await;
+        let (handle, mut events) = Stream::<Value, TestMsg>::new(test_config(url));
+        handle.connect().await.unwrap();
+        assert!(matches!(next_event(&mut events).await, Event::Connected));
+
+        handle
+            .on_connect(|| vec![json!({"method": "SUBSCRIBE", "id": 7})])
+            .await
+            .unwrap();
+        loop {
+            if let ServerEvent::Text(0, text) = next_server_event(&mut server).await {
+                assert_eq!(text, r#"{"id":7,"method":"SUBSCRIBE"}"#);
+                break;
+            }
+        }
+        handle.disconnect().await.unwrap();
     }
 }

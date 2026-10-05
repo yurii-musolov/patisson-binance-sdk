@@ -3,7 +3,7 @@ use std::fmt;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 
-use crate::{SensitiveString, Timestamp, crypto::sign_ws_params, spot::ws::MessageID};
+use crate::{SensitiveString, TimeOffset, Timestamp, crypto::sign_ws_params, spot::ws::MessageID};
 
 /// A WebSocket API request: `{"id": ..., "method": ..., "params": {...}}`.
 ///
@@ -82,6 +82,26 @@ impl Request {
     }
 }
 
+/// On-connect builder for [`crate::ws::Handle::on_connect`]: subscribes to
+/// the user data stream with a freshly signed request on every (re)connect,
+/// so the subscription survives reconnects. `clock` corrects the timestamp
+/// (see [`TimeOffset`]).
+pub fn user_data_stream_on_connect(
+    api_key: SensitiveString,
+    api_secret: SensitiveString,
+    clock: TimeOffset,
+) -> impl Fn() -> Vec<Request> + Send + 'static {
+    move || {
+        vec![Request::user_data_stream_subscribe_signature(
+            "user-data-stream",
+            &api_key,
+            &api_secret,
+            clock.now(),
+            None,
+        )]
+    }
+}
+
 impl fmt::Debug for Request {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let params: Map<String, Value> = self
@@ -147,6 +167,22 @@ mod tests {
         );
         assert_eq!(request.params["signature"], expected);
         assert_eq!(request.params["recvWindow"], 3000);
+    }
+
+    #[test]
+    fn on_connect_builder_signs_a_fresh_request_each_time() {
+        let clock = TimeOffset::new();
+        let builder = user_data_stream_on_connect(
+            SensitiveString::from("k"),
+            SensitiveString::from("s"),
+            clock.clone(),
+        );
+        let first = builder();
+        clock.set(60_000);
+        let second = builder();
+        let ts = |r: &[Request]| r[0].params["timestamp"].as_u64().unwrap();
+        assert!(ts(&second) >= ts(&first) + 59_000);
+        assert_ne!(first[0].params["signature"], second[0].params["signature"]);
     }
 
     #[test]

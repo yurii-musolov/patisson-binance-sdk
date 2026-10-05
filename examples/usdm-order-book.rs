@@ -49,13 +49,16 @@ async fn main() -> anyhow::Result<()> {
         symbol: symbol_stream,
     };
     tokio::spawn(async move {
-        let _ = handle.connect().await;
+        // Re-subscribed automatically after every reconnect.
         let _ = handle
-            .send_command(OutgoingMessage::Subscribe {
-                id: Some("sub".into()),
-                params: vec![stream],
+            .on_connect(move || {
+                vec![OutgoingMessage::Subscribe {
+                    id: Some("sub".into()),
+                    params: vec![stream.clone()],
+                }]
             })
             .await;
+        let _ = handle.connect().await;
         sleep(Duration::from_secs(60)).await;
         let _ = handle.disconnect().await;
     });
