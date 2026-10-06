@@ -61,14 +61,14 @@ cargo run --example coinm-stream-public
 
 ### `BINANCE_ENV`: which Binance environment to use
 
-| Value | Environment | Products |
+| Value | `binance::Environment` | Products |
 |---|---|---|
-| unset, `prod`, `mainnet` | production | all |
-| `testnet` | testnet (`testnet.binance.vision`, `testnet.binancefuture.com`) | spot, USD-M, COIN-M |
-| `demo` | [demo mode](https://demo.binance.com) | spot, USD-M |
+| unset, `prod`, `mainnet` | `Production` | all |
+| `testnet` | `Testnet` (`testnet.binance.vision`; futures: `demo-fapi` / `demo-dapi`, the documented futures testnet) | spot, USD-M, COIN-M |
+| `demo` | `Demo` ([demo mode](https://demo.binance.com)) | spot, USD-M, COIN-M |
 
 Asking for a product an environment doesn't offer (e.g. `BINANCE_ENV=demo`
-with a `coinm-*` example) fails with an explicit error instead of silently
+with a `margin-*` example) fails with an explicit error instead of silently
 falling back to production. Each environment needs its own API key: testnet
 keys come from the testnet site, demo keys from demo.binance.com.
 

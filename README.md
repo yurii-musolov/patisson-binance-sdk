@@ -18,7 +18,7 @@ Every version change must be treated as a breaking change, including minor and p
 Users are strongly advised to pin an exact version, for example:
 
 ```rs
-patisson-binance-sdk = "=0.1.11"
+patisson-binance-sdk = "=0.1.12"
 ```
 
 ### Maintenance Policy
@@ -52,7 +52,7 @@ The scope of the package is intentionally limited to the most commonly used func
 
 ```toml
 [dependencies]
-patisson-binance-sdk = "=0.1.11"
+patisson-binance-sdk = "=0.1.12"
 ```
 
 > The package is `patisson-binance-sdk` (Cargo.toml); the library you import is `binance`:
@@ -62,6 +62,22 @@ patisson-binance-sdk = "=0.1.11"
 > ```
 
 ## Quick start
+
+### Environments
+
+`binance::Environment` (`Production`, `Testnet`, `Demo`, `Custom`) knows the
+base URLs of every product, so configs can be built without picking
+constants by hand:
+
+```rust
+use binance::{Environment, Product, spot::http::{PublicClient, PublicConfig}};
+
+let client = PublicClient::new(PublicConfig::for_env(Environment::Demo)?)?;
+let stream = Environment::Demo.stream_url(Product::Spot)?; // wss://demo-stream.binance.com:9443
+```
+
+Products an environment doesn't offer (margin and wallet are production
+only) return an `Unsupported` error instead of silently using production.
 
 ### Public REST — no API key
 
