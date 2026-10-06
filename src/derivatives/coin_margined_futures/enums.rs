@@ -15,7 +15,7 @@ pub enum OrderSide {
 }
 
 /// Position side. In Hedge Mode use LONG/SHORT; in One-Way Mode use BOTH.
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy, Eq, Hash)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum PositionSide {
     Both,
@@ -120,7 +120,7 @@ pub enum WorkingType {
     Unknown,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy, Eq, Hash)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum MarginType {
     /// The user data stream sends `isolated` in `ACCOUNT_UPDATE`.
