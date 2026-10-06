@@ -177,6 +177,19 @@ if let UserDataMessage::OrderTradeUpdate(event) = &msg {
 let open = orders.open().count();
 ```
 
+### Spot account state
+
+`spot::AccountState` loads balances and open orders over REST and keeps
+them current from the user data stream; events older than the snapshot
+are ignored. See the `spot-account-state` example for the full flow
+(subscribe, load, apply, reload after a reconnect).
+
+```rust
+let mut account = AccountState::load(&client).await?;
+for change in account.apply(&event) { /* AccountChange::Balance / Order */ }
+let usdt = account.balance("USDT").map(|b| b.free);
+```
+
 ### Clock drift
 
 Signed requests fail with `-1021` when the local clock drifts from
