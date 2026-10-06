@@ -177,12 +177,17 @@ if let UserDataMessage::OrderTradeUpdate(event) = &msg {
 let open = orders.open().count();
 ```
 
-### Spot account state
+### Account state
 
 `spot::AccountState` loads balances and open orders over REST and keeps
 them current from the user data stream; events older than the snapshot
 are ignored. See the `spot-account-state` example for the full flow
 (subscribe, load, apply, reload after a reconnect).
+
+`usds_margined_futures::AccountState` and `coin_margined_futures::AccountState`
+do the same for futures: wallet balances, positions (by symbol and position
+side), open orders and, on USD-M, open algo orders. See the
+`usdm-account-state` example.
 
 ```rust
 let mut account = AccountState::load(&client).await?;

@@ -1,3 +1,4 @@
+mod account_state;
 mod enums;
 mod error;
 mod order_book_state;
@@ -6,6 +7,7 @@ mod url;
 pub mod http;
 pub mod ws;
 
+pub use account_state::*;
 pub use enums::*;
 pub use error::*;
 pub use order_book_state::*;

@@ -19,12 +19,13 @@
 //!   snapshot or in a later `outboundAccountPosition` is not counted twice.
 //!   An external lock moves `delta` from free to locked.
 
-use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::collections::BTreeMap;
 
 use rust_decimal::Decimal;
 
 use crate::{
-    OrderEvent, OrderState, OrderStatus, Orders, Timestamp,
+    OrderEvent, OrderState, OrderStatus, Timestamp,
+    order_state::OpenOrders,
     spot::{
         Error,
         http::{GetAccountInformationParams, GetOpenOrdersParams, Order, PrivateClient},
@@ -64,14 +65,8 @@ pub enum AccountChange {
 #[derive(Debug, Clone, Default)]
 pub struct AccountState {
     balances: BTreeMap<String, AssetBalance>,
-    orders: Orders,
-    /// Recently finished orders, so that a late event can't reopen them.
-    closed: HashSet<(String, u64)>,
-    closed_order: VecDeque<(String, u64)>,
+    orders: OpenOrders,
 }
-
-/// How many finished orders are remembered to reject late events.
-const CLOSED_ORDERS_KEPT: usize = 10_000;
 
 impl AccountState {
     /// Snapshot: `GET /api/v3/account` and `GET /api/v3/openOrders` (all
@@ -106,14 +101,9 @@ impl AccountState {
     /// events may have been missed).
     pub async fn reload(&mut self, client: &PrivateClient) -> Result<(), Error> {
         let fresh = Self::load(client).await?;
-        // Keep the finished orders so late events still can't reopen them.
-        let closed = std::mem::take(&mut self.closed);
-        let closed_order = std::mem::take(&mut self.closed_order);
-        *self = Self {
-            closed,
-            closed_order,
-            ..fresh
-        };
+        self.balances = fresh.balances;
+        // Keeps the finished orders so late events still can't reopen them.
+        self.orders.replace_with(fresh.orders);
         Ok(())
     }
 
@@ -127,15 +117,15 @@ impl AccountState {
     }
 
     pub fn open_orders(&self) -> impl Iterator<Item = &OrderState> {
-        self.orders.open()
+        self.orders.orders().open()
     }
 
     pub fn order(&self, symbol: &str, order_id: u64) -> Option<&OrderState> {
-        self.orders.get(symbol, order_id)
+        self.orders.orders().get(symbol, order_id)
     }
 
     pub fn order_by_client_id(&self, client_order_id: &str) -> Option<&OrderState> {
-        self.orders.get_by_client_id(client_order_id)
+        self.orders.orders().get_by_client_id(client_order_id)
     }
 
     /// Apply a user data stream event; returns what changed (empty for
@@ -161,24 +151,7 @@ impl AccountState {
     }
 
     fn apply_order(&mut self, event: &impl OrderEvent) -> Option<AccountChange> {
-        let key = (event.symbol().to_owned(), event.order_id());
-        if self.closed.contains(&key) {
-            return None;
-        }
-        let before = self.orders.get(event.symbol(), event.order_id()).cloned();
-        let after = self.orders.apply(event).clone();
-        if after.is_final() {
-            self.orders.remove_final();
-            if self.closed.insert(key.clone()) {
-                self.closed_order.push_back(key);
-                if self.closed_order.len() > CLOSED_ORDERS_KEPT
-                    && let Some(oldest) = self.closed_order.pop_front()
-                {
-                    self.closed.remove(&oldest);
-                }
-            }
-        }
-        (before.as_ref() != Some(&after)).then_some(AccountChange::Order(after))
+        self.orders.apply(event).map(AccountChange::Order)
     }
 
     fn set_balance(

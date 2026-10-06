@@ -15,7 +15,7 @@
 //! - a final status (`FILLED`, `CANCELED`, ...) never goes back to an open
 //!   one.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use rust_decimal::Decimal;
 
@@ -266,6 +266,52 @@ impl Orders {
         self.by_client_id
             .retain(|_, key| self.orders.contains_key(key));
         removed
+    }
+}
+
+/// Open orders of an account state: a final order is returned once by
+/// [`OpenOrders::apply`], dropped, and remembered so that a late event
+/// can't reopen it.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct OpenOrders {
+    orders: Orders,
+    closed: HashSet<(String, u64)>,
+    closed_order: VecDeque<(String, u64)>,
+}
+
+/// How many finished orders are remembered to reject late events.
+const CLOSED_ORDERS_KEPT: usize = 10_000;
+
+impl OpenOrders {
+    /// Apply an event; returns the order's new state if it changed.
+    pub(crate) fn apply(&mut self, event: &impl OrderEvent) -> Option<OrderState> {
+        let key = (event.symbol().to_owned(), event.order_id());
+        if self.closed.contains(&key) {
+            return None;
+        }
+        let before = self.orders.get(&key.0, key.1).cloned();
+        let after = self.orders.apply(event).clone();
+        if after.is_final() {
+            self.orders.remove_final();
+            if self.closed.insert(key.clone()) {
+                self.closed_order.push_back(key);
+                if self.closed_order.len() > CLOSED_ORDERS_KEPT
+                    && let Some(oldest) = self.closed_order.pop_front()
+                {
+                    self.closed.remove(&oldest);
+                }
+            }
+        }
+        (before.as_ref() != Some(&after)).then_some(after)
+    }
+
+    pub(crate) fn orders(&self) -> &Orders {
+        &self.orders
+    }
+
+    /// Fresh open orders (from a snapshot), keeping the finished ones.
+    pub(crate) fn replace_with(&mut self, fresh: OpenOrders) {
+        self.orders = fresh.orders;
     }
 }
 
