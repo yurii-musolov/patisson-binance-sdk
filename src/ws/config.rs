@@ -6,6 +6,7 @@ pub const DEFAULT_PING_INTERVAL: Duration = Duration::from_secs(20);
 /// Spot / margin streams: the server drops the connection if no pong
 /// arrives within a minute.
 pub const DEFAULT_PONG_TIMEOUT: Duration = Duration::from_secs(60);
+/// Binance drops connections after 24 hours.
 pub const DEFAULT_CONNECTION_TTL: Duration = Duration::from_hours(24);
 
 /// USD-M / COIN-M futures streams: the server pings every 3 minutes. The
@@ -16,6 +17,7 @@ pub const FUTURES_PING_INTERVAL: Duration = Duration::from_mins(5);
 pub const FUTURES_PONG_TIMEOUT: Duration = Duration::from_mins(10);
 
 #[derive(Debug, Clone)]
+/// WebSocket connection settings. Start from [`Config::new`] or [`Config::futures`].
 pub struct Config {
     /// WebSocket server URL
     pub url: String,
@@ -106,36 +108,43 @@ impl Config {
             .pong_timeout(FUTURES_PONG_TIMEOUT)
     }
 
+    /// Capacity of the command channel.
     pub fn command_queue_size(mut self, n: usize) -> Self {
         self.command_queue_size = n;
         self
     }
 
+    /// Capacity of the event channel; overflow drops data events (see `Event::Lagged`).
     pub fn event_queue_size(mut self, n: usize) -> Self {
         self.event_queue_size = n;
         self
     }
 
+    /// Give up after this many failed attempts in a row.
     pub fn max_reconnect_attempts(mut self, n: u32) -> Self {
         self.max_reconnect_attempts = n;
         self
     }
 
+    /// First reconnect delay; doubled on each failed attempt.
     pub fn reconnect_base_delay(mut self, d: Duration) -> Self {
         self.reconnect_base_delay = d;
         self
     }
 
+    /// Upper bound of the reconnect backoff.
     pub fn reconnect_max_delay(mut self, d: Duration) -> Self {
         self.reconnect_max_delay = d;
         self
     }
 
+    /// How long to wait for the server's close frame on disconnect.
     pub fn close_timeout(mut self, d: Duration) -> Self {
         self.close_timeout = d;
         self
     }
 
+    /// Timeout of one connection attempt (TCP, TLS and handshake).
     pub fn connect_timeout(mut self, d: Duration) -> Self {
         self.connect_timeout = d;
         self
@@ -148,16 +157,19 @@ impl Config {
         self
     }
 
+    /// Interval of client pings.
     pub fn ping_interval(mut self, d: Duration) -> Self {
         self.ping_interval = d;
         self
     }
 
+    /// How long to wait for a pong before treating the connection as dead.
     pub fn pong_timeout(mut self, d: Duration) -> Self {
         self.pong_timeout = d;
         self
     }
 
+    /// Reconnect proactively after this long (Binance closes connections after 24 h).
     pub fn connection_ttl(mut self, d: Duration) -> Self {
         self.connection_ttl = d;
         self

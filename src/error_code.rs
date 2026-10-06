@@ -29,6 +29,7 @@ use serde::{Deserialize, Serialize};
 pub struct ErrorCode(pub i64);
 
 impl ErrorCode {
+    /// Wrap a raw code.
     pub const fn new(code: i64) -> Self {
         Self(code)
     }
@@ -61,43 +62,72 @@ impl std::fmt::Display for ErrorCode {
 
 impl ErrorCode {
     // 10xx — general server / network
+    /// Unknown error.
     pub const UNKNOWN: Self = Self(-1000);
+    /// Internal error; unable to process the request.
     pub const DISCONNECTED: Self = Self(-1001);
+    /// Not authorized to execute this request.
     pub const UNAUTHORIZED: Self = Self(-1002);
+    /// Request weight limit exceeded.
     pub const TOO_MANY_REQUESTS: Self = Self(-1003);
+    /// Unexpected backend response; execution status unknown.
     pub const UNEXPECTED_RESP: Self = Self(-1006);
+    /// Timeout waiting for the backend; execution status unknown.
     pub const TIMEOUT: Self = Self(-1007);
+    /// The server is overloaded; retry later.
     pub const SERVER_BUSY: Self = Self(-1008);
     /// The matching engine returned an error; the message says which.
     pub const ERROR_MSG_RECEIVED: Self = Self(-1010);
     /// Rejected by the API before reaching the matching engine, typically
     /// a filter failure (`Filter failure: PRICE_FILTER`, ...).
     pub const INVALID_MESSAGE: Self = Self(-1013);
+    /// Too many new orders: order rate limit.
     pub const TOO_MANY_ORDERS: Self = Self(-1015);
+    /// The service is no longer available.
     pub const SERVICE_SHUTTING_DOWN: Self = Self(-1016);
+    /// This operation is not supported.
     pub const UNSUPPORTED_OPERATION: Self = Self(-1020);
+    /// Timestamp outside `recvWindow` or ahead of the server's time.
     pub const INVALID_TIMESTAMP: Self = Self(-1021);
+    /// Signature for this request is not valid.
     pub const INVALID_SIGNATURE: Self = Self(-1022);
+    /// Too many concurrent connections.
     pub const TOO_MANY_CONNECTIONS: Self = Self(-1034);
 
     // 11xx — request validation
+    /// Illegal characters in a parameter.
     pub const ILLEGAL_CHARS: Self = Self(-1100);
+    /// Too many parameters, or a parameter sent twice.
     pub const TOO_MANY_PARAMETERS: Self = Self(-1101);
+    /// A mandatory parameter was not sent, was empty or malformed.
     pub const MANDATORY_PARAM_EMPTY_OR_MALFORMED: Self = Self(-1102);
+    /// An unknown parameter was sent.
     pub const UNKNOWN_PARAM: Self = Self(-1103);
+    /// Invalid symbol.
     pub const BAD_SYMBOL: Self = Self(-1121);
+    /// The listenKey does not exist.
     pub const INVALID_LISTEN_KEY: Self = Self(-1125);
+    /// Too many messages sent on the connection.
     pub const TOO_MANY_MESSAGES: Self = Self(-1181);
+    /// Too many subscriptions on the connection.
     pub const TOO_MANY_SUBSCRIPTIONS: Self = Self(-1191);
 
     // 20xx — trading / matching engine
+    /// New order rejected by the matching engine.
     pub const NEW_ORDER_REJECTED: Self = Self(-2010);
+    /// Cancel rejected by the matching engine.
     pub const CANCEL_REJECTED: Self = Self(-2011);
+    /// Order does not exist.
     pub const NO_SUCH_ORDER: Self = Self(-2013);
+    /// API key format invalid.
     pub const BAD_API_KEY_FMT: Self = Self(-2014);
+    /// Invalid API key, IP, or permissions for action.
     pub const REJECTED_MBX_KEY: Self = Self(-2015);
+    /// No trading window could be found for the symbol.
     pub const NO_TRADING_WINDOW: Self = Self(-2016);
+    /// Order amend rejected by the matching engine.
     pub const ORDER_AMEND_REJECTED: Self = Self(-2038);
+    /// Client order id is not valid.
     pub const CLIENT_ORDER_ID_INVALID: Self = Self(-2039);
     /// Spot: canceled or expired order without fills, archived after 90
     /// days. (Futures use -2026 for `REDUCE_ONLY_ORDER_TYPE_NOT_SUPPORTED`.)

@@ -85,6 +85,7 @@ impl Default for Inner {
 }
 
 impl OrderBookState {
+    /// Empty, unsynchronized book.
     pub fn new() -> Self {
         Self::default()
     }
@@ -158,10 +159,12 @@ impl OrderBookState {
         }
     }
 
+    /// The book has a snapshot and a gap-free stream of updates.
     pub fn is_synced(&self) -> bool {
         matches!(self.inner, Inner::Synced { .. })
     }
 
+    /// Last applied update id; `None` until synchronized.
     pub fn last_update_id(&self) -> Option<i64> {
         match &self.inner {
             Inner::Synced { last_update_id, .. } => Some(*last_update_id),
@@ -169,6 +172,7 @@ impl OrderBookState {
         }
     }
 
+    /// Bids by price; `None` until synchronized.
     pub fn bids(&self) -> Option<&BTreeMap<Decimal, Decimal>> {
         match &self.inner {
             Inner::Synced { bids, .. } => Some(bids),
@@ -176,6 +180,7 @@ impl OrderBookState {
         }
     }
 
+    /// Asks by price; `None` until synchronized.
     pub fn asks(&self) -> Option<&BTreeMap<Decimal, Decimal>> {
         match &self.inner {
             Inner::Synced { asks, .. } => Some(asks),
@@ -183,11 +188,13 @@ impl OrderBookState {
         }
     }
 
+    /// Highest bid: (price, quantity).
     pub fn best_bid(&self) -> Option<(Decimal, Decimal)> {
         self.bids()
             .and_then(|b| b.iter().next_back().map(|(p, q)| (*p, *q)))
     }
 
+    /// Lowest ask: (price, quantity).
     pub fn best_ask(&self) -> Option<(Decimal, Decimal)> {
         self.asks()
             .and_then(|a| a.iter().next().map(|(p, q)| (*p, *q)))

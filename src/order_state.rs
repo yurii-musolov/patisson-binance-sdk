@@ -33,12 +33,17 @@ pub enum OrderStatus {
     /// On the book (COIN-M `NEW_INSURANCE` / `NEW_ADL` liquidation orders
     /// too).
     New,
+    /// Partially filled.
     PartiallyFilled,
+    /// Completely filled.
     Filled,
     /// Cancel requested, not yet confirmed.
     PendingCancel,
+    /// Canceled.
     Canceled,
+    /// Rejected.
     Rejected,
+    /// Expired (e.g. IOC/FOK not filled, GTD reached).
     Expired,
     /// Expired by self-trade prevention.
     ExpiredInMatch,
@@ -59,44 +64,66 @@ impl OrderStatus {
 /// One trade of an order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Fill {
+    /// Trade id.
     pub trade_id: u64,
+    /// Order price (`0` for market orders).
     pub price: Decimal,
+    /// Filled quantity.
     pub qty: Decimal,
+    /// Commission paid for this trade.
     pub commission: Decimal,
+    /// Commission asset.
     pub commission_asset: Option<String>,
+    /// The order was the maker.
     pub is_maker: bool,
+    /// Trade time.
     pub time: Timestamp,
 }
 
 /// An order update event, whatever the product. Implemented for the user
 /// data stream order events of spot, margin, USD-M and COIN-M.
 pub trait OrderEvent {
+    /// Symbol.
     fn symbol(&self) -> &str;
+    /// Exchange order id.
     fn order_id(&self) -> u64;
     /// The id the order was placed with (for a cancel, the original order's
     /// id, not the cancel request's).
     fn client_order_id(&self) -> &str;
+    /// Status after this update.
     fn status(&self) -> OrderStatus;
+    /// Ordered quantity.
     fn original_qty(&self) -> Decimal;
+    /// Order price.
     fn price(&self) -> Decimal;
+    /// Cumulative filled quantity after this update.
     fn cumulative_filled_qty(&self) -> Decimal;
     /// Average fill price so far, if anything was filled.
     fn average_price(&self) -> Option<Decimal>;
     /// The trade this event reports, if it reports one.
     fn fill(&self) -> Option<Fill>;
+    /// Transaction time of the update.
     fn transaction_time(&self) -> Timestamp;
 }
 
 /// Current state of one order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OrderState {
+    /// Symbol.
     pub symbol: String,
+    /// Exchange order id (unique per symbol).
     pub order_id: u64,
+    /// Client order id the order was placed with.
     pub client_order_id: String,
+    /// Current status.
     pub status: OrderStatus,
+    /// Ordered quantity.
     pub original_qty: Decimal,
+    /// Order price (`0` for market orders).
     pub price: Decimal,
+    /// Cumulative filled quantity.
     pub filled_qty: Decimal,
+    /// Average fill price; `None` until something is filled.
     pub average_price: Option<Decimal>,
     /// Total commission by asset.
     pub commissions: BTreeMap<String, Decimal>,
@@ -104,6 +131,7 @@ pub struct OrderState {
     pub fills: Vec<Fill>,
     /// Transaction time of the first and the latest applied event.
     pub created_at: Timestamp,
+    /// Time of the last update applied.
     pub updated_at: Timestamp,
 }
 
@@ -173,6 +201,7 @@ impl OrderState {
         changed
     }
 
+    /// The order can no longer change.
     pub fn is_final(&self) -> bool {
         self.status.is_final()
     }
@@ -209,6 +238,7 @@ pub struct Orders {
 }
 
 impl Orders {
+    /// Empty registry.
     pub fn new() -> Self {
         Self::default()
     }
@@ -227,10 +257,12 @@ impl Orders {
         state
     }
 
+    /// An order by symbol and order id.
     pub fn get(&self, symbol: &str, order_id: u64) -> Option<&OrderState> {
         self.orders.get(&(symbol.to_owned(), order_id))
     }
 
+    /// An order by client order id.
     pub fn get_by_client_id(&self, client_order_id: &str) -> Option<&OrderState> {
         self.by_client_id
             .get(client_order_id)
@@ -242,14 +274,17 @@ impl Orders {
         self.orders.values().filter(|o| !o.is_final())
     }
 
+    /// Every tracked order.
     pub fn iter(&self) -> impl Iterator<Item = &OrderState> {
         self.orders.values()
     }
 
+    /// Number of entries.
     pub fn len(&self) -> usize {
         self.orders.len()
     }
 
+    /// No entries.
     pub fn is_empty(&self) -> bool {
         self.orders.is_empty()
     }

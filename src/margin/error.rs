@@ -9,32 +9,44 @@ use crate::{http::SendError, rate_limit::RateLimitSource};
 pub use crate::ErrorCode;
 
 #[derive(Debug)]
+/// Errors returned by this product's clients.
 pub enum Error {
+    /// Binance answered with an error body (`{"code":...,"msg":...}`).
     Api(ApiError),
     /// Non-2xx response whose body is not Binance's `{"code":...,"msg":...}`
     /// error, e.g. an HTML page from a proxy or CDN on 502/503.
     Http {
+        /// HTTP status.
         status: reqwest::StatusCode,
+        /// Response body as received.
         body: String,
     },
+    /// I/O error.
     Io(std::io::Error),
     /// The configured API key isn't a valid HTTP header value (e.g. contains
     /// a byte outside the allowed range).
     InvalidApiKey(reqwest::header::InvalidHeaderValue),
+    /// Other error, described by the message.
     Msg(String),
+    /// Transport error (connect, TLS, timeout, ...).
     Reqwest(reqwest::Error),
     /// Either local budget exhausted (no request was sent) or the server
     /// returned 429/418. `source` distinguishes; `retry_after` is the
     /// minimum back-off before retrying.
     RateLimited {
+        /// Minimum wait before retrying.
         retry_after: Duration,
+        /// Whether the local limiter or the server refused the request.
         source: RateLimitSource,
         /// Binance's decoded error body when the server returned it
         /// (429/418); `None` when the request was rejected locally.
         api_err: Option<ApiError>,
     },
+    /// JSON (de)serialization error.
     SerdeJson(serde_json::Error),
+    /// Query string serialization error.
     SerdeUrlEncoded(serde_urlencoded::ser::Error),
+    /// Response didn't match the model; the path says where.
     SerdePathToError(serde_path_to_error::Error<serde_json::Error>),
 }
 
@@ -178,7 +190,9 @@ impl From<crate::http::UnexpectedResponse> for Error {
 /// `code.raw()` to handle those.
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct ApiError {
+    /// Binance error code.
     pub code: ErrorCode,
+    /// Binance error message.
     pub msg: String,
 }
 

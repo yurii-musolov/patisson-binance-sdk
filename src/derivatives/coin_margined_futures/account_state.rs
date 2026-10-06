@@ -33,7 +33,9 @@ use crate::{
 /// Wallet balance of one margin asset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WalletBalance {
+    /// Wallet balance.
     pub wallet_balance: Decimal,
+    /// Cross wallet balance.
     pub cross_wallet_balance: Decimal,
     /// Time of the last update applied.
     pub updated_at: Timestamp,
@@ -42,13 +44,19 @@ pub struct WalletBalance {
 /// One position (per symbol and position side).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PositionState {
+    /// Symbol.
     pub symbol: String,
+    /// `BOTH` in one-way mode, `LONG` / `SHORT` in hedge mode.
     pub position_side: PositionSide,
     /// Signed: negative for a short in one-way mode. `0` once closed.
     pub amount: Decimal,
+    /// Average entry price.
     pub entry_price: Decimal,
+    /// Break-even price.
     pub breakeven_price: Option<Decimal>,
+    /// Unrealized PnL.
     pub unrealized_pnl: Decimal,
+    /// Isolated or crossed.
     pub margin_type: Option<MarginType>,
     /// Unknown until the first `ACCOUNT_UPDATE` (the position endpoint
     /// doesn't report it).
@@ -58,6 +66,7 @@ pub struct PositionState {
 }
 
 impl PositionState {
+    /// Amount is not zero.
     pub fn is_open(&self) -> bool {
         !self.amount.is_zero()
     }
@@ -66,8 +75,11 @@ impl PositionState {
 /// What a message changed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccountChange {
+    /// New balance of an asset.
     Balance {
+        /// Asset.
         asset: String,
+        /// New balance.
         balance: WalletBalance,
     },
     /// New state of a position (`amount` 0: closed).
@@ -143,14 +155,17 @@ impl AccountState {
         Ok(())
     }
 
+    /// Balance of an asset.
     pub fn balance(&self, asset: &str) -> Option<&WalletBalance> {
         self.balances.get(asset)
     }
 
+    /// Every asset, sorted by name.
     pub fn balances(&self) -> impl Iterator<Item = (&str, &WalletBalance)> {
         self.balances.iter().map(|(a, b)| (a.as_str(), b))
     }
 
+    /// An open position by symbol and position side.
     pub fn position(&self, symbol: &str, side: PositionSide) -> Option<&PositionState> {
         self.positions
             .get(&(symbol.to_owned(), side))
@@ -162,14 +177,17 @@ impl AccountState {
         self.positions.values().filter(|p| p.is_open())
     }
 
+    /// Open orders.
     pub fn open_orders(&self) -> impl Iterator<Item = &OrderState> {
         self.orders.orders().open()
     }
 
+    /// An order by symbol and order id.
     pub fn order(&self, symbol: &str, order_id: u64) -> Option<&OrderState> {
         self.orders.orders().get(symbol, order_id)
     }
 
+    /// An order by client order id.
     pub fn order_by_client_id(&self, client_order_id: &str) -> Option<&OrderState> {
         self.orders.orders().get_by_client_id(client_order_id)
     }

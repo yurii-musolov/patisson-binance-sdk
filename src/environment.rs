@@ -7,10 +7,15 @@ use crate::{derivatives, margin, spot, wallet};
 /// A Binance product family; each has its own hosts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Product {
+    /// Spot.
     Spot,
+    /// Margin (`/sapi`).
     Margin,
+    /// Wallet (`/sapi`).
     Wallet,
+    /// USD-M Futures.
     UsdmFutures,
+    /// COIN-M Futures.
     CoinmFutures,
 }
 
@@ -64,8 +69,11 @@ pub enum Environment {
 /// `product` is not offered in `environment`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Unsupported {
+    /// Requested product.
     pub product: Product,
+    /// Requested environment.
     pub environment: Environment,
+    /// The missing endpoint: `api`, `stream` or `ws_api`.
     pub endpoint: &'static str,
 }
 

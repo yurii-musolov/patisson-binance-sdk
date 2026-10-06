@@ -1,4 +1,6 @@
+/// A message type the driver can decode; lets it react to server notices.
 pub trait ReceivedMessage {
+    /// Event time of an app-level `serverShutdown` notice, if this message is one.
     fn server_shutdown_event_time(&self) -> Option<u64>;
 }
 
@@ -6,9 +8,13 @@ pub trait ReceivedMessage {
 /// [`crate::ws::Handle::on_connect`].
 pub type OnConnect<T> = Box<dyn Fn() -> Vec<T> + Send>;
 
+/// Commands accepted by the driver (sent through [`crate::ws::Handle`]).
 pub enum Command<T> {
+    /// Start connecting.
     Connect,
+    /// Send a message.
     Send(T),
+    /// Close the connection and stop.
     Disconnect,
     /// Replace (or with `None`, clear) the on-connect messages builder.
     OnConnect(Option<OnConnect<T>>),
@@ -29,7 +35,9 @@ impl<T: std::fmt::Debug> std::fmt::Debug for Command<T> {
 }
 
 #[derive(Debug)]
+/// What the driver reports on its event channel.
 pub enum Event<T> {
+    /// A decoded message.
     Message(T),
     /// A connection was established (on-connect messages, see
     /// `Handle::on_connect`, have already been sent).
@@ -42,32 +50,39 @@ pub enum Event<T> {
     /// stateful consumers (order books, user data) treat this like a gap and
     /// resynchronize.
     Lagged {
+        /// Number of dropped data events.
         dropped: u64,
     },
     /// An outgoing message could not be serialized and was dropped.
     SendFailed {
+        /// Serialization error.
         error: String,
     },
     /// An established connection ended without being asked to. The driver
     /// reconnects on its own (see `Reconnecting`); subscriptions made with
     /// `SUBSCRIBE` are restored only if registered with `Handle::on_connect`. Stateful consumers should resynchronize.
     ConnectionLost {
+        /// Why.
         reason: DisconnectReason,
     },
     /// The driver is waiting `delay_ms` before connection attempt `attempt`.
     Reconnecting {
+        /// Attempt number, from 1.
         attempt: u32,
+        /// Wait before the attempt, in milliseconds.
         delay_ms: u64,
     },
     /// The driver has stopped and is idle: either `disconnect()` was called
     /// (`Requested`) or every reconnect attempt failed (`Error`). Call
     /// `connect()` to start again.
     Disconnected {
+        /// Why.
         reason: DisconnectReason,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Why the driver stopped or lost the connection.
 pub enum DisconnectReason {
     /// The user called `disconnect()` or dropped every `Handle`.
     Requested,

@@ -5,6 +5,10 @@
 //! probes are not duplicated here: use [`crate::spot::http::PublicClient`]
 //! for `/api/v3/*` (ping, time, exchange info, klines, depth, tickers, …).
 
+// Wire models: names mirror Binance's documentation field by field; they are
+// documented where the meaning isn't obvious. Full coverage comes later.
+#![allow(missing_docs)]
+
 // Mainnet
 pub const BASE_URL_API: &str = "https://api.binance.com";
 

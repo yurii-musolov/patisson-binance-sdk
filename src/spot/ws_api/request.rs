@@ -10,9 +10,12 @@ use crate::{SensitiveString, TimeOffset, Timestamp, crypto::sign_ws_params, spot
 /// `Debug` redacts `apiKey` and `signature`, so requests can be logged.
 #[derive(Serialize, PartialEq)]
 pub struct Request {
+    /// Request id, echoed in the response.
     pub id: MessageID,
+    /// WebSocket API method, e.g. `userDataStream.subscribe.signature`.
     pub method: &'static str,
     #[serde(skip_serializing_if = "Map::is_empty")]
+    /// Request parameters.
     pub params: Map<String, Value>,
 }
 

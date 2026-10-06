@@ -2,6 +2,10 @@
 //!
 //! These apply to both REST and WebSocket endpoints.
 
+// Wire models: names mirror Binance's documentation field by field; they are
+// documented where the meaning isn't obvious. Full coverage comes later.
+#![allow(missing_docs)]
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]

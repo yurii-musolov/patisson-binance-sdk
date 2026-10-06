@@ -44,6 +44,20 @@ The scope of the package is intentionally limited to the most commonly used func
 - **Builder pattern** on every `*Request` / `*Params` type with private fields, so new
   optional parameters can be added without breaking callers
 
+Building blocks you would otherwise write yourself:
+
+- [Environments](#environments) — production, testnet and demo base URLs (`Environment`)
+- Cloneable clients, HTTP/HTTPS/SOCKS5 proxy for REST and HTTP proxy for WebSocket,
+  one TLS stack ([TLS](#tls))
+- [Clock drift](#clock-drift) — `sync_time`, automatic resync on `-1021`
+- Subscriptions restored after every reconnect (`Handle::on_connect`)
+- listenKey keepalive in the background (`ListenKeyKeeper`)
+- [Trading rules](#trading-rules) — round and validate orders (`SymbolRules`)
+- [Order tracking](#order-tracking) and [account state](#account-state) from the user
+  data stream (`Orders`, `AccountState` for spot, USD-M and COIN-M)
+- [Full history](#full-history) — `*_all` methods that walk every page
+- [Error handling](#error-handling) — `api_code`, `is_retryable`, `retry_after`
+
 > **Scope:** every product module ships a representative slice of endpoints — enough
 > to use the SDK and copy the pattern for the rest of Binance's API. Coverage is not
 > exhaustive; extensions are straightforward to add following the existing layout.
@@ -329,11 +343,12 @@ Codes from `-2xxx` on can mean different things on spot and futures (e.g.
 |---|---|---|---|
 | `binance::spot` | Spot trading | `PublicClient` + `PrivateClient` | market streams; user data stream via the WebSocket API (`spot::ws_api`) |
 | `binance::margin` | Margin (cross + isolated) | `PrivateClient` only — use spot's `PublicClient` for market data | user data stream (listenKey-based) |
-| `binance::derivatives::usds_margined_futures` | USDⓈ-M Futures | `PublicClient` + `PrivateClient` | market streams |
-| `binance::derivatives::coin_margined_futures` | COIN-M Futures | `PublicClient` + `PrivateClient` | market streams |
+| `binance::derivatives::usds_margined_futures` | USDⓈ-M Futures | `PublicClient` + `PrivateClient` | market streams; user data stream (listenKey-based) |
+| `binance::derivatives::coin_margined_futures` | COIN-M Futures | `PublicClient` + `PrivateClient` | market streams; user data stream (listenKey-based) |
 | `binance::wallet` | Deposits / withdrawals / account status | `PrivateClient` only | — |
 | `binance::ws` | Shared WebSocket driver (`Stream<C, M>`) | — | — |
 | `binance::ErrorCode` | Crate-wide error code newtype + predicates | — | — |
+| `binance::{Environment, SymbolRules, Orders, ListenKeyKeeper, ...}` | Environments, trading rules, order tracking, listenKey keepalive | — | — |
 
 ## Examples
 

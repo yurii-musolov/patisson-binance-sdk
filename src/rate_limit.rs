@@ -32,8 +32,11 @@ use std::{
 /// buckets always charge 1 per call, independent of `Cost`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Cost {
+    /// IP weight.
     pub weight: u32,
+    /// Orders placed.
     pub orders: u32,
+    /// UID weight (`/sapi` endpoints).
     pub uid_weight: u32,
 }
 
@@ -46,6 +49,7 @@ impl Cost {
         uid_weight: 0,
     };
 
+    /// Cost in IP weight only.
     pub const fn weight(weight: u32) -> Self {
         Self {
             weight,
@@ -54,6 +58,7 @@ impl Cost {
         }
     }
 
+    /// Cost in IP weight plus order count.
     pub const fn weight_and_orders(weight: u32, orders: u32) -> Self {
         Self {
             weight,
@@ -72,6 +77,7 @@ impl Cost {
         }
     }
 
+    /// Cost in UID weight plus order count.
     pub const fn uid_weight_and_orders(uid_weight: u32, orders: u32) -> Self {
         Self {
             weight: 0,
@@ -101,12 +107,16 @@ pub enum BucketKind {
 /// `exchangeInfo` (see [`RateLimiter::new`]) or hand-roll them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BucketSpec {
+    /// What the bucket counts.
     pub kind: BucketKind,
+    /// Window length.
     pub interval: Duration,
+    /// Units allowed per interval.
     pub limit: u32,
 }
 
 impl BucketSpec {
+    /// A bucket of `limit` units per `interval`.
     pub const fn new(kind: BucketKind, interval: Duration, limit: u32) -> Self {
         Self {
             kind,
@@ -129,7 +139,9 @@ pub enum RateLimitSource {
 /// Outcome of a refused acquire — how long to back off and why.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RateLimited {
+    /// Minimum wait before retrying.
     pub retry_after: Duration,
+    /// Who refused: the local budget or the server.
     pub source: RateLimitSource,
 }
 
@@ -141,8 +153,11 @@ pub struct RateLimited {
 /// [`RateLimiter::observe`].
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ObservedUsage {
+    /// IP weight used, by interval.
     pub weight: BTreeMap<Duration, u32>,
+    /// Orders placed, by interval.
     pub orders: BTreeMap<Duration, u32>,
+    /// UID weight used, by interval.
     pub uid_weight: BTreeMap<Duration, u32>,
 }
 
@@ -227,6 +242,7 @@ pub struct RateLimiter {
 }
 
 impl RateLimiter {
+    /// Limiter with the given buckets.
     pub fn new(specs: impl IntoIterator<Item = BucketSpec>) -> Self {
         Self::new_at(specs, Now::current())
     }

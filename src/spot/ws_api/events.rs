@@ -1,5 +1,9 @@
 //! Spot user data stream events (`user-data-stream.md` in the Spot API docs).
 
+// Wire models: names mirror Binance's documentation field by field; they are
+// documented where the meaning isn't obvious. Full coverage comes later.
+#![allow(missing_docs)]
+
 use rust_decimal::Decimal;
 use serde::Deserialize;
 

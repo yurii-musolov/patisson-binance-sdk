@@ -4,7 +4,9 @@ mod error;
 mod order_book_state;
 mod url;
 
+/// REST clients and models.
 pub mod http;
+/// WebSocket streams.
 pub mod ws;
 
 pub use account_state::*;

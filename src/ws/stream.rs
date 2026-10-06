@@ -62,6 +62,7 @@ where
     M: ReceivedMessage + DeserializeOwned + Send + Debug + 'static,
 {
     #[allow(clippy::new_ret_no_self)]
+    /// Spawn a driver; returns its handle and event channel. Call `connect` to start.
     pub fn new(config: Config) -> (Handle<C>, mpsc::Receiver<Event<M>>) {
         let (cmd_tx, cmd_rx) = mpsc::channel::<Command<C>>(config.command_queue_size);
         let (evt_tx, evt_rx) = mpsc::channel::<Event<M>>(config.event_queue_size);

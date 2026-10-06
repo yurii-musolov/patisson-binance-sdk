@@ -1,3 +1,7 @@
+// Wire models: names mirror Binance's documentation field by field; they are
+// documented where the meaning isn't obvious. Full coverage comes later.
+#![allow(missing_docs)]
+
 use crate::{serde::deserialize_json, spot::KlineInterval};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;

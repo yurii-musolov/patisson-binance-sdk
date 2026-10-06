@@ -49,8 +49,11 @@ const HEADER_SAPI_UID_WEIGHT_PREFIX: &str = "x-sapi-used-uid-weight-";
 /// reports per bucket interval, e.g. a `1m` window keys to `Duration::from_secs(60)`.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ParsedHeaders {
+    /// `Retry-After`, on 429/418.
     pub retry_after: Option<Duration>,
+    /// `X-MBX-USED-WEIGHT-*` by interval.
     pub used_weight: BTreeMap<Duration, u32>,
+    /// `X-MBX-ORDER-COUNT-*` by interval.
     pub order_count: BTreeMap<Duration, u32>,
     /// `X-SAPI-USED-UID-WEIGHT-*`: UID weight used by `/sapi` endpoints.
     pub used_uid_weight: BTreeMap<Duration, u32>,
@@ -271,7 +274,9 @@ pub fn body_excerpt(body: &str) -> &str {
 /// difference from before this was centralized here.
 #[derive(Debug, PartialEq)]
 pub struct Response<T> {
+    /// Decoded response body.
     pub result: T,
+    /// Rate-limit headers of the response.
     pub headers: ParsedHeaders,
 }
 

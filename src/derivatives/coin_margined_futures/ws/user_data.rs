@@ -4,6 +4,10 @@
 //! Field meanings follow the official "User Data Streams" event pages; the
 //! one-letter wire names are kept in `#[serde(rename)]`.
 
+// Wire models: names mirror Binance's documentation field by field; they are
+// documented where the meaning isn't obvious. Full coverage comes later.
+#![allow(missing_docs)]
+
 use rust_decimal::Decimal;
 use serde::Deserialize;
 

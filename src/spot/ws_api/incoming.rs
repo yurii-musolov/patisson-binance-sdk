@@ -1,3 +1,7 @@
+// Wire models: names mirror Binance's documentation field by field; they are
+// documented where the meaning isn't obvious. Full coverage comes later.
+#![allow(missing_docs)]
+
 use serde::Deserialize;
 
 use crate::{ErrorCode, spot::ws::MessageID, ws::ReceivedMessage};

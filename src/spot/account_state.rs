@@ -36,13 +36,16 @@ use crate::{
 /// Balance of one asset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AssetBalance {
+    /// Available.
     pub free: Decimal,
+    /// Locked (in open orders or by an external system).
     pub locked: Decimal,
     /// Time of the last update applied to this asset.
     pub updated_at: Timestamp,
 }
 
 impl AssetBalance {
+    /// Free plus locked.
     pub fn total(&self) -> Decimal {
         self.free + self.locked
     }
@@ -53,7 +56,9 @@ impl AssetBalance {
 pub enum AccountChange {
     /// New balance of an asset.
     Balance {
+        /// Asset.
         asset: String,
+        /// New balance.
         balance: AssetBalance,
     },
     /// New state of an order. Final orders are reported once, then dropped
@@ -107,6 +112,7 @@ impl AccountState {
         Ok(())
     }
 
+    /// Balance of an asset.
     pub fn balance(&self, asset: &str) -> Option<&AssetBalance> {
         self.balances.get(asset)
     }
@@ -116,14 +122,17 @@ impl AccountState {
         self.balances.iter().map(|(a, b)| (a.as_str(), b))
     }
 
+    /// Open orders.
     pub fn open_orders(&self) -> impl Iterator<Item = &OrderState> {
         self.orders.orders().open()
     }
 
+    /// An order by symbol and order id.
     pub fn order(&self, symbol: &str, order_id: u64) -> Option<&OrderState> {
         self.orders.orders().get(symbol, order_id)
     }
 
+    /// An order by client order id.
     pub fn order_by_client_id(&self, client_order_id: &str) -> Option<&OrderState> {
         self.orders.orders().get_by_client_id(client_order_id)
     }
