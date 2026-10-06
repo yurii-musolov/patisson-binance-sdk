@@ -158,6 +158,25 @@ btc.validate(price, qty)?; // tick, step, min/max qty and price, notional
 
 Works with spot, USD-M and COIN-M `exchangeInfo`.
 
+### Order tracking
+
+`Orders` folds user data stream order events (spot and margin
+`executionReport`, USD-M and COIN-M `ORDER_TRADE_UPDATE`) into the current
+state of each order: status, filled quantity, average price, fills and
+commissions. Repeated or late events after a reconnect don't double count.
+
+```rust
+use binance::{Orders, derivatives::usds_margined_futures::ws::UserDataMessage};
+
+let mut orders = Orders::new();
+// for each user data stream message:
+if let UserDataMessage::OrderTradeUpdate(event) = &msg {
+    let order = orders.apply(event);
+    println!("{} {:?} filled {}", order.client_order_id, order.status, order.filled_qty);
+}
+let open = orders.open().count();
+```
+
 ### Clock drift
 
 Signed requests fail with `-1021` when the local clock drifts from
