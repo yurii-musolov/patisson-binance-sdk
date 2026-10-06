@@ -1,10 +1,13 @@
 //! Numeric error codes returned by the Binance API across all products
 //! (spot, margin, derivatives).
 //!
-//! The codes themselves are universal — `-1021` means "invalid timestamp"
-//! whether you got it from `/api/v3/order` or `/fapi/v1/order` — so the type
-//! lives at the crate root and is re-exported from each product module
-//! (`binance::spot::ErrorCode`, `binance::margin::ErrorCode`, …).
+//! The general codes (`-1xxx`) mean the same in every product — `-1021` is
+//! "invalid timestamp" whether it came from `/api/v3/order` or
+//! `/fapi/v1/order` — so the type lives at the crate root and is re-exported
+//! from each product module (`binance::spot::ErrorCode`, ...). From `-2xxx`
+//! on some codes differ between spot and futures (e.g. `-2026` is
+//! `ORDER_ARCHIVED` on spot and `REDUCE_ONLY_ORDER_TYPE_NOT_SUPPORTED` on
+//! futures); constants outside `-1xxx` say which product they belong to.
 //!
 //! `ErrorCode` is a transparent newtype over `i64`. Use the named constants
 //! and `is_*` predicates for common cases; fall back to [`ErrorCode::raw`]
@@ -65,6 +68,11 @@ impl ErrorCode {
     pub const UNEXPECTED_RESP: Self = Self(-1006);
     pub const TIMEOUT: Self = Self(-1007);
     pub const SERVER_BUSY: Self = Self(-1008);
+    /// The matching engine returned an error; the message says which.
+    pub const ERROR_MSG_RECEIVED: Self = Self(-1010);
+    /// Rejected by the API before reaching the matching engine, typically
+    /// a filter failure (`Filter failure: PRICE_FILTER`, ...).
+    pub const INVALID_MESSAGE: Self = Self(-1013);
     pub const TOO_MANY_ORDERS: Self = Self(-1015);
     pub const SERVICE_SHUTTING_DOWN: Self = Self(-1016);
     pub const UNSUPPORTED_OPERATION: Self = Self(-1020);
@@ -91,6 +99,32 @@ impl ErrorCode {
     pub const NO_TRADING_WINDOW: Self = Self(-2016);
     pub const ORDER_AMEND_REJECTED: Self = Self(-2038);
     pub const CLIENT_ORDER_ID_INVALID: Self = Self(-2039);
+    /// Spot: canceled or expired order without fills, archived after 90
+    /// days. (Futures use -2026 for `REDUCE_ONLY_ORDER_TYPE_NOT_SUPPORTED`.)
+    pub const ORDER_ARCHIVED: Self = Self(-2026);
+
+    // Futures (USD-M / COIN-M) order errors
+
+    /// Futures: not enough balance.
+    pub const BALANCE_NOT_SUFFICIENT: Self = Self(-2018);
+    /// Futures: not enough margin.
+    pub const MARGIN_NOT_SUFFICIENT: Self = Self(-2019);
+    /// Futures: the stop order would trigger immediately. (Spot uses -2021
+    /// for a partially failed cancel-replace.)
+    pub const ORDER_WOULD_IMMEDIATELY_TRIGGER: Self = Self(-2021);
+    /// Futures: reduce-only order rejected. (Spot uses -2022 for a failed
+    /// cancel-replace.)
+    pub const REDUCE_ONLY_REJECT: Self = Self(-2022);
+    /// Futures: price is not a multiple of the tick size.
+    pub const PRICE_NOT_INCREASED_BY_TICK_SIZE: Self = Self(-4014);
+    /// Futures: duplicate client order id.
+    pub const DUPLICATED_CLIENT_ORDER_ID: Self = Self(-4116);
+    /// Futures: order notional below the symbol's minimum.
+    pub const MIN_NOTIONAL: Self = Self(-4164);
+    /// Futures: FOK order rejected (could not be filled at once).
+    pub const FOK_ORDER_REJECT: Self = Self(-5021);
+    /// Futures: post-only (GTX) order rejected (would take liquidity).
+    pub const GTX_ORDER_REJECT: Self = Self(-5022);
 }
 
 // ===== Classification methods =====
@@ -145,12 +179,12 @@ impl ErrorCode {
     }
 
     /// Request was malformed — missing/extra parameter, bad value, bad
-    /// symbol, etc. Range: -1199..=-1100.
+    /// symbol, etc. Range: -1299..=-1100 (spot documents codes up to -1225).
     ///
     /// Product-specific codes outside this range (e.g. futures -4001) are
     /// not covered; use [`Self::raw`] to handle them.
     pub fn is_bad_request(self) -> bool {
-        (-1199..=-1100).contains(&self.0)
+        (-1299..=-1100).contains(&self.0)
     }
 
     /// Rate-limit / throughput error. Caller is sending too much.
@@ -200,15 +234,20 @@ impl ErrorCode {
         self.is_server_error() || self.is_rate_limited()
     }
 
-    /// Matching engine rejected the order (filter / price / quantity rules,
+    /// The order request was rejected (filter / price / quantity rules,
     /// cancel-replace failure, amend rejected).
     ///
-    /// Covers: `NEW_ORDER_REJECTED` (-2010), `CANCEL_REJECTED` (-2011),
-    /// `ORDER_AMEND_REJECTED` (-2038).
+    /// Covers: `ERROR_MSG_RECEIVED` (-1010), `INVALID_MESSAGE` (-1013,
+    /// filter failure), `NEW_ORDER_REJECTED` (-2010), `CANCEL_REJECTED`
+    /// (-2011), `ORDER_AMEND_REJECTED` (-2038).
     pub fn is_order_rejected(self) -> bool {
         matches!(
             self,
-            Self::NEW_ORDER_REJECTED | Self::CANCEL_REJECTED | Self::ORDER_AMEND_REJECTED
+            Self::ERROR_MSG_RECEIVED
+                | Self::INVALID_MESSAGE
+                | Self::NEW_ORDER_REJECTED
+                | Self::CANCEL_REJECTED
+                | Self::ORDER_AMEND_REJECTED
         )
     }
 
@@ -260,6 +299,8 @@ mod tests {
         assert!(ErrorCode::SERVICE_SHUTTING_DOWN.is_transient());
 
         assert!(ErrorCode::NEW_ORDER_REJECTED.is_order_rejected());
+        assert!(ErrorCode::INVALID_MESSAGE.is_order_rejected());
+        assert!(ErrorCode::new(-1220).is_bad_request());
         assert!(ErrorCode::NO_SUCH_ORDER.is_no_such_order());
     }
 }

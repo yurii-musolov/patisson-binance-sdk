@@ -304,12 +304,24 @@ match client.new_order(req).await {
 Available predicates: `is_auth`, `is_invalid_timestamp`, `is_invalid_signature`,
 `is_bad_api_key_format`, `is_api_key_rejected`, `is_wrong_permissions`,
 `is_bad_request`, `is_rate_limited`, `is_server_error`, `is_transient`,
-`is_order_rejected`, `is_no_such_order`. Plus `ErrorCode::raw() -> i64` as the
+`is_order_rejected` (including `-1013` filter failures), `is_no_such_order`. Plus `ErrorCode::raw() -> i64` as the
 escape hatch for product-specific codes.
 
 A non-2xx response whose body is not a Binance error (e.g. an HTML page from
 a proxy on 502/503) surfaces as `Error::Http { status, body }`, so the HTTP
 status is never lost.
+
+On every product's `Error`:
+
+- `api_code()` returns Binance's code from an API error or a rate-limit
+  response;
+- `is_retryable()` is true when the same request may succeed if sent again
+  (network failure, 5xx, server-side code, rate limit, `-1021` after
+  `sync_time`); for orders, check `is_execution_status_unknown()` first;
+- `retry_after()` is how long to wait after a rate limit.
+
+Codes from `-2xxx` on can mean different things on spot and futures (e.g.
+`-2026`); the constants' docs say which product they belong to.
 
 ## Modules
 
