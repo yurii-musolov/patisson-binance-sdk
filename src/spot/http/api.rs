@@ -1442,15 +1442,15 @@ impl GetOpenOrdersParams {
     }
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAllOrdersParams {
     symbol: String,
-    order_id: Option<i64>,
+    pub(super) order_id: Option<i64>,
     start_time: Option<Timestamp>,
     end_time: Option<Timestamp>,
     /// Default: 500; Maximum: 1000.
-    limit: Option<u64>,
+    pub(super) limit: Option<u64>,
     /// The value cannot be greater than 60000
     recv_window: Option<u64>,
 }
@@ -1493,7 +1493,7 @@ impl GetAllOrdersParams {
     }
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountTradeListParams {
     symbol: String,
@@ -1501,9 +1501,9 @@ pub struct GetAccountTradeListParams {
     start_time: Option<Timestamp>,
     end_time: Option<Timestamp>,
     /// TradeId to fetch from. Default gets most recent trades.
-    from_id: Option<i64>,
+    pub(super) from_id: Option<i64>,
     /// Default: 500; Maximum: 1000.
-    limit: Option<u64>,
+    pub(super) limit: Option<u64>,
     /// The value cannot be greater than 60000
     recv_window: Option<u64>,
 }

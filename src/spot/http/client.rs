@@ -506,6 +506,54 @@ impl PrivateClient {
         .await
     }
 
+    /// Every order from `params.order_id` on (from the oldest when unset),
+    /// walking pages of 1000 by `orderId`; at most `max_pages` requests.
+    /// Other params (time range, ...) are passed through. Binance's own
+    /// retention limits still apply.
+    pub async fn get_all_orders_all(
+        &self,
+        params: GetAllOrdersParams,
+        max_pages: usize,
+    ) -> Result<crate::AllPages<Order>, Error> {
+        let start = params.order_id.unwrap_or(0).max(0) as u64;
+        crate::pagination::walk_by_id(
+            start,
+            max_pages,
+            |from| {
+                let mut params = params.clone();
+                params.order_id = Some(from as i64);
+                params.limit = Some(1000);
+                async move { Ok(self.get_all_orders(params).await?.result) }
+            },
+            |order: &Order| order.order_id as u64,
+        )
+        .await
+    }
+
+    /// Every trade from `params.from_id` on (from the oldest when unset),
+    /// walking pages of 1000 by `fromId`; at most `max_pages` requests.
+    /// Binance rejects `fromId` together with some other params (see the
+    /// endpoint's documentation).
+    pub async fn get_account_trade_list_all(
+        &self,
+        params: GetAccountTradeListParams,
+        max_pages: usize,
+    ) -> Result<crate::AllPages<AccountTrade>, Error> {
+        let start = params.from_id.unwrap_or(0).max(0) as u64;
+        crate::pagination::walk_by_id(
+            start,
+            max_pages,
+            |from| {
+                let mut params = params.clone();
+                params.from_id = Some(from as i64);
+                params.limit = Some(1000);
+                async move { Ok(self.get_account_trade_list(params).await?.result) }
+            },
+            |trade: &AccountTrade| trade.id as u64,
+        )
+        .await
+    }
+
     /// Get current account commission rates for a symbol.
     pub async fn get_account_commission(
         &self,
