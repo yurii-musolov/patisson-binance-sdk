@@ -7,7 +7,10 @@
 use binance::{
     spot::{
         ExecutionType, OrderStatus,
-        ws_api::{IncomingMessage, UserDataEvent},
+        ws_api::{
+            BalanceUpdate, EventStreamTerminated, ExecutionReport, ExternalLockUpdate,
+            IncomingMessage, ListStatus, OutboundAccountPosition, UserDataEvent,
+        },
     },
     ws::ReceivedMessage,
 };
@@ -30,6 +33,29 @@ fn parse(name: &str) -> IncomingMessage {
     value
 }
 
+/// `serde_ignored` can't see through the `e`-tagged `UserDataEvent` (serde
+/// buffers its content), so the strict check also parses the event struct
+/// `S` on its own; only the `e` tag may be left over.
+fn strict_event<S: serde::de::DeserializeOwned>(name: &str) -> UserDataEvent {
+    let path = format!(
+        "{}/tests/fixtures/spot_user_data/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let json: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let inner = json["event"].to_string();
+    let mut ignored = Vec::new();
+    let mut track = |path: serde_ignored::Path| ignored.push(path.to_string());
+    let de = &mut serde_json::Deserializer::from_str(&inner);
+    let _: S = serde_ignored::deserialize(de, &mut track).unwrap_or_else(|e| panic!("{name}: {e}"));
+    ignored.retain(|p| p != "e");
+    assert!(
+        ignored.is_empty(),
+        "{name}: fields not modelled: {ignored:?}"
+    );
+    event(name)
+}
+
 fn event(name: &str) -> UserDataEvent {
     match parse(name) {
         IncomingMessage::Event(message) => {
@@ -43,30 +69,30 @@ fn event(name: &str) -> UserDataEvent {
 #[test]
 fn every_documented_event_is_modelled() {
     assert!(matches!(
-        event("event_outboundAccountPosition.json"),
+        strict_event::<OutboundAccountPosition>("event_outboundAccountPosition.json"),
         UserDataEvent::OutboundAccountPosition(_)
     ));
     assert!(matches!(
-        event("event_balanceUpdate.json"),
+        strict_event::<BalanceUpdate>("event_balanceUpdate.json"),
         UserDataEvent::BalanceUpdate(_)
     ));
     assert!(matches!(
-        event("event_listStatus.json"),
+        strict_event::<ListStatus>("event_listStatus.json"),
         UserDataEvent::ListStatus(_)
     ));
     assert!(matches!(
-        event("event_eventStreamTerminated.json"),
+        strict_event::<EventStreamTerminated>("event_eventStreamTerminated.json"),
         UserDataEvent::EventStreamTerminated(_)
     ));
     assert!(matches!(
-        event("event_externalLockUpdate.json"),
+        strict_event::<ExternalLockUpdate>("event_externalLockUpdate.json"),
         UserDataEvent::ExternalLockUpdate(_)
     ));
 }
 
 #[test]
 fn execution_report_fields() {
-    match event("event_executionReport.json") {
+    match strict_event::<ExecutionReport>("event_executionReport.json") {
         UserDataEvent::ExecutionReport(report) => {
             assert_eq!(report.execution_type, ExecutionType::New);
             assert_eq!(report.order_status, OrderStatus::New);

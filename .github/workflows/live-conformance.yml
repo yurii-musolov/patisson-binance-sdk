@@ -1,0 +1,51 @@
+# Weekly check of the SDK models against Binance's live public API: every
+# response and stream event must parse without unmodelled fields. No API keys
+# are used. Futures hosts refuse the US-based GitHub runners (HTTP 451);
+# those checks print SKIP, so run the suite locally for full coverage:
+#   cargo test --features live --lib live_conformance -- --nocapture
+name: Live conformance
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+
+jobs:
+  live:
+    name: live conformance
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: Live API conformance
+        run: |
+          set -o pipefail
+          cargo test --features live --lib live_conformance -- --nocapture 2>&1 | tee live.log
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Live conformance"
+            if grep -q '^SKIP' live.log; then
+              echo "Skipped from this runner's location:"
+              echo '```'
+              grep '^SKIP' live.log
+              echo '```'
+            else
+              echo "Nothing skipped."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

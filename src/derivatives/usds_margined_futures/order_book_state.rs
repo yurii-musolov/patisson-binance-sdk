@@ -350,6 +350,8 @@ mod tests {
             previous_final_update_id: prev_u,
             bids: vec![],
             asks: vec![],
+            pair: None,
+            symbol_type: None,
         }
     }
 

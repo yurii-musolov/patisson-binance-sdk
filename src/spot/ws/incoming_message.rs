@@ -113,6 +113,9 @@ pub struct AggTradeMsg {
     /// Is the buyer the market maker?
     #[serde(rename = "m")]
     pub is_buyer_maker: bool,
+    /// Documented as "Ignore".
+    #[serde(rename = "M", default)]
+    pub ignore: bool,
 }
 
 /// The Trade Streams push raw trade information; each trade has a unique buyer and seller.
@@ -139,6 +142,9 @@ pub struct TradeMsg {
     /// Is the buyer the market maker?
     #[serde(rename = "m")]
     pub is_buyer_maker: bool,
+    /// Documented as "Ignore".
+    #[serde(rename = "M", default)]
+    pub ignore: bool,
 }
 
 /// The Kline/Candlestick Stream push updates to the current klines/candlestick every second in UTC+0 timezone
@@ -203,6 +209,9 @@ pub struct Kline {
     /// Taker buy quote asset volume
     #[serde(rename = "Q")]
     pub taker_buy_quote_asset_volume: Decimal,
+    /// Documented as "Ignore".
+    #[serde(rename = "B", default)]
+    pub ignore: Option<String>,
 }
 
 /// 24hr rolling window mini-ticker statistics. These are NOT the statistics of the UTC day, but a 24hr rolling window for the previous 24hrs.
@@ -326,6 +335,7 @@ mod tests {
             "M": true
         }"#;
         let expected = AggTradeMsg {
+            ignore: true,
             event_time: 1672515782136,
             symbol: String::from("BNBBTC"),
             trade_id: 12345,
@@ -356,6 +366,7 @@ mod tests {
             "M": true
         }"#;
         let expected = TradeMsg {
+            ignore: true,
             event_time: 1672515782136,
             symbol: String::from("BNBBTC"),
             trade_id: 12345,
@@ -401,6 +412,7 @@ mod tests {
             event_time: 1672515782136,
             symbol: symbol.clone(),
             kline: Kline {
+                ignore: Some("123456".into()),
                 start_time: 1672515780000,
                 close_time: 1672515839999,
                 symbol,

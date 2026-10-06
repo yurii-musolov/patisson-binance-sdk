@@ -139,6 +139,7 @@ pub struct SymbolInfo {
 ///
 /// Reference: <https://developers.binance.com/docs/binance-spot-api-docs/filters>
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(tag = "filterType")]
 pub enum Filter {
     #[serde(rename = "PRICE_FILTER", rename_all = "camelCase")]

@@ -391,6 +391,19 @@ This wires `core.hooksPath` to `.githooks/`, which adds:
 The pre-push hook is strict — any new clippy warning fails the push. Skip a
 single run with `--no-verify` when you have a good reason (WIP, hotfix).
 
+### Live conformance
+
+The models are also checked against Binance's live public API (no keys):
+every REST response and stream event must parse without unmodelled fields.
+
+```sh
+cargo test --features live --lib live_conformance -- --nocapture
+```
+
+The `Live conformance` workflow runs it weekly. Futures hosts refuse the
+US-based GitHub runners (HTTP 451), so there those checks print `SKIP`; run
+it locally for full coverage.
+
 ## License
 
 This project is licensed under the [MIT license](LICENSE).

@@ -336,6 +336,7 @@ mod tests {
             previous_final_update_id: prev_u,
             bids: vec![],
             asks: vec![],
+            symbol_type: None,
         }
     }
 

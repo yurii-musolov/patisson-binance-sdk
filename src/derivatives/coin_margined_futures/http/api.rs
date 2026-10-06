@@ -85,6 +85,7 @@ pub struct SymbolInfo {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(tag = "filterType")]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SymbolFilter {
@@ -100,6 +101,7 @@ pub enum SymbolFilter {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolFilterPriceFilter {
     pub min_price: Decimal,
@@ -108,6 +110,7 @@ pub struct SymbolFilterPriceFilter {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolFilterLotSize {
     pub max_qty: Decimal,
@@ -116,6 +119,7 @@ pub struct SymbolFilterLotSize {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolFilterMarketLotSize {
     pub step_size: Decimal,
@@ -124,18 +128,21 @@ pub struct SymbolFilterMarketLotSize {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolFilterMaxNumOrders {
     pub limit: i32,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolFilterMaxNumAlgoOrders {
     pub limit: i32,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolFilterPercentPrice {
     pub multiplier_decimal: Decimal,
