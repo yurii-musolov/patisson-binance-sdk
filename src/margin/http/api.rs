@@ -577,15 +577,15 @@ impl GetOpenOrdersParams {
 
 // ===== All orders =====
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAllOrdersParams {
     symbol: String,
     is_isolated: Option<IsIsolated>,
-    order_id: Option<i64>,
+    pub(super) order_id: Option<i64>,
     start_time: Option<Timestamp>,
     end_time: Option<Timestamp>,
-    limit: Option<u64>,
+    pub(super) limit: Option<u64>,
     recv_window: Option<u64>,
 }
 
@@ -630,7 +630,7 @@ impl GetAllOrdersParams {
 
 // ===== Account trade list =====
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountTradeListParams {
     symbol: String,
@@ -638,8 +638,8 @@ pub struct GetAccountTradeListParams {
     order_id: Option<i64>,
     start_time: Option<Timestamp>,
     end_time: Option<Timestamp>,
-    from_id: Option<i64>,
-    limit: Option<u64>,
+    pub(super) from_id: Option<i64>,
+    pub(super) limit: Option<u64>,
     recv_window: Option<u64>,
 }
 

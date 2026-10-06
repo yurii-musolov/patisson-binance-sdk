@@ -195,6 +195,25 @@ for change in account.apply(&event) { /* AccountChange::Balance / Order */ }
 let usdt = account.balance("USDT").map(|b| b.free);
 ```
 
+### Full history
+
+`get_all_orders_all` and `get_account_trade_list_all` (`account_trade_list_all`
+on futures) walk `allOrders` / the trade list page by page by id (spot,
+margin, USD-M, COIN-M). `max_pages` bounds the number of requests; when it
+is reached, `next_id` says where to continue.
+
+```rust
+let mut params = GetAllOrdersParams::new("BTCUSDT");
+loop {
+    let pages = client.get_all_orders_all(params.clone(), 50).await?;
+    handle(pages.items);
+    match pages.next_id {
+        Some(id) => params = params.order_id(id as i64),
+        None => break,
+    }
+}
+```
+
 ### Clock drift
 
 Signed requests fail with `-1021` when the local clock drifts from
