@@ -107,8 +107,12 @@ mod common;
 mod crypto;
 mod environment;
 mod error_code;
+#[cfg(test)]
+mod filter_conformance;
 mod http;
 mod listen_key;
+#[cfg(all(test, feature = "live"))]
+mod live_conformance;
 mod order_state;
 mod pagination;
 mod rules;

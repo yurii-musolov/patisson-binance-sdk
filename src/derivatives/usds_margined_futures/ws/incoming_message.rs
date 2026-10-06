@@ -90,6 +90,13 @@ pub struct AggTradeMsg {
     pub trade_time: Timestamp,
     #[serde(rename = "m")]
     pub is_buyer_maker: bool,
+    /// Quantity without the trades involving RPI (Retail Price Improvement)
+    /// orders.
+    #[serde(rename = "nq", default)]
+    pub normal_quantity: Option<Decimal>,
+    /// Symbol type, added after the CM migration: `1` = USD-M, `2` = COIN-M.
+    #[serde(rename = "st", default)]
+    pub symbol_type: Option<u8>,
 }
 
 #[derive(PartialEq, Deserialize, Debug)]
@@ -136,6 +143,9 @@ pub struct Kline {
     pub taker_buy_base_asset_volume: Decimal,
     #[serde(rename = "Q")]
     pub taker_buy_quote_asset_volume: Decimal,
+    /// Documented as "Ignore".
+    #[serde(rename = "B", default)]
+    pub ignore: Option<String>,
 }
 
 /// Mark price and funding rate update.
@@ -155,6 +165,12 @@ pub struct MarkPriceUpdateMsg {
     pub funding_rate: Decimal,
     #[serde(rename = "T")]
     pub next_funding_time: Timestamp,
+    /// Moving average of the mark price.
+    #[serde(rename = "ap", default)]
+    pub mark_price_moving_average: Option<Decimal>,
+    /// Symbol type, added after the CM migration: `1` = USD-M, `2` = COIN-M.
+    #[serde(rename = "st", default)]
+    pub symbol_type: Option<u8>,
 }
 
 /// Liquidation order broadcast.
@@ -207,4 +223,10 @@ pub struct DepthUpdateMsg {
     /// Asks (price + qty pairs).
     #[serde(rename = "a")]
     pub asks: Vec<OrderLevel>,
+    /// Pair symbol, added after the CM migration.
+    #[serde(rename = "ps", default)]
+    pub pair: Option<String>,
+    /// Symbol type, added after the CM migration: `1` = USD-M, `2` = COIN-M.
+    #[serde(rename = "st", default)]
+    pub symbol_type: Option<u8>,
 }

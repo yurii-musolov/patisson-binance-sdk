@@ -302,6 +302,7 @@ pub enum SecurityType {
 /// Symbol-level filters (`PRICE_FILTER`, `LOT_SIZE`, ...) live in
 /// [`crate::spot::http::Filter`].
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(tag = "filterType")]
 pub enum ExchangeFilter {
     /// Maximum number of orders an account may have open across all symbols.

@@ -92,6 +92,9 @@ pub struct AggTradeMsg {
     pub trade_time: Timestamp,
     #[serde(rename = "m")]
     pub is_buyer_maker: bool,
+    /// Symbol type, added after the CM migration: `1` = USD-M, `2` = COIN-M.
+    #[serde(rename = "st", default)]
+    pub symbol_type: Option<u8>,
 }
 
 #[derive(PartialEq, Deserialize, Debug)]
@@ -140,6 +143,9 @@ pub struct Kline {
     pub taker_buy_base_asset_volume: Decimal,
     #[serde(rename = "Q")]
     pub taker_buy_quote_asset_volume: Decimal,
+    /// Documented as "Ignore".
+    #[serde(rename = "B", default)]
+    pub ignore: Option<String>,
 }
 
 #[derive(PartialEq, Deserialize, Debug)]
@@ -171,6 +177,15 @@ pub struct MarkPriceUpdateMsg {
     /// Next funding time — only meaningful for perpetual contracts.
     #[serde(rename = "T")]
     pub next_funding_time: Option<Timestamp>,
+    /// Index price.
+    #[serde(rename = "i", default)]
+    pub index_price: Option<Decimal>,
+    /// Moving average of the mark price.
+    #[serde(rename = "ap", default)]
+    pub mark_price_moving_average: Option<Decimal>,
+    /// Symbol type, added after the CM migration: `1` = USD-M, `2` = COIN-M.
+    #[serde(rename = "st", default)]
+    pub symbol_type: Option<u8>,
 }
 
 #[derive(PartialEq, Deserialize, Debug)]
@@ -222,6 +237,9 @@ pub struct DepthUpdateMsg {
     pub bids: Vec<OrderLevel>,
     #[serde(rename = "a")]
     pub asks: Vec<OrderLevel>,
+    /// Symbol type, added after the CM migration: `1` = USD-M, `2` = COIN-M.
+    #[serde(rename = "st", default)]
+    pub symbol_type: Option<u8>,
 }
 
 #[cfg(test)]

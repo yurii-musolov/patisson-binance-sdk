@@ -57,6 +57,7 @@ pub struct ExchangeAsset {
 /// Symbol trading rule from `exchangeInfo`, tagged by `filterType`. Shapes
 /// taken from a live `/fapi/v1/exchangeInfo` response (2026-10-04).
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(tag = "filterType", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SymbolFilter {
     PriceFilter(SymbolFilterPriceFilter),
@@ -73,6 +74,7 @@ pub enum SymbolFilter {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolFilterPriceFilter {
     pub min_price: Decimal,
@@ -82,6 +84,7 @@ pub struct SymbolFilterPriceFilter {
 
 /// `LOT_SIZE` and `MARKET_LOT_SIZE`.
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolFilterLotSize {
     pub min_qty: Decimal,
@@ -91,18 +94,21 @@ pub struct SymbolFilterLotSize {
 
 /// `MAX_NUM_ORDERS` and `MAX_NUM_ALGO_ORDERS`.
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolFilterLimit {
     pub limit: u32,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolFilterMinNotional {
     pub notional: Decimal,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolFilterPercentPrice {
     pub multiplier_up: Decimal,
@@ -111,6 +117,7 @@ pub struct SymbolFilterPercentPrice {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
+#[cfg_attr(test, derive(serde::Serialize))]
 #[serde(rename_all = "camelCase")]
 pub struct SymbolFilterPositionRiskControl {
     /// `NONE` when position risk control is off.

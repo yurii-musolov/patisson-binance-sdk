@@ -154,7 +154,38 @@ fn ticker_trading_day_full_is_not_mistaken_for_mini() {
 
 mod ws {
     use super::{fixture, parse};
-    use binance::spot::ws::{IncomingMessage, StreamMessage};
+    use binance::spot::ws::{
+        AggTradeMsg, DepthUpdateMsg, IncomingMessage, KlineMsg, MiniTicker24Msg, ServerShutdownMsg,
+        StreamMessage, TradeMsg,
+    };
+    use serde::de::DeserializeOwned;
+
+    /// `serde_ignored` can't see through the `e`-tagged `StreamMessage`
+    /// (serde buffers its content), so each event struct is also parsed on
+    /// its own; only the `e` tag may be left over.
+    fn strict<T: DeserializeOwned>(name: &str) {
+        let json = fixture(name);
+        let mut ignored = Vec::new();
+        let mut track = |path: serde_ignored::Path| ignored.push(path.to_string());
+        let de = &mut serde_json::Deserializer::from_str(&json);
+        let _: T =
+            serde_ignored::deserialize(de, &mut track).unwrap_or_else(|e| panic!("{name}: {e}"));
+        ignored.retain(|p| p != "e");
+        assert!(
+            ignored.is_empty(),
+            "{name}: fields not modelled: {ignored:?}"
+        );
+    }
+
+    #[test]
+    fn documented_stream_event_fields_are_modelled() {
+        strict::<AggTradeMsg>("ws_agg_trade.json");
+        strict::<TradeMsg>("ws_trade.json");
+        strict::<KlineMsg>("ws_kline.json");
+        strict::<MiniTicker24Msg>("ws_mini_ticker.json");
+        strict::<DepthUpdateMsg>("ws_depth_update.json");
+        strict::<ServerShutdownMsg>("ws_server_shutdown.json");
+    }
 
     #[test]
     fn documented_stream_events_parse() {
