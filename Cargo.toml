@@ -30,6 +30,9 @@ default = ["rustls-tls"]
 rustls-tls = ["reqwest/rustls", "tokio-tungstenite/rustls-tls-native-roots"]
 # The platform TLS library (OpenSSL on Linux, needs libssl-dev).
 native-tls = ["reqwest/native-tls", "tokio-tungstenite/native-tls"]
+# Tests against the live public API (network, no keys):
+# `cargo test --features live --lib live_conformance`.
+live = []
 
 [dependencies]
 futures-util = { version = "0.3.34", default-features = false, features = [
