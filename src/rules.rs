@@ -49,25 +49,34 @@ pub enum Rounding {
 /// `SymbolRules { tick_size: ..., ..SymbolRules::new("BTCUSDT") }`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SymbolRules {
+    /// Symbol.
     pub symbol: String,
     /// `PRICE_FILTER`.
     pub tick_size: Option<Decimal>,
+    /// Minimum price.
     pub min_price: Option<Decimal>,
+    /// Maximum price.
     pub max_price: Option<Decimal>,
     /// `LOT_SIZE` (limit orders).
     pub step_size: Option<Decimal>,
+    /// Minimum quantity.
     pub min_qty: Option<Decimal>,
+    /// Maximum quantity.
     pub max_qty: Option<Decimal>,
     /// `MARKET_LOT_SIZE`; when absent, market orders use `LOT_SIZE`.
     pub market_step_size: Option<Decimal>,
+    /// Minimum market order quantity.
     pub market_min_qty: Option<Decimal>,
+    /// Maximum market order quantity.
     pub market_max_qty: Option<Decimal>,
     /// Spot `NOTIONAL` / `MIN_NOTIONAL`, USD-M `MIN_NOTIONAL`. COIN-M has no
     /// notional filter (its quantity is in contracts).
     pub min_notional: Option<Decimal>,
+    /// Maximum `price * qty`.
     pub max_notional: Option<Decimal>,
     /// Whether `min_notional` / `max_notional` also apply to market orders.
     pub min_notional_applies_to_market: bool,
+    /// `max_notional` also applies to market orders.
     pub max_notional_applies_to_market: bool,
 }
 
@@ -75,14 +84,62 @@ pub struct SymbolRules {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum RuleViolation {
-    PriceBelowMin { price: Decimal, min: Decimal },
-    PriceAboveMax { price: Decimal, max: Decimal },
-    PriceNotOnTick { price: Decimal, tick: Decimal },
-    QtyBelowMin { qty: Decimal, min: Decimal },
-    QtyAboveMax { qty: Decimal, max: Decimal },
-    QtyNotOnStep { qty: Decimal, step: Decimal },
-    NotionalBelowMin { notional: Decimal, min: Decimal },
-    NotionalAboveMax { notional: Decimal, max: Decimal },
+    /// Price below `PRICE_FILTER` `minPrice`.
+    PriceBelowMin {
+        /// Checked price.
+        price: Decimal,
+        /// Minimum allowed.
+        min: Decimal,
+    },
+    /// Price above `PRICE_FILTER` `maxPrice`.
+    PriceAboveMax {
+        /// Checked price.
+        price: Decimal,
+        /// Maximum allowed.
+        max: Decimal,
+    },
+    /// Price not a multiple of `tickSize`.
+    PriceNotOnTick {
+        /// Checked price.
+        price: Decimal,
+        /// Tick size.
+        tick: Decimal,
+    },
+    /// Quantity below the lot size minimum.
+    QtyBelowMin {
+        /// Checked quantity.
+        qty: Decimal,
+        /// Minimum allowed.
+        min: Decimal,
+    },
+    /// Quantity above the lot size maximum.
+    QtyAboveMax {
+        /// Checked quantity.
+        qty: Decimal,
+        /// Maximum allowed.
+        max: Decimal,
+    },
+    /// Quantity not a multiple of `stepSize`.
+    QtyNotOnStep {
+        /// Checked quantity.
+        qty: Decimal,
+        /// Step size.
+        step: Decimal,
+    },
+    /// `price * qty` below the minimum notional.
+    NotionalBelowMin {
+        /// Order notional.
+        notional: Decimal,
+        /// Minimum allowed.
+        min: Decimal,
+    },
+    /// `price * qty` above the maximum notional.
+    NotionalAboveMax {
+        /// Order notional.
+        notional: Decimal,
+        /// Maximum allowed.
+        max: Decimal,
+    },
 }
 
 impl fmt::Display for RuleViolation {
@@ -392,18 +449,22 @@ pub struct ExchangeRules {
 }
 
 impl ExchangeRules {
+    /// Rules of a symbol.
     pub fn get(&self, symbol: &str) -> Option<&SymbolRules> {
         self.symbols.get(symbol)
     }
 
+    /// Number of entries.
     pub fn len(&self) -> usize {
         self.symbols.len()
     }
 
+    /// No entries.
     pub fn is_empty(&self) -> bool {
         self.symbols.is_empty()
     }
 
+    /// Rules of every symbol.
     pub fn iter(&self) -> impl Iterator<Item = &SymbolRules> {
         self.symbols.values()
     }

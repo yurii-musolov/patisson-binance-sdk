@@ -50,6 +50,7 @@ pub struct PrivateClient {
 }
 
 impl PrivateClient {
+    /// Build a client; fails on an invalid API key header or proxy URL.
     pub fn new(cfg: PrivateConfig) -> Result<Self, Error> {
         let headers = build_private_headers(&cfg)?;
         let http = HttpClient::new(
@@ -297,6 +298,7 @@ impl PrivateClient {
         .await
     }
 
+    /// Enable fast withdraw.
     pub async fn enable_fast_withdraw_switch(
         &self,
         params: FastWithdrawSwitchParams,
@@ -312,6 +314,7 @@ impl PrivateClient {
         .await
     }
 
+    /// Disable fast withdraw.
     pub async fn disable_fast_withdraw_switch(
         &self,
         params: FastWithdrawSwitchParams,

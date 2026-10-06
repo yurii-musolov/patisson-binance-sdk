@@ -14,11 +14,17 @@ use crate::{
 /// use [`crate::spot::http::PublicClient`].
 #[derive(Debug, Clone)]
 pub struct PrivateConfig {
+    /// Base URL, e.g. from [`crate::Environment::api_url`].
     pub base_url: String,
+    /// API key, sent in the `X-MBX-APIKEY` header.
     pub api_key: SensitiveString,
+    /// API secret used to sign requests; never sent.
     pub api_secret: SensitiveString,
+    /// Extra headers sent with every request.
     pub headers: Option<HeaderMap>,
+    /// Shared client-side rate limiter; `None` sends without local limiting.
     pub rate_limiter: Option<Arc<RateLimiter>>,
+    /// Connect and whole-request timeouts.
     pub timeouts: Timeouts,
     /// Proxy for REST requests (`http://`, `https://` or `socks5://`, with
     /// optional `user:password@`); `None` uses `HTTP(S)_PROXY` / `ALL_PROXY`.
@@ -45,6 +51,7 @@ impl PrivateConfig {
         ))
     }
 
+    /// Configuration with the given base URL and credentials.
     pub fn new(
         base_url: impl Into<String>,
         api_key: SensitiveString,
@@ -63,6 +70,7 @@ impl PrivateConfig {
         }
     }
 
+    /// Extra headers sent with every request.
     pub fn headers(mut self, headers: Option<HeaderMap>) -> Self {
         if let Some(headers) = headers {
             self.headers

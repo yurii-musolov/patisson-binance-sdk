@@ -58,6 +58,7 @@ impl AsRef<str> for SensitiveString {
 }
 
 impl SensitiveString {
+    /// The secret value. Avoid logging it.
     pub fn expose(&self) -> &str {
         &self.0
     }

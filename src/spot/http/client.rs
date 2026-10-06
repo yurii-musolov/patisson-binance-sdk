@@ -86,11 +86,13 @@ fn cost_depth(limit: Option<u64>) -> Cost {
 }
 
 #[derive(Clone)]
+/// Client for the public (unsigned) REST endpoints. Cheap to clone.
 pub struct PublicClient {
     http: HttpClient,
 }
 
 impl PublicClient {
+    /// Build a client; fails on an invalid proxy URL.
     pub fn new(cfg: PublicConfig) -> Result<Self, Error> {
         let http = HttpClient::new(
             cfg.base_url,
@@ -111,11 +113,13 @@ impl PublicClient {
         decode(self.http.send_raw(req, COST_PING).await)
     }
 
+    /// Server time.
     pub async fn get_server_time(&self) -> Result<Response<ServerTime>, Error> {
         let req = self.http.request(Method::GET, Path::Time);
         decode(self.http.send_raw(req, COST_TIME).await)
     }
 
+    /// Trading rules and symbol information.
     pub async fn get_exchange_info(
         &self,
         params: GetExchangeInfoParams,
@@ -133,6 +137,7 @@ impl PublicClient {
 
 //  Market
 impl PublicClient {
+    /// Order book snapshot.
     pub async fn get_order_book(
         &self,
         params: GetOrderBookParams,
@@ -293,12 +298,14 @@ impl PublicClient {
 }
 
 #[derive(Clone)]
+/// Client for the signed REST endpoints. Cheap to clone; clones share the connection pool, rate limiter and clock offset.
 pub struct PrivateClient {
     http: HttpClient,
     api_secret: SensitiveString,
 }
 
 impl PrivateClient {
+    /// Build a client; fails on an invalid API key header or proxy URL.
     pub fn new(cfg: PrivateConfig) -> Result<Self, Error> {
         let headers = build_private_headers(&cfg)?;
         let http = HttpClient::new(

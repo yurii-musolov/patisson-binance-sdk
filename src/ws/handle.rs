@@ -4,6 +4,7 @@ use tokio::sync::mpsc;
 
 use crate::ws;
 
+/// Controls a WebSocket driver: connect, send, disconnect. Cheap to clone.
 pub struct Handle<C>
 where
     C: Serialize + Send + Debug + 'static,
@@ -28,10 +29,12 @@ impl<C> Handle<C>
 where
     C: Serialize + Send + Debug + 'static,
 {
+    /// Handle over a driver's command channel (see [`crate::ws::Stream::new`]).
     pub fn new(cmd_tx: mpsc::Sender<ws::Command<C>>) -> Self {
         Self { cmd_tx }
     }
 
+    /// Start connecting (and reconnecting on failures).
     pub async fn connect(&self) -> Result<(), ws::Error> {
         let cmd = ws::Command::Connect;
         self.cmd_tx
@@ -40,6 +43,7 @@ where
             .map_err(|_| ws::Error::DriverGone)
     }
 
+    /// Connect without waiting; fails if the command queue is full.
     pub fn try_connect(&self) -> Result<(), ws::Error> {
         let cmd = ws::Command::Connect;
         self.cmd_tx.try_send(cmd).map_err(|e| match e {
@@ -48,6 +52,7 @@ where
         })
     }
 
+    /// Close the connection and stop reconnecting.
     pub async fn disconnect(&self) -> Result<(), ws::Error> {
         let cmd = ws::Command::Disconnect;
         self.cmd_tx
@@ -56,6 +61,7 @@ where
             .map_err(|_| ws::Error::DriverGone)
     }
 
+    /// Disconnect without waiting; fails if the command queue is full.
     pub fn try_disconnect(&self) -> Result<(), ws::Error> {
         let cmd = ws::Command::Disconnect;
         self.cmd_tx.try_send(cmd).map_err(|e| match e {
@@ -86,6 +92,7 @@ where
             .map_err(|_| ws::Error::DriverGone)
     }
 
+    /// Send a message; queued until reconnected if the connection is down.
     pub async fn send_command(&self, msg: C) -> Result<(), ws::Error> {
         let cmd = ws::Command::Send(msg);
         self.cmd_tx
@@ -94,6 +101,7 @@ where
             .map_err(|_| ws::Error::DriverGone)
     }
 
+    /// Send a message without waiting; fails if the command queue is full.
     pub fn try_send_command(&self, msg: C) -> Result<(), ws::Error> {
         let cmd = ws::Command::Send(msg);
         self.cmd_tx.try_send(cmd).map_err(|e| match e {

@@ -72,6 +72,7 @@ impl Default for Inner {
 }
 
 impl OrderBookState {
+    /// Empty, unsynchronized book.
     pub fn new() -> Self {
         Self::default()
     }

@@ -62,6 +62,7 @@ pub struct PrivateClient {
 }
 
 impl PrivateClient {
+    /// Build a client; fails on an invalid API key header or proxy URL.
     pub fn new(cfg: PrivateConfig) -> Result<Self, Error> {
         let headers = build_private_headers(&cfg)?;
         let http = HttpClient::new(

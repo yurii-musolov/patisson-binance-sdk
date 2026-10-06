@@ -5,6 +5,10 @@
 //! Modelled after Binance's API specification as shipped in the official
 //! `binance-connector-rust` (5ff71b4, 2026-10-01).
 
+// Wire models: names mirror Binance's documentation field by field; they are
+// documented where the meaning isn't obvious. Full coverage comes later.
+#![allow(missing_docs)]
+
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
