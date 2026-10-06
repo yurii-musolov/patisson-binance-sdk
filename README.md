@@ -140,6 +140,24 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+### Trading rules
+
+Round prices and quantities to what a symbol accepts and check an order
+before sending it, instead of getting `-1013 Filter failure`:
+
+```rust
+use binance::{ExchangeRules, Rounding};
+
+let info = client.exchange_info(/* ... */).await?.result;
+let rules = ExchangeRules::from(&info);
+let btc = rules.get("BTCUSDT").unwrap();
+let price = btc.round_price(price, Rounding::Down);
+let qty = btc.round_qty(qty, Rounding::Down);
+btc.validate(price, qty)?; // tick, step, min/max qty and price, notional
+```
+
+Works with spot, USD-M and COIN-M `exchangeInfo`.
+
 ### Clock drift
 
 Signed requests fail with `-1021` when the local clock drifts from
