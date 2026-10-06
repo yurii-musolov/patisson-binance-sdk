@@ -13,7 +13,7 @@ This directory contains examples showcasing capabilities of the
 
 ### Spot
 
-`spot-account-information`, `spot-all-orders`, `spot-cancel-order`,
+`spot-account-information`, `spot-account-state`, `spot-all-orders`, `spot-cancel-order`,
 `spot-exchange-info`, `spot-kline`, `spot-my-trades`, `spot-open-orders`,
 `spot-order-book`, `spot-query-order`, `spot-server-time`,
 `spot-stream-public`, `spot-test-new-order`, `spot-ticker-statistics`,
