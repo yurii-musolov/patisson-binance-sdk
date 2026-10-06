@@ -18,7 +18,7 @@ Every version change must be treated as a breaking change, including minor and p
 Users are strongly advised to pin an exact version, for example:
 
 ```rs
-patisson-binance-sdk = "=0.1.12"
+patisson-binance-sdk = "=0.1.13"
 ```
 
 ### Maintenance Policy
@@ -66,7 +66,7 @@ Building blocks you would otherwise write yourself:
 
 ```toml
 [dependencies]
-patisson-binance-sdk = "=0.1.12"
+patisson-binance-sdk = "=0.1.13"
 ```
 
 > The package is `patisson-binance-sdk` (Cargo.toml); the library you import is `binance`:
