@@ -110,6 +110,42 @@ impl std::error::Error for Error {
 }
 
 impl Error {
+    /// Binance's error code, from an API error or a rate-limit response.
+    pub fn api_code(&self) -> Option<ErrorCode> {
+        match self {
+            Error::Api(error) => Some(error.code),
+            Error::RateLimited {
+                api_err: Some(error),
+                ..
+            } => Some(error.code),
+            _ => None,
+        }
+    }
+
+    /// The same request may succeed if sent again: a network failure, a
+    /// 5xx response, a server-side error code, rate limiting (after
+    /// [`Self::retry_after`]) or `-1021` (after `sync_time`).
+    ///
+    /// For order placement check [`Self::is_execution_status_unknown`]
+    /// first: the order may already exist.
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            Error::Api(error) => error.code.is_transient() || error.code.is_invalid_timestamp(),
+            Error::RateLimited { .. } => true,
+            Error::Http { status, .. } => status.is_server_error(),
+            Error::Reqwest(error) => error.is_connect() || error.is_timeout() || error.is_request(),
+            _ => false,
+        }
+    }
+
+    /// How long to wait before retrying a rate-limited request.
+    pub fn retry_after(&self) -> Option<Duration> {
+        match self {
+            Error::RateLimited { retry_after, .. } => Some(*retry_after),
+            _ => None,
+        }
+    }
+
     /// The request may have been executed by Binance even though no
     /// successful response arrived: `-1006`/`-1007` error codes, a 5xx
     /// response without an error body, or a timeout after the request was
@@ -215,5 +251,42 @@ mod tests {
         let parsed: ApiError = deserialize_json(json).unwrap();
         assert_eq!(parsed.code, ErrorCode::MANDATORY_PARAM_EMPTY_OR_MALFORMED);
         assert!(parsed.code.is_bad_request());
+    }
+
+    fn api(code: i64) -> Error {
+        Error::Api(ApiError {
+            code: ErrorCode::new(code),
+            msg: String::new(),
+        })
+    }
+
+    #[test]
+    fn api_code_and_retryability() {
+        assert_eq!(api(-2010).api_code(), Some(ErrorCode::NEW_ORDER_REJECTED));
+        assert!(!api(-2010).is_retryable(), "rejected order");
+        assert!(!api(-1102).is_retryable(), "bad request");
+        assert!(api(-1021).is_retryable(), "after a time sync");
+        assert!(api(-1008).is_retryable(), "server busy");
+
+        let limited = Error::RateLimited {
+            retry_after: Duration::from_secs(7),
+            source: RateLimitSource::Server,
+            api_err: Some(ApiError {
+                code: ErrorCode::TOO_MANY_REQUESTS,
+                msg: String::new(),
+            }),
+        };
+        assert_eq!(limited.api_code(), Some(ErrorCode::TOO_MANY_REQUESTS));
+        assert!(limited.is_retryable());
+        assert_eq!(limited.retry_after(), Some(Duration::from_secs(7)));
+
+        let http = |status: u16| Error::Http {
+            status: reqwest::StatusCode::from_u16(status).unwrap(),
+            body: String::new(),
+        };
+        assert!(http(503).is_retryable());
+        assert!(!http(404).is_retryable());
+        assert_eq!(http(503).api_code(), None);
+        assert!(!Error::Msg("x".into()).is_retryable());
     }
 }

@@ -111,6 +111,42 @@ impl std::error::Error for Error {
 }
 
 impl Error {
+    /// Binance's error code, from an API error or a rate-limit response.
+    pub fn api_code(&self) -> Option<ErrorCode> {
+        match self {
+            Error::Api(error) => Some(error.code),
+            Error::RateLimited {
+                api_err: Some(error),
+                ..
+            } => Some(error.code),
+            _ => None,
+        }
+    }
+
+    /// The same request may succeed if sent again: a network failure, a
+    /// 5xx response, a server-side error code, rate limiting (after
+    /// [`Self::retry_after`]) or `-1021` (after `sync_time`).
+    ///
+    /// For order placement check [`Self::is_execution_status_unknown`]
+    /// first: the order may already exist.
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            Error::Api(error) => error.code.is_transient() || error.code.is_invalid_timestamp(),
+            Error::RateLimited { .. } => true,
+            Error::Http { status, .. } => status.is_server_error(),
+            Error::Reqwest(error) => error.is_connect() || error.is_timeout() || error.is_request(),
+            _ => false,
+        }
+    }
+
+    /// How long to wait before retrying a rate-limited request.
+    pub fn retry_after(&self) -> Option<Duration> {
+        match self {
+            Error::RateLimited { retry_after, .. } => Some(*retry_after),
+            _ => None,
+        }
+    }
+
     /// The request may have been executed by Binance even though no
     /// successful response arrived: `-1006`/`-1007` error codes, a 5xx
     /// response without an error body, or a timeout after the request was
